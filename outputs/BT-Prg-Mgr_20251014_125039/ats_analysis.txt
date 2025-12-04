@@ -1,0 +1,37 @@
+
+========================================
+ATS OPTIMIZATION REPORT
+========================================
+
+ATS MATCH SCORE: 66.7%
+Matched Keywords: 20 / 30
+
+KEY REQUIREMENTS IDENTIFIED:
+HARD SKILLS: programme management, project management, stakeholder management, 3rd party delivery management, Agile, Waterfall, Hybrid delivery methodologies, Jira proficiency, Scrum Master certification, Product Owner certification, data products and platforms, cloud-based data infrastructure and governance, telecom domain experience, data migration
+
+SOFT SKILLS: leadership, influencing, problem solving, negotiation, decision-making, communication, coaching, continuous improvement, collaboration
+
+QUALIFICATIONS: experience in programme & project management of end-to-end technology deliveries, managed multiple concurrent technology projects, managing matrixed geographically diverse teams, managed stakeholders to ‘MD’ level, proficiency in Jira, programme and project management qualification
+
+CRITICAL KEYWORDS: Senior Programme Manager, Data and AI, London or Belfast, hybrid working model, programme delivery, planning, governance, problem management, financial management, stakeholder management, Agile, Waterfall, Hybrid, Jira, Scrum Master, Product Owner, data products, cloud domain knowledge, telecom domain experience, data migration
+
+TOP KEYWORDS FROM JOB DESCRIPTION:
+data, delivery, management, role, our, experience, programme, how, teams, team, project, future, business, managed, across
+
+MISSING KEYWORDS (Consider adding):
+our, future, managed, best, job, domain, other, end, technology, about
+
+RECOMMENDATIONS:
+⚠️  Good coverage, but consider adding more of the missing keywords.
+
+ATS-FRIENDLY FORMATTING CHECKLIST:
+☐ Simple section headers (EXPERIENCE, SKILLS, EDUCATION)
+☐ No tables or complex layouts
+☐ Standard bullet points
+☐ Plain text compatible
+☐ Key skills listed prominently
+☐ Dates in standard format (Month Year)
+☐ No headers/footers/text boxes
+☐ Includes relevant keywords naturally
+
+========================================

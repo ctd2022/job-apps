@@ -1,0 +1,26 @@
+[Your Name]  
+[Your Address]  
+[City, State, Zip Code]  
+[Email Address]  
+[Phone Number]  
+[Date]
+
+Hiring Manager  
+BT Group  
+London, England
+
+Dear Hiring Manager,
+
+I am writing to express my interest in the Senior Programme Manager (Data and AI) position at BT Group. With a robust background in programme management across diverse sectors and specific experience in technology delivery, I am excited about the opportunity to lead complex data projects within your dynamic team. My expertise aligns well with BT’s vision for transforming how data drives decisions and enhances customer experiences.
+
+One of my most significant achievements was leading the development of a rapid delivery methodology that enabled our company to capture client business requirements effectively and deliver solutions via a low-code platform, significantly enhancing collaboration between internal teams. This initiative not only accelerated project timelines but also ensured high-quality outcomes, contributing to an annual revenue generation exceeding £5 million from key clients. Additionally, I successfully managed the transition of our organization into the low-code space, empowering non-technical stakeholders and reducing reliance on development resources.
+
+BT Group’s commitment to innovation in data platforms resonates deeply with my passion for leveraging Lean methodologies and continuous improvement within technology projects. My experience spans managing hybrid delivery methods (Agile and Waterfall) and third-party engagements, which I believe will be instrumental in driving the strategic initiatives of BT's Data and AI team. Moreover, my proficiency in Jira and stakeholder management at MD-level positions has equipped me to navigate complex project landscapes effectively.
+
+I am particularly drawn to this role because it offers a unique opportunity to contribute to BT’s ambitious goals in transforming data usage across various departments. My leadership style is characterized by inclusivity, integrity, and a focus on delivering value for our customers and the wider business. I am eager to bring my blend of technical expertise and strategic vision to your team, fostering an environment where innovation thrives.
+
+Thank you for considering my application. I look forward to the possibility of discussing how my background, skills, and experiences align with BT Group’s mission and objectives. Please feel free to contact me at [Your Phone Number] or via email at [Your Email Address].
+
+Sincerely,
+
+[Your Name]

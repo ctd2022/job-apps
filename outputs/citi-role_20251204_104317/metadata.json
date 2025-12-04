@@ -1,0 +1,8 @@
+{
+  "job_description": "inputs\\job_descriptions\\citi-role.txt",
+  "company_name": null,
+  "timestamp": "20251204_104317",
+  "model_used": "qwen2.5:32b",
+  "ats_optimized": true,
+  "ats_score": 53.3
+}

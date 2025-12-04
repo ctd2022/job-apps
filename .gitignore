@@ -1,0 +1,20 @@
+﻿# Virtual Environment
+venv/
+.venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE specific files
+.vscode/
+.idea/
+
+# Other common build/temp files
+dist/
+build/
+*.log

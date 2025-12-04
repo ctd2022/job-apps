@@ -1,0 +1,222 @@
+{
+  "personal": {
+    "name": "",
+    "title": "",
+    "email": "",
+    "phone": "",
+    "address": "",
+    "location": {
+      "city": "",
+      "county": "",
+      "country": ""
+    },
+    "links": {
+      "linkedin": "",
+      "github": "",
+      "website": null,
+      "twitter": null
+    }
+  },
+  "summary": {
+    "short": "",
+    "long": "",
+    "variants": {
+      "technical": "",
+      "leadership": "",
+      "programme_management": ""
+    }
+  },
+  "experience": [
+    {
+      "title": "",
+      "company": "",
+      "location": "",
+      "start_date": "",
+      "end_date": null,
+      "is_current": false,
+      "duration_years": 0,
+      "relevance_tags": [],
+      "priority": "high",
+      "include_in": ["cv", "linkedin", "website"],
+      "company_description": "",
+      "responsibilities": [],
+      "achievements": [
+        {
+          "text": "",
+          "tags": [],
+          "highlight": false,
+          "quantified": false,
+          "include_in": ["cv", "linkedin"]
+        }
+      ],
+      "technologies": [],
+      "team_size": null,
+      "budget_managed": null
+    }
+  ],
+  "education": [
+    {
+      "degree": "",
+      "field": "",
+      "institution": "",
+      "location": "",
+      "graduation_date": "",
+      "grade": null,
+      "honours": null,
+      "include_in": ["cv", "linkedin", "website"],
+      "thesis_title": null,
+      "notable_modules": []
+    }
+  ],
+  "skills": {
+    "technical": {
+      "languages": [],
+      "frameworks": [],
+      "tools": [],
+      "cloud": [],
+      "databases": [],
+      "methodologies": []
+    },
+    "programme_management": [],
+    "soft_skills": [],
+    "industries": []
+  },
+  "certifications": [
+    {
+      "name": "",
+      "issuer": "",
+      "date_issued": "",
+      "expiry_date": null,
+      "credential_id": null,
+      "credential_url": null,
+      "status": "active",
+      "priority": "high",
+      "include_in": ["cv", "linkedin", "website"],
+      "tags": []
+    }
+  ],
+  "cpd": [
+    {
+      "type": "course",
+      "title": "",
+      "provider": "",
+      "date_completed": "",
+      "duration_hours": null,
+      "certificate_url": null,
+      "grade": null,
+      "key_learnings": [],
+      "include_in": ["linkedin", "website"],
+      "tags": []
+    }
+  ],
+  "projects": [
+    {
+      "title": "",
+      "description": "",
+      "role": "",
+      "start_date": "",
+      "end_date": "",
+      "status": "completed",
+      "context": "professional",
+      "achievements": [],
+      "technologies": [],
+      "team_size": null,
+      "budget": null,
+      "priority": "high",
+      "include_in": ["cv", "linkedin", "website"],
+      "tags": [],
+      "links": {
+        "github": null,
+        "live": null,
+        "case_study": null
+      }
+    }
+  ],
+  "publications": [
+    {
+      "title": "",
+      "type": "article",
+      "publisher": "",
+      "publication_date": "",
+      "url": null,
+      "description": "",
+      "include_in": ["linkedin", "website"],
+      "tags": []
+    }
+  ],
+  "speaking": [
+    {
+      "event_name": "",
+      "title": "",
+      "date": "",
+      "location": "",
+      "type": "conference",
+      "audience_size": null,
+      "recording_url": null,
+      "slides_url": null,
+      "description": "",
+      "include_in": ["linkedin", "website"],
+      "tags": []
+    }
+  ],
+  "volunteering": [
+    {
+      "role": "",
+      "organisation": "",
+      "start_date": "",
+      "end_date": null,
+      "is_current": false,
+      "description": "",
+      "achievements": [],
+      "include_in": ["linkedin", "website"],
+      "tags": []
+    }
+  ],
+  "languages": [
+    {
+      "language": "",
+      "proficiency": "",
+      "include_in": ["cv", "linkedin"]
+    }
+  ],
+  "awards": [
+    {
+      "title": "",
+      "issuer": "",
+      "date": "",
+      "description": "",
+      "include_in": ["cv", "linkedin", "website"]
+    }
+  ],
+  "professional_memberships": [
+    {
+      "organisation": "",
+      "membership_type": "",
+      "start_date": "",
+      "end_date": null,
+      "is_current": true,
+      "member_id": null,
+      "include_in": ["cv", "linkedin"]
+    }
+  ],
+  "metadata": {
+    "last_updated": "",
+    "version": "001v1",
+    "date_created": "",
+    "tags_dictionary": {
+      "ai": "Artificial Intelligence",
+      "ml": "Machine Learning",
+      "programme_management": "Programme Management",
+      "digital_transformation": "Digital Transformation",
+      "leadership": "Leadership",
+      "agile": "Agile",
+      "prince2": "PRINCE2"
+    },
+    "output_preferences": {
+      "cv_max_pages": 2,
+      "cv_date_format": "MMM YYYY",
+      "linkedin_summary_length": "long",
+      "emphasise_recent_years": 5
+    }
+  }
+}
