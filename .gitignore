@@ -2,6 +2,10 @@
 venv/
 .venv/
 
+# Project Data Folders (Add these two new lines)
+inputs/
+outputs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
