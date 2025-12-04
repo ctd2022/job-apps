@@ -1,8 +1,0 @@
-{
-  "job_description": "inputs\\job_descriptions\\BT-Prg-Mgr.txt",
-  "company_name": "BT Group",
-  "timestamp": "20251014_125039",
-  "model_used": "qwen2.5:32b",
-  "ats_optimized": true,
-  "ats_score": 66.7
-}

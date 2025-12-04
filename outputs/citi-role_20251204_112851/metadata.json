@@ -1,9 +1,0 @@
-{
-  "job_description": "inputs\\job_descriptions\\citi-role.txt",
-  "company_name": "Citi",
-  "timestamp": "20251204_112851",
-  "backend_type": "llamacpp",
-  "backend_name": "Llama.cpp Server (gemma-3-27B)",
-  "ats_optimized": true,
-  "ats_score": 53.3
-}
