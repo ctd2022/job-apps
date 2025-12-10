@@ -11,33 +11,105 @@ from llm_backend import LLMBackend
 
 
 class ATSOptimizer:
-    def __init__(self, backend: LLMBackend = None, model_name: str = None):
+    def __init__(self, backend: LLMBackend = None, model_name: str = None, company_name: str = None):
         """
         Initialize with an LLM backend
         
         Args:
             backend: LLMBackend instance (Ollama, Llama.cpp, or Gemini)
             model_name: Legacy parameter for backward compatibility (ignored if backend provided)
+            company_name: Company name to exclude from keyword matching
         """
         self.backend = backend
         self.model_name = model_name  # Store for legacy compatibility
+        self.company_name = company_name
         
-        # Common ATS stopwords to exclude
-        self.stopwords = {
+        # Base ATS stopwords (articles, prepositions, common verbs)
+        self.base_stopwords = {
             'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
             'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'be',
             'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
             'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this',
-            'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they'
+            'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+            'us', 'them', 'what', 'which', 'who', 'when', 'where', 'why', 'how',
+            'all', 'each', 'every', 'both', 'few', 'more', 'most', 'some', 'such'
         }
+        
+        # Job posting UI/navigation words (common across job sites)
+        self.ui_stopwords = {
+            'apply', 'job', 'save', 'show', 'view', 'click', 'here', 'read',
+            'more', 'less', 'back', 'next', 'previous', 'search', 'filter',
+            'sort', 'share', 'print', 'email', 'download', 'upload', 'submit',
+            'send', 'post', 'date', 'ago', 'day', 'week', 'month', 'year',
+            'new', 'updated', 'end', 'start', 'while', 'during', 'about',
+            'our', 'your', 'their', 'its', 'my'
+        }
+        
+        # Initialize dynamic stopwords
+        self.dynamic_stopwords = set()
+        if company_name:
+            self._add_company_variations(company_name)
     
-    def extract_keywords(self, text):
+    def _add_company_variations(self, company_name: str):
+        """Add company name variations to stopwords"""
+        # Add lowercase company name
+        self.dynamic_stopwords.add(company_name.lower())
+        
+        # Add individual words if multi-word company name
+        for word in company_name.lower().split():
+            if len(word) > 2:  # Skip very short words
+                self.dynamic_stopwords.add(word)
+        
+        # Add common company suffixes to exclude
+        company_suffixes = {
+            'ltd', 'limited', 'inc', 'incorporated', 'corp', 'corporation',
+            'llc', 'plc', 'group', 'holdings', 'company', 'co'
+        }
+        self.dynamic_stopwords.update(company_suffixes)
+    
+    def _extract_company_from_text(self, job_description: str):
+        """Extract likely company name from job description if not provided"""
+        # Simple extraction - look for common patterns
+        # This is a fallback if company name not provided via CLI
+        
+        # Pattern 1: "Company: XYZ" or "Organization: XYZ"
+        import re
+        patterns = [
+            r'(?:company|organization|employer):\s*([A-Z][A-Za-z\s&]+?)(?:\n|\.|,)',
+            r'(?:join|at)\s+([A-Z][A-Za-z\s&]+?)\s+(?:as|in|for)',
+            r'^([A-Z][A-Za-z\s&]+?)\s+is\s+(?:seeking|looking|hiring)'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, job_description, re.MULTILINE | re.IGNORECASE)
+            if match:
+                company = match.group(1).strip()
+                # Validate it's not too long (probably not a company name)
+                if len(company.split()) <= 4:
+                    return company
+        
+        return None
+    
+    def get_all_stopwords(self):
+        """Get combined set of all stopwords"""
+        return self.base_stopwords | self.ui_stopwords | self.dynamic_stopwords
+    
+    def extract_keywords(self, text, auto_detect_company=True):
         """Extract important keywords from job description"""
+        # Auto-detect company name if not provided and requested
+        if auto_detect_company and not self.company_name:
+            detected_company = self._extract_company_from_text(text)
+            if detected_company:
+                self._add_company_variations(detected_company)
+        
         # Convert to lowercase and split into words
         words = re.findall(r'\b[a-z]{3,}\b', text.lower())
         
+        # Get all stopwords (base + UI + dynamic)
+        all_stopwords = self.get_all_stopwords()
+        
         # Remove stopwords
-        keywords = [w for w in words if w not in self.stopwords]
+        keywords = [w for w in words if w not in all_stopwords]
         
         # Count frequency
         keyword_freq = Counter(keywords)
@@ -242,4 +314,3 @@ This module will be integrated into the main workflow.
 
 if __name__ == "__main__":
     main()
-    

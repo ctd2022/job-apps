@@ -44,9 +44,11 @@ class JobApplicationWorkflow:
         
         self.base_dir = Path(".")
         self.enable_ats = enable_ats
+        self.company_name = None  # Will be set during processing
         
         if enable_ats:
-            self.ats_optimizer = ATSOptimizer(backend=self.backend)
+            # Note: company_name will be passed later during processing
+            self.ats_optimizer = None
         
         self.setup_directories()
         
@@ -200,6 +202,13 @@ For each question, provide a clear, specific answer based on the CV experience."
         base_cv = self.read_cv(cv_path)
         job_description = self.read_text_file(job_desc_path)
         profile_content = self.read_text_file(profile_path) if profile_path else None
+        
+        # Initialize ATS optimizer with company name if enabled
+        if ats_mode and self.enable_ats:
+            self.ats_optimizer = ATSOptimizer(
+                backend=self.backend,
+                company_name=company_name
+            )
         
         # ATS Analysis (if enabled)
         ats_report = None
