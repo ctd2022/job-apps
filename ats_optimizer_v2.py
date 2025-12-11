@@ -255,6 +255,14 @@ Generate the complete CV now:"""
         print("\n📊 Calculating ATS match score...")
         ats_score = self.calculate_ats_score(cv_text, job_description, key_requirements)
         
+        # Build matched/missing keyword breakdown
+        all_keywords_breakdown = []
+        for keyword in ats_score['top_job_keywords']:
+            if keyword in ats_score['missing_keywords']:
+                all_keywords_breakdown.append(f"❌ {keyword}")
+            else:
+                all_keywords_breakdown.append(f"✅ {keyword}")
+        
         # Format report
         report = f"""
 ========================================
@@ -263,12 +271,21 @@ ATS OPTIMIZATION REPORT
 
 ATS MATCH SCORE: {ats_score['score']}%
 Matched Keywords: {ats_score['matched']} / {ats_score['total']}
-
+"""
+        
+        # Add company exclusion note if applicable
+        if self.company_name:
+            report += f"\nCompany excluded from analysis: {self.company_name}\n"
+        
+        report += f"""
 KEY REQUIREMENTS IDENTIFIED:
 {key_requirements}
 
-TOP KEYWORDS FROM JOB DESCRIPTION:
-{', '.join(ats_score['top_job_keywords'])}
+ALL TOP {ats_score['total']} KEYWORDS (✅ = in your CV, ❌ = missing):
+{chr(10).join(all_keywords_breakdown)}
+
+TOP MATCHED KEYWORDS:
+{', '.join([k for k in ats_score['top_job_keywords'] if k not in ats_score['missing_keywords']][:10])}
 
 MISSING KEYWORDS (Consider adding):
 {', '.join(ats_score['missing_keywords'])}
@@ -314,3 +331,4 @@ This module will be integrated into the main workflow.
 
 if __name__ == "__main__":
     main()
+    
