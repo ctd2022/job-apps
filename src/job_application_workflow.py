@@ -12,7 +12,7 @@ from datetime import datetime
 import PyPDF2
 from docx import Document
 from llm_backend import LLMBackendFactory, LLMBackend
-from ats_optimizer_v2 import ATSOptimizer
+from ats_optimizer import ATSOptimizer
 
 
 class JobApplicationWorkflow:

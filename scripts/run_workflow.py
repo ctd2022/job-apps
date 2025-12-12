@@ -4,10 +4,15 @@ Simple CLI interface for the job application workflow
 Now supports multiple LLM backends: Ollama, Llama.cpp, Gemini
 """
 
+import sys
+from pathlib import Path
+
+# Add src directory to Python path
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
 import argparse
 import os
-from pathlib import Path
-from job_application_workflow_v2 import JobApplicationWorkflow
+from job_application_workflow import JobApplicationWorkflow
 
 
 def main():
