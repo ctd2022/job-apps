@@ -153,38 +153,140 @@ notepad ats_analysis_ollama.txt
 
 ## ⚙️ Backend Options
 
-### **Ollama (Local - Default)**
+You can choose between **3 LLM backends** - each with different trade-offs:
+
+### **Option 1: Ollama (Local - Default)** ⭐ RECOMMENDED
+
+**Use when:** You want privacy, no API costs, and have a GPU
+
 ```powershell
---backend ollama --ollama-model llama3.2:3b
+python scripts\run_workflow.py `
+  --cv inputs\davidcv.txt `
+  --job inputs\job_descriptions\role.txt `
+  --company "Company Name" `
+  --backend ollama `
+  --ollama-model llama3.2:3b
 ```
-- ✅ 100% private
+
+**Available models:**
+```powershell
+--ollama-model llama3.2:3b    # Fast (2-3 min), good quality
+--ollama-model llama3.1:8b    # Balanced (4-5 min), good quality
+--ollama-model qwen2.5:32b    # Slow (7-8 min), BEST quality ⭐
+```
+
+**Pros:**
+- ✅ 100% private (data never leaves your machine)
 - ✅ No API costs
 - ✅ Fast with small models
-- ❌ Requires local GPU
+- ✅ Multiple models to choose from
 
-### **Llama.cpp (Local - Custom Models)**
+**Cons:**
+- ❌ Requires local GPU (~8-16GB VRAM)
+
+---
+
+### **Option 2: Llama.cpp (Local - Custom GGUF Models)**
+
+**Use when:** You want to use custom GGUF models or have specific performance needs
+
 ```powershell
-# Terminal 1: Start server
-llama-server.exe -m path\to\model.gguf -ngl 50 -c 8192
+# Terminal 1: Start llama.cpp server
+llama-server.exe `
+  -m "C:\path\to\your\model.gguf" `
+  -ngl 50 `
+  -c 8192
 
 # Terminal 2: Run workflow
---backend llamacpp
+python scripts\run_workflow.py `
+  --cv inputs\davidcv.txt `
+  --job inputs\job_descriptions\role.txt `
+  --company "Company Name" `
+  --backend llamacpp `
+  --llamacpp-url http://localhost:8080 `
+  --llamacpp-model "gemma-3-27B"
 ```
+
+**Pros:**
 - ✅ Use any GGUF model
-- ✅ Fine-tuned control
-- ❌ Requires manual server start
+- ✅ Fine-tuned control over inference parameters
+- ✅ Can quantize models for better performance
 
-### **Gemini (Cloud - Fast)**
+**Cons:**
+- ❌ Requires manual server start/stop
+- ❌ More complex setup
+
+---
+
+### **Option 3: Gemini (Cloud - Google API)**
+
+**Use when:** You want speed, no local GPU, or batch processing
+
 ```powershell
-# Set API key
-$env:GEMINI_API_KEY = "your-key"
+# One-time: Set API key (get from https://aistudio.google.com)
+$env:GEMINI_API_KEY = "your-api-key-here"
 
---backend gemini
+# Run workflow
+python scripts\run_workflow.py `
+  --cv inputs\davidcv.txt `
+  --job inputs\job_descriptions\role.txt `
+  --company "Company Name" `
+  --backend gemini `
+  --gemini-model gemini-1.5-pro
 ```
+
+**Available models:**
+```powershell
+--gemini-model gemini-1.5-pro     # Best quality, slower
+--gemini-model gemini-1.5-flash   # Faster, good quality
+```
+
+**Pros:**
 - ✅ Very fast (2-3 min)
 - ✅ No local GPU needed
-- ❌ Requires API key
-- ❌ Rate limited (free tier)
+- ✅ Works on any computer
+- ✅ Excellent quality
+
+**Cons:**
+- ❌ Requires API key (free tier available)
+- ❌ Rate limited (10 requests/min on free tier)
+- ❌ Data sent to Google (not 100% private)
+
+---
+
+### **Quick Comparison Table:**
+
+| Backend | Speed | Quality | Privacy | Cost | GPU Needed |
+|---------|-------|---------|---------|------|------------|
+| **Ollama (llama3.2:3b)** | ⚡⚡⚡ | ⭐⭐⭐ | 🔒 100% | Free | Yes (2GB) |
+| **Ollama (qwen2.5:32b)** | 🐢 | ⭐⭐⭐⭐⭐ | 🔒 100% | Free | Yes (16GB) |
+| **Llama.cpp** | ⚡⚡ | ⭐⭐⭐⭐ | 🔒 100% | Free | Yes (varies) |
+| **Gemini** | ⚡⚡⚡⚡ | ⭐⭐⭐⭐ | ⚠️ Cloud | Free tier | No |
+
+---
+
+### **Switching Backends:**
+
+**Easy!** Just change the `--backend` flag:
+
+```powershell
+# Try with Ollama (fast model)
+python scripts\run_workflow.py --cv cv.txt --job job.txt --backend ollama --ollama-model llama3.2:3b
+
+# Try with Gemini (cloud)
+python scripts\run_workflow.py --cv cv.txt --job job.txt --backend gemini
+
+# Try with Llama.cpp (custom model)
+python scripts\run_workflow.py --cv cv.txt --job job.txt --backend llamacpp
+```
+
+**Outputs are labeled** so you can compare:
+```
+outputs/
+├── job-role_OLLAMA_20241213_101500/   ← Ollama version
+├── job-role_GEMINI_20241213_102000/   ← Gemini version
+└── job-role_LLAMACPP_20241213_103000/ ← Llama.cpp version
+```
 
 ---
 
