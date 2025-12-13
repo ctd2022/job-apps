@@ -52,7 +52,7 @@ class JobApplicationWorkflow:
         
         self.setup_directories()
         
-        print(f"🤖 Using backend: {self.backend.get_backend_name()}")
+        print(f"Using backend: {self.backend.get_backend_name()}")
     
     def setup_directories(self):
         """Create necessary folder structure"""
@@ -99,7 +99,7 @@ class JobApplicationWorkflow:
             'content': prompt
         })
         
-        print(f"🤖 Processing with {self.backend.get_backend_name()}...")
+        print(f"Processing with {self.backend.get_backend_name()}...")
         
         # Set defaults
         max_tokens = kwargs.get('max_tokens', 16384)
@@ -149,7 +149,9 @@ IMPORTANT: Output the COMPLETE tailored CV in markdown format. Include ALL secti
     def generate_cover_letter(self, base_cv, job_description, company_name="the company"):
         """Generate a tailored cover letter"""
         
-        system_message = """You are an expert at writing compelling, personalized cover letters that are professional yet engaging."""
+        system_message = """You are an expert at writing compelling, personalized cover letters that are professional yet engaging.
+
+CRITICAL: Write ONLY the cover letter itself. Do not include any meta-commentary, explanations about the letter, or statements like "This cover letter is tailored..." or "This letter highlights...". End naturally with a professional closing (Sincerely, Best regards, etc.) and signature."""
         
         prompt = f"""Based on this CV:
 {base_cv}
@@ -164,7 +166,12 @@ Write a professional cover letter for {company_name}. The letter should:
 4. Explain why the candidate is a great fit
 5. Be engaging and personal, not generic
 
-IMPORTANT: Write the COMPLETE cover letter from opening to closing signature. Do not truncate or stop mid-sentence. Include all paragraphs."""
+IMPORTANT: 
+- Write the COMPLETE cover letter from opening to closing signature
+- Do not truncate or stop mid-sentence
+- Include all paragraphs
+- Do NOT add any meta-commentary about the letter or explanations of what the letter does
+- End with a natural closing (e.g., "Sincerely,") followed by the candidate's name"""
 
         return self.call_llm(prompt, system_message)
     
@@ -191,14 +198,14 @@ For each question, provide a clear, specific answer based on the CV experience."
         """Complete workflow for one job application"""
         
         print("\n" + "="*60)
-        print("🚀 Starting Job Application Workflow")
-        print(f"🤖 Backend: {self.backend.get_backend_name()}")
+        print("Starting Job Application Workflow")
+        print(f"Backend: {self.backend.get_backend_name()}")
         if ats_mode and self.enable_ats:
-            print("🎯 ATS OPTIMIZATION MODE: ENABLED")
+            print("ATS OPTIMIZATION MODE: ENABLED")
         print("="*60)
         
         # Read inputs
-        print("\n📄 Reading input files...")
+        print("\nReading input files...")
         base_cv = self.read_cv(cv_path)
         job_description = self.read_text_file(job_desc_path)
         profile_content = self.read_text_file(profile_path) if profile_path else None
@@ -216,30 +223,30 @@ For each question, provide a clear, specific answer based on the CV experience."
         ats_score = None
         
         if ats_mode and self.enable_ats:
-            print("\n🔍 Running ATS optimization analysis...")
+            print("\nRunning ATS optimization analysis...")
             ats_report, key_requirements, ats_score = self.ats_optimizer.generate_ats_report(
                 base_cv, job_description
             )
             print(ats_report)
             
             # Generate ATS-optimized CV
-            print("\n✍️  Generating ATS-optimized CV...")
+            print("\nGenerating ATS-optimized CV...")
             tailored_cv = self.ats_optimizer.generate_ats_optimized_cv(
                 base_cv, job_description, key_requirements
             )
         else:
             # Generate outputs (standard mode)
-            print("\n✍️  Generating tailored CV...")
+            print("\nGenerating tailored CV...")
             tailored_cv = self.tailor_cv(base_cv, job_description, profile_content)
         
-        print("\n✍️  Generating cover letter...")
+        print("\nGenerating cover letter...")
         cover_letter = self.generate_cover_letter(base_cv, job_description, 
                                                   company_name or "the company")
         
         # Optional: Answer custom questions
         answers = None
         if custom_questions:
-            print("\n✍️  Answering application questions...")
+            print("\nAnswering application questions...")
             answers = self.answer_application_questions(base_cv, job_description, 
                                                        custom_questions)
         
@@ -250,7 +257,7 @@ For each question, provide a clear, specific answer based on the CV experience."
         output_dir = self.base_dir / "outputs" / f"{job_name}_{backend_label}_{timestamp}"
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        print(f"\n💾 Saving outputs to: {output_dir}")
+        print(f"\nSaving outputs to: {output_dir}")
         
         # Save tailored CV with backend label
         cv_filename = f"tailored_cv_{backend_label.lower()}.md"
@@ -261,6 +268,43 @@ For each question, provide a clear, specific answer based on the CV experience."
         letter_filename = f"cover_letter_{backend_label.lower()}.txt"
         with open(output_dir / letter_filename, 'w', encoding='utf-8') as f:
             f.write(cover_letter)
+        
+        # Generate DOCX versions (ATS-optimized professional format)
+        try:
+            print("\nGenerating professional DOCX files...")
+            
+            # Import docx_templates module
+            import sys
+            from pathlib import Path as PathLib
+            docx_templates_path = PathLib(__file__).parent
+            if str(docx_templates_path) not in sys.path:
+                sys.path.insert(0, str(docx_templates_path))
+            
+            from docx_templates import generate_cv_docx_node, generate_cover_letter_docx_node
+            
+            # Generate CV DOCX
+            cv_docx_filename = f"tailored_cv_{backend_label.lower()}.docx"
+            cv_docx_path = str(output_dir / cv_docx_filename)
+            generate_cv_docx_node(tailored_cv, cv_docx_path)
+            
+            # Generate Cover Letter DOCX
+            # Extract applicant name from CV for signature
+            applicant_name = data.get('name') if 'data' in locals() else None
+            if not applicant_name:
+                # Try to extract from markdown CV
+                import re
+                name_match = re.search(r'^#\s+(.+)$', tailored_cv, re.MULTILINE)
+                applicant_name = name_match.group(1) if name_match else None
+            
+            letter_docx_filename = f"cover_letter_{backend_label.lower()}.docx"
+            letter_docx_path = str(output_dir / letter_docx_filename)
+            generate_cover_letter_docx_node(cover_letter, letter_docx_path, applicant_name)
+            
+            print("Professional DOCX files generated successfully")
+            
+        except Exception as e:
+            print(f"Warning: Could not generate DOCX files: {str(e)}")
+            print("   Markdown/text versions are still available")
         
         # Save ATS report if generated with backend label
         if ats_report:
@@ -290,14 +334,28 @@ For each question, provide a clear, specific answer based on the CV experience."
         with open(output_dir / "metadata.json", 'w') as f:
             json.dump(metadata, f, indent=2)
         
-        print("\n✅ Complete! Generated files:")
-        print(f"   - {output_dir / cv_filename}")
-        print(f"   - {output_dir / letter_filename}")
+        
+        print("\nComplete! Generated files:")
+        print(f"   Markdown CV: {output_dir / cv_filename}")
+        print(f"   Text Cover Letter: {output_dir / letter_filename}")
+        
+        # Check if DOCX files were created
+        cv_docx_exists = (output_dir / f"tailored_cv_{backend_label.lower()}.docx").exists()
+        letter_docx_exists = (output_dir / f"cover_letter_{backend_label.lower()}.docx").exists()
+        
+        if cv_docx_exists:
+            print(f"   DOCX CV (ATS-optimized): {output_dir / f'tailored_cv_{backend_label.lower()}.docx'}")
+        if letter_docx_exists:
+            print(f"   DOCX Cover Letter: {output_dir / f'cover_letter_{backend_label.lower()}.docx'}")
+        
         if ats_report:
-            print(f"   - {output_dir / ats_filename}")
-            print(f"\n📊 ATS MATCH SCORE: {ats_score['score']}%")
+            print(f"   ATS Analysis: {output_dir / ats_filename}")
+            print(f"\nATS MATCH SCORE: {ats_score['score']}%")
         if answers:
-            print(f"   - {output_dir / answers_filename}")
+            print(f"   Application Answers: {output_dir / answers_filename}")
+        
+        if cv_docx_exists or letter_docx_exists:
+            print("\nTip: Use the .docx files for submission - they're ATS-optimized and ready to go!")
         
         return output_dir
 
@@ -306,9 +364,9 @@ def main():
     """Example usage"""
     
     print("""
-╔════════════════════════════════════════════════════════════╗
-║     Local Job Application Workflow - Multi-Backend         ║
-╚════════════════════════════════════════════════════════════╝
+================================================================================
+     Local Job Application Workflow - Multi-Backend
+================================================================================
 
 Supports three LLM backends:
 1. Ollama (local models)
