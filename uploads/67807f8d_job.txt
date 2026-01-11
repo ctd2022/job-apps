@@ -1,0 +1,48 @@
+About the job
+Job Description
+
+Elevate your career by steering multi-faceted tech programs, integrating innovative solutions for a dynamic impact across global operations.
+
+As a Principal Technical Program Manager in AI/ML Data Platforms, you will lead complex, multi-functional programmes focused on the AI/ML Data Platform. You will take end-to-end responsibility for release and delivery management, cross-team coordination, and environment/platform enablement across multiple engineering, data, and product teams. Leveraging advanced analytical reasoning and strong technical fluency, you will break down business, technical, and operational objectives into executable plans, mitigate risk, and drive change through ambiguity. This role operates through influence and programme governance, ensuring that data-driven and AI/ML products are delivered reliably, securely, and at enterprise-grade quality via scalable, automated, and repeatable delivery pipelines.
+
+Job Responsibilities
+
+Lead and coordinate releases across multiple engineering, data, and product teams; establish scalable, repeatable release management processes.
+Drive alignment across teams to ensure timely, predictable, and high-quality delivery; manage dependencies, timelines, and risks.
+Own delivery planning and operational governance; maintain clear stakeholder communications for complex, multi-team initiatives.
+Act as the central point of coordination across application development, data engineering, product, infrastructure, and platform teams.
+Facilitate cross-team collaboration to remove blockers, streamline end-to-end delivery workflows, and define decision-making procedures for beneficial outcomes.
+Oversee environment provisioning, new environment builds, and lifecycle management (pilot env) for data/AI/ML platform workloads.
+Partner with Infrastructure and DevOps teams to ensure environment stability, availability, security, and scalability; champion environment governance and configuration management.
+Guide the selection and implementation of appropriate technologies, platforms, and software tools; leverage vendor product knowledge and coordinate vendor relationships.
+Influence architecture, platform design, development practices, and product roadmaps to align with firm strategic goals.
+Drive process optimisation and automation across testing, CI/CD, environment provisioning, and delivery workflows to improve efficiency, speed, and product quality.
+
+Required Qualifications, Capabilities, And Skills
+
+Experience (or equivalent expertise) in technical program management leading complex technology programmes in large enterprises.
+Proven track record managing multi-team release cycles and delivery pipelines; strong proficiency in dependency management, risk management, and programme governance.
+Hands-on or oversight experience with environment build management: provisioning, configuration, lifecycle management; Infrastructure-as-Code preferred.
+Strong cross-functional leadership and communication skills; demonstrated ability to influence senior stakeholders across product, data, infrastructure, and business functions.
+Advanced analytical reasoning and problem-solving skills to break down business, technical, and operational objectives into executable plans.
+Experience coordinating across application development, product management, infrastructure, and DevOps; ability to lead through change in high-pressure, shifting environments.
+Familiarity with data engineering and AI/ML platforms: data pipelines, model development and deployment processes, data quality, platform orchestration, and data governance.
+Proficiency with enterprise product/project management tools (e.g., Jira, Monday.com, Azure DevOps, Confluence) for planning, roadmapping, tracking, and reporting; use of specific third-party tools must align with firm-approved solutions.
+
+Preferred Qualifications, Capabilities, And Skills
+
+Experience in financial services or other regulated industries, including compliance, security, and data privacy considerations.
+Knowledge of modern data architectures: data lakes, data warehouses, streaming and batch pipelines; familiarity with big data tools such as Spark, Kafka, and Airflow.
+Experience with MLOps, model governance, data governance, test data management, and environment orchestration for data/ML workloads.
+Prior experience building or overseeing AI/ML data platforms or large-scale data infrastructure emphasising reliability, scalability, and performance.
+Comfort operating in a fast-paced, evolving technical landscape with a track record of driving innovation and continuous improvement.
+
+About Us
+
+J.P. Morgan is a global leader in financial services, providing strategic advice and products to the world’s most prominent corporations, governments, wealthy individuals and institutional investors. Our first-class business in a first-class way approach to serving clients drives everything we do. We strive to build trusted, long-term partnerships to help our clients achieve their business objectives.
+
+We recognize that our people are our strength and the diverse talents they bring to our global workforce are directly linked to our success. We are an equal opportunity employer and place a high value on diversity and inclusion at our company. We do not discriminate on the basis of any protected attribute, including race, religion, color, national origin, gender, sexual orientation, gender identity, gender expression, age, marital or veteran status, pregnancy or disability, or any other basis protected under applicable law. We also make reasonable accommodations for applicants’ and employees’ religious practices and beliefs, as well as mental health or physical disability needs. Visit our FAQs for more information about requesting an accommodation.
+
+About The Team
+
+Our professionals in our Corporate Functions cover a diverse range of areas from finance and risk to human resources and marketing. Our corporate teams are an essential part of our company, ensuring that we’re setting our businesses, clients, customers and employees up for success.

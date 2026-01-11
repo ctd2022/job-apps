@@ -1,0 +1,55 @@
+Technical Program Manager, Generative AI Prototyping
+
+About the job
+Snapshot
+
+Google DeepMind is at the forefront of developing groundbreaking Artificial Intelligence (AI) technologies. Compelling and creative technical prototypes are crucial for showcasing the capabilities of these advanced Generative AI models to a wide audience as part of our go-to-market (GTM) strategy. As a Technical Program Manager on the Generative AI Prototyping team, supporting our GTM efforts, you will be directly responsible for driving the planning, execution, and delivery of high-impact technical prototypes that effectively communicate the power and potential of our Generative AI models. This role demands a blend of technical expertise, project management skills, and a strong creative vision.
+
+About Us
+
+Artificial Intelligence could be one of humanity’s most useful inventions. At Google DeepMind, we’re a team of scientists, engineers, machine learning experts and more, working together to advance the state of the art in artificial intelligence. We use our technologies for widespread public benefit and scientific discovery, and collaborate with others on critical challenges, ensuring safety and ethics are the highest priority.
+
+The role
+
+As a Technical Program Manager for Generative AI Prototyping, you will be the driving force behind the creation of impactful and innovative technical prototypes that showcase Google DeepMind's advanced Generative AI models. This role requires a unique blend of technical understanding, project management expertise, and creative problem-solving. You will work closely with research scientists, engineers, and product marketing teams to translate complex AI capabilities into engaging and accessible prototypes. You will manage the entire prototype lifecycle, from ideation and scoping to development, testing, and iteration. You are a proactive problem-solver, comfortable with ambiguity, and passionate about bringing cutting-edge Generative AI technologies to life through compelling and insightful prototypes.
+
+Key responsibilities:
+
+Prototype Planning & Execution: Lead the planning and execution of technical prototype projects, including defining scope, timelines, milestones, and deliverables.
+Technical Requirements Gathering: Collaborate with research and engineering teams to understand the technical capabilities of Generative AI models and translate them into prototype requirements.
+Prototype Design & Development: Work closely with engineers and designers to develop engaging, informative, and visually compelling prototypes, ensuring they effectively communicate the key features and benefits of the models.
+Cross-Functional Collaboration: Act as a key liaison between research, engineering, product marketing, and other stakeholders, ensuring alignment on prototype objectives and execution.
+Project Management: Manage all aspects of prototype projects, including timelines, budgets, resources, and risks.
+Testing & Iteration: Ensure that prototypes are thoroughly tested, gather feedback, and iterate on designs based on findings.
+Communication & Reporting: Provide regular updates to stakeholders on prototype progress, risks, and issues.
+Process Improvement: Continuously identify and implement improvements to the prototype development process.
+Prototype Concept Ideation: Actively participate in brainstorming sessions and contribute innovative ideas for prototype concepts that effectively and creatively showcase the capabilities of our models.
+Team Support: Provide proactive support to the team, especially when working with external partners.
+
+About You
+
+In order to set you up for success as a Technical Program Manager at Google DeepMind, we look for the following skills and experience:
+
+Bachelor's degree in a technical field (Computer Science, Engineering, or related), or equivalent practical experience. A technical background is essential for understanding the intricacies of Generative AI models and translating them into effective prototypes.
+5+ years of experience as a Technical Program Manager, Project Manager, or in a similar role involving the coordination and management of technical projects, with a strong preference for experience in developing technical prototypes.
+Proven ability to manage complex projects with multiple stakeholders and dependencies, delivering results on time and within budget.
+Strong understanding of Artificial Intelligence (AI) concepts. Familiarity with advanced Generative AI models is highly desirable.
+Excellent communication, interpersonal, and presentation skills. Able to effectively communicate technical information to both technical and non-technical audiences.
+Strong organizational skills and attention to detail.
+Ability to thrive in a fast-paced, dynamic, and ambiguous environment.
+Proven ability to proactively identify and solve problems, demonstrating resourcefulness and creativity. Demonstrated ability to think creatively and develop innovative solutions.
+
+In addition, the following would be an advantage:
+
+Experience developing technical prototypes for AI products or technologies.
+Experience with front-end development or UI/UX design. A strong sense of visual aesthetics is a plus.
+Experience working with product marketing teams.
+Familiarity with computing platforms (e.g., Google Cloud Platform).
+Experience with different project management approaches and a demonstrated ability to adapt to evolving project requirements.
+
+Application deadline: September 19, 2025
+
+Note: In the event your application is successful and an offer of employment is made to you, any offer of employment will be conditional on the results of a background check, performed by a third party acting on our behalf. For more information on how we handle your data, please see our Applicant and Candidate Privacy Policy
+
+At Google DeepMind, we value diversity of experience, knowledge, backgrounds and perspectives and harness these qualities to create extraordinary impact. We are committed to equal employment opportunity regardless of sex, race, religion or belief, ethnic or national origin, disability, age, citizenship, marital, domestic or civil partnership status, sexual orientation, gender identity, pregnancy, or related condition (including breastfeeding) or any other basis as protected by applicable law. If you have a disability or additional need that requires accommodation, please do not hesitate to let us know.
+
