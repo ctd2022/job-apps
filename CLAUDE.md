@@ -94,7 +94,8 @@ job_applications/
 └── docs/
     └── journal/             ← Progress history
         ├── PROJECT_DIARY_006.md  (Track 2 Week 2 - Frontend)
-        └── PROJECT_DIARY_007.md  (Claude Code adoption)
+        ├── PROJECT_DIARY_007.md  (Claude Code adoption)
+        └── PROJECT_DIARY_008.md  (Track 2 Week 3 - WebSocket)
 ```
 
 ---
@@ -134,6 +135,7 @@ job_applications/
 |--------|----------|---------|
 | POST | `/api/jobs` | Create new job |
 | GET | `/api/jobs/{id}` | Get job status |
+| WS | `/api/ws/jobs/{id}` | WebSocket for real-time progress |
 | GET | `/api/backends` | List available LLM backends |
 | GET | `/api/applications` | List past applications |
 | GET | `/api/health` | Health check |
@@ -207,6 +209,11 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ### Ollama not responding
 - Run `ollama list` to check models
 - Run `ollama serve` if not running
+
+### Unicode/Emoji errors on Windows
+- Windows console uses cp1252 encoding, can't display emojis
+- Use text labels like `[OK]`, `[WARN]` instead of emojis in print statements
+- Already fixed in `backend/main.py` and `src/ats_optimizer.py`
 
 ---
 
