@@ -12,7 +12,7 @@ import {
   ChevronDown,
   Sparkles
 } from 'lucide-react';
-import { getBackends, createJob, pollJobUntilComplete, getJobFiles, getJobFileUrl } from '../api';
+import { getBackends, createJob, subscribeToJobWithFallback, getJobFiles, getJobFileUrl } from '../api';
 import type { Backend, Job, OutputFile } from '../types';
 
 function NewApplication() {
@@ -66,17 +66,29 @@ function NewApplication() {
     }
   }
   
+  // Store cleanup function for WebSocket
+  const [wsCleanup, setWsCleanup] = useState<(() => void) | null>(null);
+
+  // Cleanup WebSocket on unmount
+  useEffect(() => {
+    return () => {
+      if (wsCleanup) {
+        wsCleanup();
+      }
+    };
+  }, [wsCleanup]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    
+
     if (!cvFile || !jobFile) {
       setError('Please upload both CV and job description files');
       return;
     }
-    
+
     setSubmitting(true);
     setError(null);
-    
+
     try {
       // Create job
       const job = await createJob({
@@ -87,21 +99,46 @@ function NewApplication() {
         model: selectedModel || undefined,
         enable_ats: enableAts,
       });
-      
+
       setCurrentJob(job);
-      
-      // Poll for completion
-      const completedJob = await pollJobUntilComplete(job.id, (updatedJob) => {
-        setCurrentJob(updatedJob);
-      });
-      
-      setCurrentJob(completedJob);
-      
-      // Load output files
-      if (completedJob.status === 'completed') {
-        const files = await getJobFiles(completedJob.id);
-        setOutputFiles(files);
-      }
+
+      // Subscribe to job progress via WebSocket (with polling fallback)
+      const cleanup = subscribeToJobWithFallback(
+        job.id,
+        // onProgress - update UI with progress
+        (updatedJob) => {
+          setCurrentJob(updatedJob);
+        },
+        // onComplete - load output files
+        async (completedJob) => {
+          setCurrentJob(completedJob);
+          setSubmitting(false);
+          if (completedJob.status === 'completed') {
+            try {
+              const files = await getJobFiles(completedJob.id);
+              setOutputFiles(files);
+            } catch (err) {
+              console.error('Failed to load output files:', err);
+            }
+          }
+        },
+        // onError - handle failure
+        (err) => {
+          console.error('Job processing error:', err);
+          let errorMessage = 'Failed to process application';
+          if (typeof err === 'string') {
+            errorMessage = err;
+          } else if (err?.message) {
+            errorMessage = err.message;
+          }
+          setError(errorMessage);
+          setCurrentJob(prev => prev ? { ...prev, status: 'failed' } : null);
+          setSubmitting(false);
+        }
+      );
+
+      setWsCleanup(() => cleanup);
+
     } catch (err: any) {
       console.error('Job creation error:', err);
       // Handle various error formats
@@ -117,7 +154,6 @@ function NewApplication() {
       }
       setError(errorMessage);
       setCurrentJob(prev => prev ? { ...prev, status: 'failed' } : null);
-    } finally {
       setSubmitting(false);
     }
   }

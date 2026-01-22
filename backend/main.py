@@ -15,10 +15,10 @@ import shutil
 import asyncio
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Set
 from enum import Enum
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -47,10 +47,10 @@ try:
     from job_application_workflow import JobApplicationWorkflow
     from llm_backend import LLMBackendFactory
     WORKFLOW_AVAILABLE = True
-    print(f"✅ Successfully imported workflow modules from {SRC_DIR}")
+    print(f"[OK] Successfully imported workflow modules from {SRC_DIR}")
 except ImportError as e:
     WORKFLOW_AVAILABLE = False
-    print(f"⚠️ Warning: Could not import workflow modules: {e}")
+    print(f"[WARN] Could not import workflow modules: {e}")
     print(f"   Looked in: {SRC_DIR}")
     print("   Some endpoints will not work until this is fixed.")
 
@@ -238,6 +238,54 @@ job_store = JobStore()
 
 
 # ============================================================================
+# WebSocket Connection Manager
+# ============================================================================
+
+class ConnectionManager:
+    """Manages WebSocket connections for real-time job progress updates"""
+
+    def __init__(self):
+        # Map of job_id -> list of WebSocket connections
+        self.active_connections: Dict[str, List[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, job_id: str):
+        """Accept a new WebSocket connection for a job"""
+        await websocket.accept()
+        if job_id not in self.active_connections:
+            self.active_connections[job_id] = []
+        self.active_connections[job_id].append(websocket)
+        print(f"WebSocket connected for job {job_id}. Total connections: {len(self.active_connections[job_id])}")
+
+    def disconnect(self, websocket: WebSocket, job_id: str):
+        """Remove a WebSocket connection"""
+        if job_id in self.active_connections:
+            if websocket in self.active_connections[job_id]:
+                self.active_connections[job_id].remove(websocket)
+            if not self.active_connections[job_id]:
+                del self.active_connections[job_id]
+        print(f"WebSocket disconnected for job {job_id}")
+
+    async def broadcast_job_update(self, job_id: str, data: Dict[str, Any]):
+        """Send job update to all connected clients for this job"""
+        if job_id in self.active_connections:
+            disconnected = []
+            for connection in self.active_connections[job_id]:
+                try:
+                    await connection.send_json(data)
+                except Exception as e:
+                    print(f"Error sending to WebSocket: {e}")
+                    disconnected.append(connection)
+
+            # Clean up disconnected clients
+            for conn in disconnected:
+                self.disconnect(conn, job_id)
+
+
+# Global connection manager instance
+ws_manager = ConnectionManager()
+
+
+# ============================================================================
 # FastAPI Application
 # ============================================================================
 
@@ -261,6 +309,13 @@ app.add_middleware(
 # Background Task: Process Job Application
 # ============================================================================
 
+async def update_job_and_broadcast(job_id: str, **kwargs):
+    """Helper to update job status and broadcast via WebSocket"""
+    job = job_store.update_job(job_id, **kwargs)
+    await ws_manager.broadcast_job_update(job_id, job)
+    return job
+
+
 async def process_job_application(
     job_id: str,
     cv_path: str,
@@ -273,12 +328,12 @@ async def process_job_application(
 ):
     """
     Background task to process a job application.
-    Updates job_store with progress as it runs.
+    Updates job_store with progress and broadcasts via WebSocket.
     """
     
     # Check if workflow is available
     if not WORKFLOW_AVAILABLE:
-        job_store.update_job(
+        await update_job_and_broadcast(
             job_id,
             status=JobStatus.failed,
             progress=0,
@@ -290,7 +345,7 @@ async def process_job_application(
     
     try:
         # Update status: Starting
-        job_store.update_job(
+        await update_job_and_broadcast(
             job_id,
             status=JobStatus.processing,
             progress=5,
@@ -308,7 +363,7 @@ async def process_job_application(
             enable_ats=enable_ats
         )
         
-        job_store.update_job(
+        await update_job_and_broadcast(
             job_id,
             progress=10,
             current_step="Reading input files",
@@ -320,7 +375,7 @@ async def process_job_application(
         base_cv = workflow.read_cv(cv_path)
         job_description = workflow.read_text_file(job_desc_path)
         
-        job_store.update_job(
+        await update_job_and_broadcast(
             job_id,
             progress=15,
             current_step="Analyzing job description",
@@ -340,7 +395,7 @@ async def process_job_application(
                 company_name=company_name
             )
             
-            job_store.update_job(
+            await update_job_and_broadcast(
                 job_id,
                 progress=25,
                 current_step="Running ATS analysis",
@@ -352,7 +407,7 @@ async def process_job_application(
                 base_cv, job_description
             )
             
-            job_store.update_job(
+            await update_job_and_broadcast(
                 job_id,
                 progress=40,
                 current_step="Generating ATS-optimized CV",
@@ -365,7 +420,7 @@ async def process_job_application(
                 base_cv, job_description, key_requirements
             )
         else:
-            job_store.update_job(
+            await update_job_and_broadcast(
                 job_id,
                 progress=40,
                 current_step="Generating tailored CV",
@@ -375,7 +430,7 @@ async def process_job_application(
             
             tailored_cv = workflow.tailor_cv(base_cv, job_description)
         
-        job_store.update_job(
+        await update_job_and_broadcast(
             job_id,
             progress=60,
             current_step="Generating cover letter",
@@ -390,7 +445,7 @@ async def process_job_application(
         # Answer custom questions if provided
         answers = None
         if custom_questions:
-            job_store.update_job(
+            await update_job_and_broadcast(
                 job_id,
                 progress=75,
                 current_step="Answering application questions",
@@ -402,7 +457,7 @@ async def process_job_application(
                 base_cv, job_description, custom_questions
             )
         
-        job_store.update_job(
+        await update_job_and_broadcast(
             job_id,
             progress=85,
             current_step="Saving outputs",
@@ -469,7 +524,7 @@ async def process_job_application(
         
         # Try to generate DOCX files (optional - requires docx_templates)
         try:
-            job_store.update_job(
+            await update_job_and_broadcast(
                 job_id,
                 progress=92,
                 current_step="Generating DOCX files",
@@ -505,7 +560,7 @@ async def process_job_application(
             print(f"Warning: DOCX generation failed: {e}")
         
         # Mark as complete
-        job_store.update_job(
+        await update_job_and_broadcast(
             job_id,
             status=JobStatus.completed,
             progress=100,
@@ -519,9 +574,9 @@ async def process_job_application(
         import traceback
         error_details = traceback.format_exc()
         print(f"Error processing job {job_id}: {error_details}")
-        
+
         # Mark as failed
-        job_store.update_job(
+        await update_job_and_broadcast(
             job_id,
             status=JobStatus.failed,
             progress=0,
@@ -872,8 +927,50 @@ async def list_applications(limit: int = 50):
     
     # Sort by timestamp (newest first)
     applications.sort(key=lambda x: x["timestamp"], reverse=True)
-    
+
     return {"applications": applications[:limit], "total": len(applications)}
+
+
+# ============================================================================
+# WebSocket Endpoint for Real-Time Job Progress
+# ============================================================================
+
+@app.websocket("/api/ws/jobs/{job_id}")
+async def websocket_job_progress(websocket: WebSocket, job_id: str):
+    """
+    WebSocket endpoint for real-time job progress updates.
+
+    Connect to this endpoint after creating a job to receive live updates
+    instead of polling the REST API.
+    """
+    await ws_manager.connect(websocket, job_id)
+
+    try:
+        # Send current job status immediately on connection
+        job = job_store.get_job(job_id)
+        if job:
+            await websocket.send_json(job)
+        else:
+            await websocket.send_json({"error": f"Job {job_id} not found"})
+
+        # Keep connection alive and listen for client messages
+        # (mainly just to detect disconnection)
+        while True:
+            try:
+                # Wait for any message from client (ping/keep-alive)
+                data = await websocket.receive_text()
+                # Echo back current status if client sends "status"
+                if data == "status":
+                    job = job_store.get_job(job_id)
+                    if job:
+                        await websocket.send_json(job)
+            except WebSocketDisconnect:
+                break
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        ws_manager.disconnect(websocket, job_id)
 
 
 # ============================================================================

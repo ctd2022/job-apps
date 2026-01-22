@@ -249,19 +249,19 @@ Generate the complete CV now:"""
     def generate_ats_report(self, cv_text, job_description):
         """Generate a comprehensive ATS analysis report"""
         
-        print("\n🔍 Analyzing job description for ATS requirements...")
+        print("\n[ATS] Analyzing job description for ATS requirements...")
         key_requirements = self.identify_key_requirements(job_description)
-        
-        print("\n📊 Calculating ATS match score...")
+
+        print("\n[ATS] Calculating ATS match score...")
         ats_score = self.calculate_ats_score(cv_text, job_description, key_requirements)
         
         # Build matched/missing keyword breakdown
         all_keywords_breakdown = []
         for keyword in ats_score['top_job_keywords']:
             if keyword in ats_score['missing_keywords']:
-                all_keywords_breakdown.append(f"❌ {keyword}")
+                all_keywords_breakdown.append(f"[MISSING] {keyword}")
             else:
-                all_keywords_breakdown.append(f"✅ {keyword}")
+                all_keywords_breakdown.append(f"[MATCH] {keyword}")
         
         # Format report
         report = f"""
@@ -281,7 +281,7 @@ Matched Keywords: {ats_score['matched']} / {ats_score['total']}
 KEY REQUIREMENTS IDENTIFIED:
 {key_requirements}
 
-ALL TOP {ats_score['total']} KEYWORDS (✅ = in your CV, ❌ = missing):
+ALL TOP {ats_score['total']} KEYWORDS ([MATCH] = in your CV, [MISSING] = missing):
 {chr(10).join(all_keywords_breakdown)}
 
 TOP MATCHED KEYWORDS:
@@ -294,11 +294,11 @@ RECOMMENDATIONS:
 """
         
         if ats_score['score'] >= 80:
-            report += "✅ Excellent! Your CV has strong keyword coverage.\n"
+            report += "[EXCELLENT] Your CV has strong keyword coverage.\n"
         elif ats_score['score'] >= 60:
-            report += "⚠️  Good coverage, but consider adding more of the missing keywords.\n"
+            report += "[GOOD] Good coverage, but consider adding more of the missing keywords.\n"
         else:
-            report += "❌ Low match score. Strongly recommend incorporating more keywords from the job description.\n"
+            report += "[LOW] Low match score. Strongly recommend incorporating more keywords from the job description.\n"
         
         report += """
 ATS-FRIENDLY FORMATTING CHECKLIST:

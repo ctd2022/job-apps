@@ -105,7 +105,14 @@ export async function deleteJob(id: string): Promise<void> {
 
 export async function getJobFiles(id: string): Promise<OutputFile[]> {
   const response = await fetch(`${API_BASE}/jobs/${id}/files`);
-  return handleResponse(response);
+  const data = await handleResponse<any>(response);
+  // Normalize: backend sends {files: [...]} with 'filename', frontend expects 'name'
+  const files = data?.files || data || [];
+  return files.map((f: any) => ({
+    name: f.filename || f.name,
+    size: f.size || 0,
+    type: f.type || 'other',
+  }));
 }
 
 export function getJobFileUrl(jobId: string, fileName: string): string {
@@ -118,7 +125,7 @@ export async function getApplications(): Promise<Application[]> {
   return handleResponse(response);
 }
 
-// Utility: Poll job status until complete
+// Utility: Poll job status until complete (fallback for when WebSocket fails)
 export async function pollJobUntilComplete(
   jobId: string,
   onProgress?: (job: Job) => void,
@@ -128,11 +135,11 @@ export async function pollJobUntilComplete(
     const poll = async () => {
       try {
         const job = await getJob(jobId);
-        
+
         if (onProgress) {
           onProgress(job);
         }
-        
+
         if (job.status === 'completed') {
           resolve(job);
         } else if (job.status === 'failed') {
@@ -144,9 +151,117 @@ export async function pollJobUntilComplete(
         reject(error);
       }
     };
-    
+
     poll();
   });
+}
+
+// WebSocket: Subscribe to real-time job progress updates
+export function subscribeToJobProgress(
+  jobId: string,
+  onProgress: (job: Job) => void,
+  onComplete: (job: Job) => void,
+  onError: (error: Error) => void
+): () => void {
+  // Determine WebSocket URL based on current location
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsHost = window.location.host;
+  const wsUrl = `${wsProtocol}//${wsHost}/api/ws/jobs/${jobId}`;
+
+  console.log(`Connecting to WebSocket: ${wsUrl}`);
+  const ws = new WebSocket(wsUrl);
+
+  let isCompleted = false;
+
+  ws.onopen = () => {
+    console.log(`WebSocket connected for job ${jobId}`);
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+
+      // Check for error response
+      if (data.error) {
+        onError(new Error(data.error));
+        ws.close();
+        return;
+      }
+
+      // Normalize the job data
+      const job = normalizeJob(data);
+      onProgress(job);
+
+      if (job.status === 'completed') {
+        isCompleted = true;
+        onComplete(job);
+        ws.close();
+      } else if (job.status === 'failed') {
+        onError(new Error(job.error || 'Job failed'));
+        ws.close();
+      }
+    } catch (err) {
+      console.error('Error parsing WebSocket message:', err);
+    }
+  };
+
+  ws.onerror = (event) => {
+    console.error('WebSocket error:', event);
+    if (!isCompleted) {
+      onError(new Error('WebSocket connection error'));
+    }
+  };
+
+  ws.onclose = (event) => {
+    console.log(`WebSocket closed for job ${jobId}:`, event.code, event.reason);
+  };
+
+  // Return cleanup function
+  return () => {
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      ws.close();
+    }
+  };
+}
+
+// Utility: Subscribe to job with automatic fallback to polling
+export function subscribeToJobWithFallback(
+  jobId: string,
+  onProgress: (job: Job) => void,
+  onComplete: (job: Job) => void,
+  onError: (error: Error) => void
+): () => void {
+  let cleanup: (() => void) | null = null;
+  let fallbackToPolling = false;
+
+  // Try WebSocket first
+  const wsCleanup = subscribeToJobProgress(
+    jobId,
+    onProgress,
+    onComplete,
+    (error) => {
+      // If WebSocket fails and we haven't fallen back yet, try polling
+      if (!fallbackToPolling) {
+        fallbackToPolling = true;
+        console.log('WebSocket failed, falling back to polling:', error.message);
+
+        // Start polling
+        pollJobUntilComplete(jobId, onProgress)
+          .then(onComplete)
+          .catch(onError);
+      } else {
+        onError(error);
+      }
+    }
+  );
+
+  cleanup = wsCleanup;
+
+  return () => {
+    if (cleanup) {
+      cleanup();
+    }
+  };
 }
 
 export { ApiError };
