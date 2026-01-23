@@ -37,7 +37,7 @@ class JobApplicationWorkflow:
         elif backend_type == "llamacpp" and 'model_name' not in self.backend_config:
             self.backend_config['model_name'] = 'gemma-3-27B'
         elif backend_type == "gemini" and 'model_name' not in self.backend_config:
-            self.backend_config['model_name'] = 'gemini-1.5-pro'
+            self.backend_config['model_name'] = 'gemini-2.0-flash'
         
         # Create backend
         self.backend = LLMBackendFactory.create_backend(backend_type, **self.backend_config)

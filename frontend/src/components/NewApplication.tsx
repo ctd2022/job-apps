@@ -1,19 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Upload, 
-  FileText, 
-  Building2, 
-  Server, 
-  Loader2, 
+import {
+  Upload,
+  FileText,
+  Building2,
+  Server,
+  Loader2,
   CheckCircle,
   XCircle,
   AlertCircle,
   ChevronDown,
   Sparkles
 } from 'lucide-react';
-import { getBackends, createJob, subscribeToJobWithFallback, getJobFiles, getJobFileUrl } from '../api';
+import { getBackends, createJob, subscribeToJobWithFallback, getJobFiles } from '../api';
 import type { Backend, Job, OutputFile } from '../types';
+import FilePreview from './FilePreview';
 
 function NewApplication() {
   const navigate = useNavigate();
@@ -219,29 +220,10 @@ function NewApplication() {
             </div>
           )}
           
-          {/* Output Files */}
+          {/* Output Files with Preview */}
           <div className="px-6 py-4">
             <h3 className="text-sm font-medium text-gray-500 mb-3">Generated Files</h3>
-            <div className="space-y-2">
-              {outputFiles.map(file => (
-                <a
-                  key={file.name}
-                  href={getJobFileUrl(currentJob.id, file.name)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <FileText className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="font-medium text-gray-900">{file.name}</p>
-                      <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
-                    </div>
-                  </div>
-                  <span className="text-indigo-600 text-sm font-medium">Download →</span>
-                </a>
-              ))}
-            </div>
+            <FilePreview jobId={currentJob.id} files={outputFiles} />
           </div>
           
           <div className="px-6 py-4 bg-gray-50 flex space-x-3">

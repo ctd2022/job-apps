@@ -4,7 +4,7 @@
 
 **Job Application Workflow** - AI-powered tool that generates tailored CVs, cover letters, and ATS analysis for job applications.
 
-**Current Status**: Track 2 Week 3 (Polish & WebSockets)
+**Current Status**: Track 2 COMPLETE - Validation Phase
 
 ---
 
@@ -100,18 +100,27 @@ job_applications/
 
 ---
 
-## Current Status: Track 2 Week 3
+## Current Status: Track 2 COMPLETE
 
 ### Completed
 - [x] Track 1: CLI workflow (production ready)
 - [x] Track 2 Week 1: FastAPI backend
 - [x] Track 2 Week 2: React frontend (end-to-end working)
+- [x] Track 2 Week 3: Polish & WebSockets - COMPLETE (23 Jan 2026)
+  - [x] WebSocket integration for real-time progress
+  - [x] File preview in browser (markdown rendering)
+  - [x] Error boundaries and loading states
+  - [x] All three backends tested (Ollama, Llama.cpp, Gemini)
 
-### In Progress (Week 3)
-- [x] WebSocket integration for real-time progress (replace polling) - DONE
-- [ ] File preview in browser (markdown rendering)
-- [ ] Error boundaries and loading states
-- [ ] Test with all three backends (Ollama, Llama.cpp, Gemini)
+### Next Phase: Validation
+- [ ] Use web UI for 10-20 real job applications
+- [ ] Track success metrics (interviews, responses)
+- [ ] Decide on Track 3 (SaaS) based on results
+
+### Deferred Enhancements
+- [ ] Llama.cpp model selection (scan GGUF files from models directory)
+- [ ] SQLite for persistent job history
+- [ ] Profile management features
 
 ---
 
@@ -120,12 +129,13 @@ job_applications/
 | File | Purpose |
 |------|---------|
 | `MASTER_VISION.md` | Strategic direction and roadmap |
-| `docs/journal/PROJECT_DIARY_006.md` | Track 2 Week 2 details |
-| `docs/journal/PROJECT_DIARY_007.md` | Claude Code adoption decision |
 | `docs/journal/PROJECT_DIARY_008.md` | Track 2 Week 3 - WebSocket integration |
+| `docs/journal/PROJECT_DIARY_009.md` | Track 2 Complete - File preview, backends tested |
 | `backend/main.py` | API endpoints |
 | `frontend/src/api.ts` | Frontend API client |
 | `frontend/src/components/NewApplication.tsx` | Job submission UI |
+| `frontend/src/components/FilePreview.tsx` | File preview with markdown |
+| `.env` | API keys (GEMINI_API_KEY) |
 
 ---
 
@@ -135,6 +145,9 @@ job_applications/
 |--------|----------|---------|
 | POST | `/api/jobs` | Create new job |
 | GET | `/api/jobs/{id}` | Get job status |
+| GET | `/api/jobs/{id}/files` | List output files |
+| GET | `/api/jobs/{id}/files/{name}` | Download file |
+| GET | `/api/jobs/{id}/files/{name}/content` | Get file content for preview |
 | WS | `/api/ws/jobs/{id}` | WebSocket for real-time progress |
 | GET | `/api/backends` | List available LLM backends |
 | GET | `/api/applications` | List past applications |
@@ -217,5 +230,25 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 
 ---
 
-**Last Updated**: 22 January 2026
-**Current Phase**: Track 2 Week 3 - WebSocket Done, File Preview Next
+**Last Updated**: 23 January 2026
+**Current Phase**: Track 2 COMPLETE - Validation Phase
+
+---
+
+## Llama.cpp Configuration
+
+**Server Location**: `C:\Users\davidgp2022\AppData\Local\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe`
+
+**Models Directory**: `C:\Users\davidgp2022\models\`
+
+**Available Models**:
+- `Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf` (recommended - fits in VRAM)
+- `Mistral-Small-Instruct-2409-Q3_K_M.gguf`
+- `Qwen2.5-14B-Instruct-Q4_K_M.gguf`
+- `Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf`
+- `gemma-3-27b-it-q4_k_m.gguf` (too large for GPU - needs CPU offload)
+
+**Start Command**:
+```powershell
+llama-server.exe -m "C:\Users\davidgp2022\models\Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf" --port 8080 --ctx-size 8192
+```

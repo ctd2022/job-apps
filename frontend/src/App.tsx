@@ -1,8 +1,9 @@
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { FileText, PlusCircle, History, Settings } from 'lucide-react';
+import { FileText, PlusCircle, History } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import NewApplication from './components/NewApplication';
 import ApplicationHistory from './components/ApplicationHistory';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const location = useLocation();
@@ -55,11 +56,13 @@ function App() {
       
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/new" element={<NewApplication />} />
-          <Route path="/history" element={<ApplicationHistory />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/new" element={<NewApplication />} />
+            <Route path="/history" element={<ApplicationHistory />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
       
       {/* Footer */}

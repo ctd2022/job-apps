@@ -100,7 +100,7 @@ class LlamaCppBackend(LLMBackend):
 class GeminiBackend(LLMBackend):
     """Google Gemini API backend with rate limiting"""
     
-    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-1.5-pro",
+    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-2.0-flash",
                  requests_per_minute: int = 10):
         self.api_key = api_key or os.environ.get('GEMINI_API_KEY')
         if not self.api_key:
@@ -121,7 +121,7 @@ class GeminiBackend(LLMBackend):
         
         if time_since_last < self.min_interval:
             sleep_time = self.min_interval - time_since_last
-            print(f"⏳ Rate limiting: waiting {sleep_time:.1f}s...")
+            print(f"[WAIT] Rate limiting: waiting {sleep_time:.1f}s...")
             time.sleep(sleep_time)
         
         self.last_request_time = time.time()
@@ -209,7 +209,7 @@ class LLMBackendFactory:
         elif backend_type == 'gemini':
             return GeminiBackend(
                 api_key=kwargs.get('api_key'),
-                model_name=kwargs.get('model_name', 'gemini-1.5-pro'),
+                model_name=kwargs.get('model_name', 'gemini-2.0-flash'),
                 requests_per_minute=kwargs.get('requests_per_minute', 10)
             )
         
@@ -220,7 +220,7 @@ class LLMBackendFactory:
 
 def test_backend(backend: LLMBackend):
     """Test a backend with a simple query"""
-    print(f"\n🧪 Testing {backend.get_backend_name()}...")
+    print(f"\n[TEST] Testing {backend.get_backend_name()}...")
     
     messages = [
         {"role": "system", "content": "You are a helpful assistant."},
@@ -229,10 +229,10 @@ def test_backend(backend: LLMBackend):
     
     try:
         response = backend.chat(messages, temperature=0.1, max_tokens=50)
-        print(f"✅ Response: {response}")
+        print(f"[OK] Response: {response}")
         return True
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print(f"[FAIL] Error: {str(e)}")
         return False
 
 
@@ -250,7 +250,7 @@ def main():
         ollama_backend = LLMBackendFactory.create_backend('ollama', model_name='llama3.1:8b')
         test_backend(ollama_backend)
     except Exception as e:
-        print(f"❌ Ollama test failed: {e}")
+        print(f"[FAIL] Ollama test failed: {e}")
     
     # Test Llama.cpp
     print("\n2. Testing Llama.cpp Backend")
@@ -262,19 +262,19 @@ def main():
         )
         test_backend(llamacpp_backend)
     except Exception as e:
-        print(f"❌ Llama.cpp test failed: {e}")
+        print(f"[FAIL] Llama.cpp test failed: {e}")
     
     # Test Gemini (if API key available)
     print("\n3. Testing Gemini Backend")
     try:
         gemini_backend = LLMBackendFactory.create_backend(
             'gemini',
-            model_name='gemini-1.5-flash',
+            model_name='gemini-2.0-flash',
             requests_per_minute=10
         )
         test_backend(gemini_backend)
     except Exception as e:
-        print(f"❌ Gemini test failed: {e}")
+        print(f"[FAIL] Gemini test failed: {e}")
 
 
 if __name__ == "__main__":

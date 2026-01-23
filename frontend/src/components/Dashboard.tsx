@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  PlusCircle, 
-  FileText, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
+import {
+  PlusCircle,
+  FileText,
+  Clock,
+  CheckCircle,
+  XCircle,
   Loader2,
   TrendingUp,
   Briefcase,
-  Server
+  Server,
+  RefreshCw
 } from 'lucide-react';
 import { getHealth, getJobs, getApplications } from '../api';
 import type { Job, Application, HealthStatus } from '../types';
+import { SkeletonStats, SkeletonList } from './LoadingState';
 
 function Dashboard() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -61,8 +63,9 @@ function Dashboard() {
   
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      <div className="space-y-8">
+        <SkeletonStats />
+        <SkeletonList count={2} />
       </div>
     );
   }
@@ -70,14 +73,21 @@ function Dashboard() {
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <div className="flex items-center space-x-3">
-          <XCircle className="w-6 h-6 text-red-500" />
-          <div>
+        <div className="flex items-start space-x-3">
+          <XCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
             <h3 className="font-semibold text-red-800">Connection Error</h3>
             <p className="text-red-600">{error}</p>
             <p className="text-sm text-red-500 mt-2">
               Start the backend: <code className="bg-red-100 px-2 py-1 rounded">python -m uvicorn backend.main:app --reload</code>
             </p>
+            <button
+              onClick={() => { setLoading(true); setError(null); loadData(); }}
+              className="mt-4 flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Retry</span>
+            </button>
           </div>
         </div>
       </div>

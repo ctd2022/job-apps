@@ -119,6 +119,17 @@ export function getJobFileUrl(jobId: string, fileName: string): string {
   return `${API_BASE}/jobs/${jobId}/files/${fileName}`;
 }
 
+export interface FileContent {
+  filename: string;
+  content: string;
+  type: 'markdown' | 'json' | 'text';
+}
+
+export async function getJobFileContent(jobId: string, fileName: string): Promise<FileContent> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/files/${fileName}/content`);
+  return handleResponse(response);
+}
+
 // Applications (past outputs)
 export async function getApplications(): Promise<Application[]> {
   const response = await fetch(`${API_BASE}/applications`);

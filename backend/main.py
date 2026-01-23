@@ -18,6 +18,10 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List, Set
 from enum import Enum
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
+
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -109,7 +113,7 @@ class BackendConfig(BaseModel):
     llamacpp_model: Optional[str] = "gemma-3-27B"
     # Gemini specific
     gemini_api_key: Optional[str] = None
-    gemini_model: Optional[str] = "gemini-1.5-pro"
+    gemini_model: Optional[str] = "gemini-2.0-flash"
 
 
 class JobRequest(BaseModel):
@@ -661,8 +665,8 @@ async def list_backends():
             "name": "Google Gemini",
             "description": "Use Google's Gemini API (requires API key)",
             "available": bool(os.environ.get("GEMINI_API_KEY")),
-            "default_model": "gemini-1.5-pro",
-            "models": ["gemini-1.5-pro", "gemini-1.5-flash"],
+            "default_model": "gemini-2.0-flash",
+            "models": ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"],
             "config_fields": ["gemini_api_key", "gemini_model"]
         }
     ]
@@ -721,7 +725,7 @@ async def create_job(
             backend_config["model_name"] = backend_model or "gemma-3-27B"
             backend_config["base_url"] = "http://localhost:8080"
         elif backend_type == "gemini":
-            backend_config["model_name"] = backend_model or "gemini-1.5-pro"
+            backend_config["model_name"] = backend_model or "gemini-2.0-flash"
             backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
         
         # Update job with file paths
@@ -857,18 +861,18 @@ async def list_job_files(job_id: str):
 async def download_file(job_id: str, filename: str):
     """Download a specific output file"""
     job = job_store.get_job(job_id)
-    
+
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    
+
     if not job["output_dir"]:
         raise HTTPException(status_code=404, detail="No output directory found")
-    
+
     file_path = Path(job["output_dir"]) / filename
-    
+
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"File {filename} not found")
-    
+
     # Determine media type
     media_type = "application/octet-stream"
     if filename.endswith(".md"):
@@ -879,12 +883,49 @@ async def download_file(job_id: str, filename: str):
         media_type = "application/json"
     elif filename.endswith(".docx"):
         media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    
+
     return FileResponse(
         path=file_path,
         filename=filename,
         media_type=media_type
     )
+
+
+@app.get("/api/jobs/{job_id}/files/{filename}/content")
+async def get_file_content(job_id: str, filename: str):
+    """Get the text content of a file for preview (supports .md, .txt, .json)"""
+    job = job_store.get_job(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if not job["output_dir"]:
+        raise HTTPException(status_code=404, detail="No output directory found")
+
+    file_path = Path(job["output_dir"]) / filename
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File {filename} not found")
+
+    # Only allow text-based files
+    allowed_extensions = ['.md', '.txt', '.json']
+    if not any(filename.endswith(ext) for ext in allowed_extensions):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Preview not supported for this file type. Allowed: {', '.join(allowed_extensions)}"
+        )
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        return {
+            "filename": filename,
+            "content": content,
+            "type": "markdown" if filename.endswith('.md') else "json" if filename.endswith('.json') else "text"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {str(e)}")
 
 
 @app.get("/api/applications")

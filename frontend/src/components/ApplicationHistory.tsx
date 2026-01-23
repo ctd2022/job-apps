@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
-import { 
-  FileText, 
-  Loader2, 
-  Search, 
-  Filter, 
+import {
+  FileText,
+  Search,
+  Filter,
   Calendar,
   TrendingUp,
-  Download,
   ChevronDown,
   ChevronUp,
-  ExternalLink
+  RefreshCw,
+  XCircle
 } from 'lucide-react';
 import { getApplications } from '../api';
 import type { Application } from '../types';
+import { SkeletonStats, SkeletonList } from './LoadingState';
 
 function ApplicationHistory() {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -82,16 +82,30 @@ function ApplicationHistory() {
   
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      <div className="space-y-6">
+        <SkeletonStats />
+        <SkeletonList count={4} />
       </div>
     );
   }
-  
+
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-red-700">
-        {error}
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="flex items-start space-x-3">
+          <XCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="font-semibold text-red-800">Failed to Load Applications</h3>
+            <p className="text-red-600">{error}</p>
+            <button
+              onClick={() => { setLoading(true); setError(null); loadApplications(); }}
+              className="mt-4 flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Retry</span>
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
