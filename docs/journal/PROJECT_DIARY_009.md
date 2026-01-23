@@ -256,4 +256,40 @@ Large models (27B+) may not fit in GPU memory. Always have a fallback to smaller
 
 ---
 
+---
+
+## Addendum: Ideas Database Created
+
+### SQLite Ideas Tracker
+
+Created `ideas.db` for structured capture of feature ideas and enhancements.
+
+**Schema:**
+- id, title, description, category, complexity, impact, priority, status, created_at, source, notes
+
+**CLI Tool:** `scripts/ideas.py`
+```powershell
+python scripts/ideas.py list              # List all
+python scripts/ideas.py add               # Add new (interactive)
+python scripts/ideas.py show 1            # Full details
+python scripts/ideas.py update 1 --status "In Progress"
+python scripts/ideas.py summary           # Stats
+```
+
+### Ideas Captured (18 total)
+
+**High Priority (4-5):**
+- #15: Multi-user support with isolated profiles (Architecture, P5)
+- #16: Multiple CV management with default selection (Feature, P4)
+- #3: Profile management (Feature, P4)
+- #4: User authentication (Track 3, P4)
+
+**New Ideas Added Today:**
+1. Multi-user support - foundational for any multi-user scenario
+2. Multiple CVs with default - store CVs, quick selection, no re-uploading
+3. Multi-backend ensemble - run all backends, compare outputs side-by-side
+4. Wider UI layout - info-dense, less scrolling, better screen utilization
+
+---
+
 **End of Entry 009**

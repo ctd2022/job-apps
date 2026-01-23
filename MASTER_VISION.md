@@ -359,9 +359,11 @@ npm run dev
 3. If validated: Begin Track 3 planning
 
 ### **Deferred Enhancements:**
-- Llama.cpp model selection dropdown (scan GGUF files)
-- SQLite for persistent job history
-- Profile management features
+See `ideas.db` for full backlog (18 ideas). Top priorities:
+- Multi-user support with isolated profiles
+- Multiple CV management with default selection
+- Llama.cpp model selection dropdown
+- Wider, info-dense UI layout
 
 ---
 
