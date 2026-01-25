@@ -1079,14 +1079,19 @@ async def list_applications(
                     except:
                         pass
 
-                # Merge outcome data from database if available
+                # Only include applications that belong to this user
+                # (must have a matching job_id in the user's database records)
                 db_job = job_map.get(app_info["job_id"])
-                if db_job:
-                    app_info["outcome_status"] = db_job.get("outcome_status", "draft")
-                    app_info["submitted_at"] = db_job.get("submitted_at")
-                    app_info["response_at"] = db_job.get("response_at")
-                    app_info["outcome_at"] = db_job.get("outcome_at")
-                    app_info["notes"] = db_job.get("notes")
+                if not db_job:
+                    # No database record for this user - skip it
+                    continue
+
+                # Merge outcome data from database
+                app_info["outcome_status"] = db_job.get("outcome_status", "draft")
+                app_info["submitted_at"] = db_job.get("submitted_at")
+                app_info["response_at"] = db_job.get("response_at")
+                app_info["outcome_at"] = db_job.get("outcome_at")
+                app_info["notes"] = db_job.get("notes")
 
                 # Apply outcome_status filter if specified
                 if outcome_status and app_info["outcome_status"] != outcome_status:
