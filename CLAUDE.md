@@ -67,7 +67,7 @@ job_applications/
 ├── backend/                 ← FastAPI REST API
 │   ├── main.py              (API endpoints)
 │   ├── job_processor.py     (Background tasks)
-│   └── job_store.py         (In-memory job tracking)
+│   └── job_store.py         (SQLite persistence: users, jobs, CVs)
 │
 ├── frontend/                ← React Web UI
 │   ├── src/
@@ -150,8 +150,19 @@ job_applications/
 | `backend/job_store.py` | SQLite persistence (users, jobs, CVs) |
 | `frontend/src/api.ts` | Frontend API client (user header management) |
 | `frontend/src/App.tsx` | Main app with profile selector |
-| `ideas.db` | Feature tracking database |
+| `ideas.db` | Feature tracking database (42 ideas) |
 | `.env` | API keys (GEMINI_API_KEY) |
+
+---
+
+## Frontend Routes
+
+| Route | Component | Purpose |
+|-------|-----------|---------|
+| `/` | Dashboard | Stats, active jobs, recent applications |
+| `/new` | NewApplication | Create new job application |
+| `/history` | ApplicationHistory | Full application list with filters |
+| `/job/:id` | JobDetail | View job details, files, update status |
 
 ---
 
@@ -166,15 +177,86 @@ All endpoints (except `/api/users` and `/api/health`) support `X-User-ID` header
 | GET | `/api/users/{id}` | Get user details |
 | POST | `/api/jobs` | Create new job |
 | GET | `/api/jobs/{id}` | Get job status |
+| DELETE | `/api/jobs/{id}` | Delete a job |
 | PATCH | `/api/jobs/{id}/outcome` | Update application outcome status |
 | GET | `/api/jobs/{id}/files` | List output files |
 | GET | `/api/jobs/{id}/files/{name}` | Download file |
 | GET | `/api/jobs/{id}/files/{name}/content` | Get file content for preview |
 | WS | `/api/ws/jobs/{id}` | WebSocket for real-time progress |
+| GET | `/api/cvs` | List stored CVs |
+| POST | `/api/cvs` | Upload and store a CV |
+| GET | `/api/cvs/{id}` | Get CV details |
+| DELETE | `/api/cvs/{id}` | Delete a CV |
+| PUT | `/api/cvs/{id}/default` | Set CV as default |
 | GET | `/api/backends` | List available LLM backends |
 | GET | `/api/applications` | List past applications (supports `?outcome_status=` filter) |
 | GET | `/api/metrics` | Get application funnel metrics |
 | GET | `/api/health` | Health check |
+
+---
+
+## Database Schema (SQLite)
+
+**File**: `jobs.db`
+
+```sql
+-- Users table
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+-- Jobs table
+CREATE TABLE jobs (
+    job_id TEXT PRIMARY KEY,
+    user_id TEXT DEFAULT 'default',
+    status TEXT,
+    progress INTEGER,
+    current_step TEXT,
+    company_name TEXT,
+    backend_type TEXT,
+    backend_model TEXT,
+    output_dir TEXT,
+    ats_score INTEGER,
+    error TEXT,
+    created_at TEXT,
+    completed_at TEXT,
+    outcome_status TEXT DEFAULT 'draft',
+    submitted_at TEXT,
+    response_at TEXT,
+    outcome_at TEXT,
+    notes TEXT
+);
+
+-- CVs table
+CREATE TABLE cvs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT DEFAULT 'default',
+    name TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    content TEXT NOT NULL,
+    is_default INTEGER DEFAULT 0,
+    created_at TEXT,
+    updated_at TEXT
+);
+```
+
+**Current Users**: David, Tomomi (+ Default User)
+
+---
+
+## Files to NOT Commit
+
+These files are local/generated and should stay out of git:
+
+| File | Reason |
+|------|--------|
+| `jobs.db` | User application data |
+| `ideas.html` | Generated (run `python scripts/ideas_html.py`) |
+| `.env` | API keys |
+| `.claude/settings.local.json` | Local IDE settings |
+| `nul` | Junk file |
 
 ---
 
@@ -295,6 +377,41 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 - Windows console uses cp1252 encoding, can't display emojis
 - Use text labels like `[OK]`, `[WARN]` instead of emojis in print statements
 - Already fixed in `backend/main.py` and `src/ats_optimizer.py`
+
+### Llama.cpp slow or hanging
+- Large models (14B+) are slow on GPU with limited VRAM
+- Use Llama 3.1 8B for faster results
+- Check GPU memory in Task Manager
+
+### Job stuck at percentage
+- LLM is generating (especially large models)
+- Check llama-server console for activity
+- Backend logs show WebSocket connection status
+
+---
+
+## Quick Reference
+
+```powershell
+# Start everything
+cd "C:\Users\davidgp2022\My Drive\Kaizen\job_applications"
+.\venv\Scripts\Activate.ps1
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+# (new terminal)
+cd frontend && npm run dev
+
+# View ideas backlog
+python scripts/ideas_html.py && start ideas.html
+
+# Add an idea
+python scripts/ideas.py add
+
+# Check backend health
+curl http://localhost:8000/api/health
+
+# Start Llama.cpp (if needed)
+llama-server.exe -m "C:\Users\davidgp2022\models\Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf" --port 8080 --ctx-size 8192
+```
 
 ---
 
