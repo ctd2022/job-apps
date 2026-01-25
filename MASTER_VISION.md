@@ -111,11 +111,16 @@ Final Score = (Lexical × 0.55) + (Semantic × 0.35) + (Evidence × 0.10)
 
 | Phase | Component | Description | Status |
 |-------|-----------|-------------|--------|
-| 2.8.1 | Foundation | Section detection, entity extraction (NER) | Pending |
+| 2.8.1 | Foundation | Section detection, entity extraction (NER) | **COMPLETE** |
 | 2.8.2 | Embeddings | Local embedding model, cosine similarity | Pending |
 | 2.8.3 | Hybrid Scoring | Combine lexical + semantic + evidence | Pending |
 | 2.8.4 | Gap Analysis | Critical missing terms, semantic gaps | Pending |
 | 2.8.5 | UI Integration | Heatmap overlay, explainability panel | Pending |
+
+**Track 2.8.1 Completed** (25 Jan 2026):
+- `src/entity_taxonomy.py`: 250+ hard skills, 60+ soft skills, certifications, methodologies, domains
+- `src/document_parser.py`: Section detection, entity extraction, evidence strength scoring
+- ATS report now includes section-level analysis
 
 **Key Features**:
 - **Section-level matching**: JD Requirements ↔ CV Skills, JD Responsibilities ↔ CV Experience
@@ -397,6 +402,7 @@ npm run dev
 | Jan 2026 | **Track 2.6** - Multi-user support with profile selector | 012 |
 | Jan 2026 | Job detail view, model column, 41-idea backlog | 012 |
 | Jan 2026 | **Track 2.8: Hybrid Semantic ATS** - shift from keyword to embeddings | - |
+| Jan 2026 | **Track 2.8.1 Complete** - Section detection, entity extraction, evidence scoring | 015 |
 
 ### **Pending Decisions:**
 - ~~SQLite vs in-memory for job history?~~ ✅ SQLite implemented (23 Jan)
@@ -438,8 +444,8 @@ npm run dev
 2. ~~Test with all three backends~~ ✅ DONE
 3. ~~Implement Track 2.5: Outcome Tracking~~ ✅ DONE (24 Jan 2026)
 4. **Track 2.8: Hybrid Semantic ATS** ← CURRENT FOCUS
-   - Phase 2.8.1: Section detection + entity extraction
-   - Phase 2.8.2: Local embedding model integration
+   - ~~Phase 2.8.1: Section detection + entity extraction~~ ✅ DONE (25 Jan 2026)
+   - Phase 2.8.2: Local embedding model integration ← NEXT
    - Phase 2.8.3: Hybrid scoring implementation
 
 ### **Short-term (Next 2-3 Weeks):**
@@ -466,7 +472,7 @@ Top priorities from backlog:
 
 ## 🎯 **ONE-SENTENCE SUMMARY**
 
-**Track 2.8 in progress: upgrading ATS scoring from keyword matching to hybrid semantic scoring with embeddings, section-level matching, and evidence weighting.**
+**Track 2.8.1 complete: section detection and entity extraction working. Next: embeddings for semantic matching (2.8.2).**
 
 ---
 

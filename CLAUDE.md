@@ -45,6 +45,31 @@ cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications/frontend" && npm run d
 3. **Implement** → Follow the plan, update diary
 4. **Complete** → `python scripts/ideas.py update <id> --status Done`, update docs
 
+### Capturing User Suggestions
+
+**When the user suggests a feature or improvement, ALWAYS add it to `ideas.db`:**
+
+```python
+python -c "
+import sqlite3
+from datetime import datetime
+conn = sqlite3.connect('ideas.db')
+cursor = conn.cursor()
+cursor.execute('''
+    INSERT INTO ideas (title, description, category, complexity, impact, priority, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+''', ('Title here', 'Description here', 'Feature', 'Medium', 'High', 5, 'Idea', datetime.now().isoformat()))
+conn.commit()
+print(f'Added idea #{cursor.lastrowid}')
+conn.close()
+"
+```
+
+- Category: Feature, UI, Bug, Architecture, Research
+- Complexity: Low, Medium, High
+- Impact: Low, Medium, High
+- Priority: 1-5 (5 = highest)
+
 ---
 
 ## Code Style
