@@ -96,6 +96,7 @@ function normalizeJob(data: any): Job {
     progress: data.progress || 0,
     stage: data.current_step || data.stage || '',
     company_name: data.company_name,
+    job_title: data.job_title,
     backend: data.backend_type || data.backend || '',
     model: data.backend_model || data.model,
     enable_ats: data.enable_ats ?? true,
@@ -124,6 +125,7 @@ function normalizeApplication(data: any): Application {
     timestamp: data.timestamp || '',
     ats_score: data.ats_score,
     company_name: data.company_name,
+    job_title: data.job_title,
     files: data.files || [],
     output_dir: data.output_dir,
     // Outcome tracking fields
@@ -151,6 +153,9 @@ export async function createJob(data: JobCreate): Promise<Job> {
 
   if (data.company_name) {
     formData.append('company_name', data.company_name);
+  }
+  if (data.job_title) {
+    formData.append('job_title', data.job_title);
   }
   if (data.model) {
     formData.append('backend_model', data.model);    // Backend expects "backend_model"

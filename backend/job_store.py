@@ -108,6 +108,7 @@ def init_db():
         ("response_at", "TEXT"),
         ("outcome_at", "TEXT"),
         ("notes", "TEXT"),
+        ("job_title", "TEXT"),  # Track 2.8: Job title for human-readable display
     ]
 
     for col_name, col_type in outcome_columns:
@@ -243,6 +244,7 @@ class JobStore:
             "cv_path": None,
             "job_desc_path": None,
             "company_name": None,
+            "job_title": None,
             "backend_type": None,
             # Outcome tracking fields
             "outcome_status": OutcomeStatus.draft.value,
@@ -256,14 +258,14 @@ class JobStore:
             INSERT INTO jobs (
                 job_id, user_id, status, progress, current_step, message,
                 created_at, updated_at, output_dir, ats_score, files,
-                error, cv_path, job_desc_path, company_name, backend_type,
+                error, cv_path, job_desc_path, company_name, job_title, backend_type,
                 outcome_status, submitted_at, response_at, outcome_at, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             job["job_id"], job["user_id"], job["status"], job["progress"], job["current_step"],
             job["message"], job["created_at"], job["updated_at"], job["output_dir"],
             job["ats_score"], json.dumps(job["files"]), job["error"],
-            job["cv_path"], job["job_desc_path"], job["company_name"], job["backend_type"],
+            job["cv_path"], job["job_desc_path"], job["company_name"], job["job_title"], job["backend_type"],
             job["outcome_status"], job["submitted_at"], job["response_at"],
             job["outcome_at"], job["notes"]
         ))
@@ -526,6 +528,7 @@ class JobStore:
             "cv_path": row["cv_path"],
             "job_desc_path": row["job_desc_path"],
             "company_name": row["company_name"],
+            "job_title": row["job_title"],
             "backend_type": row["backend_type"],
             # Outcome tracking fields
             "outcome_status": row["outcome_status"] or OutcomeStatus.draft.value,

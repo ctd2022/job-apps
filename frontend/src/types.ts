@@ -24,6 +24,7 @@ export interface JobCreate {
   cv_id?: number;
   job_file: File;
   company_name?: string;
+  job_title?: string;
   backend: string;
   model?: string;
   enable_ats?: boolean;
@@ -46,6 +47,7 @@ export interface Job {
   progress: number;
   stage: string;
   company_name?: string;
+  job_title?: string;
   backend: string;
   model?: string;
   enable_ats: boolean;
@@ -77,6 +79,7 @@ export interface Application {
   timestamp: string;
   ats_score?: number;
   company_name?: string;
+  job_title?: string;
   files: string[];
   output_dir?: string;
   // Outcome tracking fields

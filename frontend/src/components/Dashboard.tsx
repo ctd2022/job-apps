@@ -267,7 +267,7 @@ function JobRow({ job }: { job: Job }) {
             {job.status === 'processing' && <Loader2 className="w-3 h-3 inline mr-1 animate-spin" />}
             {job.status}
           </span>
-          <span className="text-sm text-slate-600 dark:text-slate-300">{job.company_name || 'Unknown'}</span>
+          <span className="text-sm text-slate-600 dark:text-slate-300">{job.job_title || job.company_name || 'Unknown'}</span>
         </div>
         <span className="text-xs text-slate-400 font-mono">{job.progress}%</span>
       </div>
@@ -304,7 +304,7 @@ function ApplicationTableRow({ application }: { application: Application }) {
       className="hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
       onClick={() => navigate(`/job/${application.job_id}`)}
     >
-      <td className="px-3 py-2 text-slate-800 dark:text-slate-200 font-medium truncate max-w-[200px]">{application.job_name}</td>
+      <td className="px-3 py-2 text-slate-800 dark:text-slate-200 font-medium truncate max-w-[200px]">{application.job_title || application.job_name}</td>
       <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{application.company_name || '-'}</td>
       <td className="px-3 py-2">
         <span className={`text-xs px-1.5 py-0.5 ${statusConfig.className}`}>{statusConfig.label}</span>

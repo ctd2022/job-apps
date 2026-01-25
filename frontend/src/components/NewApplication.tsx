@@ -39,6 +39,7 @@ function NewApplication() {
 
   // Form state
   const [companyName, setCompanyName] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
   const [selectedBackend, setSelectedBackend] = useState('ollama');
   const [selectedModel, setSelectedModel] = useState('');
   const [enableAts, setEnableAts] = useState(true);
@@ -181,6 +182,7 @@ function NewApplication() {
         cv_file: cvMode === 'upload' ? cvFile! : undefined,
         job_file: jobFileToSubmit,
         company_name: companyName || undefined,
+        job_title: jobTitle || undefined,
         backend: selectedBackend,
         model: selectedModel || undefined,
         enable_ats: enableAts,
@@ -527,13 +529,25 @@ function NewApplication() {
 
           {/* Settings Row */}
           <div className="flex items-end space-x-2 mb-3">
-            <div className="flex-1">
+            <div className="w-32">
               <label className="text-xs text-slate-500 dark:text-slate-400 mb-0.5 block">Company</label>
               <input
                 type="text"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Optional"
+                disabled={submitting}
+                className="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-slate-500 disabled:bg-slate-50 dark:disabled:bg-slate-800 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+              />
+            </div>
+
+            <div className="flex-1">
+              <label className="text-xs text-slate-500 dark:text-slate-400 mb-0.5 block">Job Title</label>
+              <input
+                type="text"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+                placeholder="e.g. Senior Engineer"
                 disabled={submitting}
                 className="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-slate-500 disabled:bg-slate-50 dark:disabled:bg-slate-800 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
               />

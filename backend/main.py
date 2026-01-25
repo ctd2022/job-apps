@@ -173,6 +173,7 @@ class ApplicationSummary(BaseModel):
     job_id: str
     job_name: str
     company_name: Optional[str]
+    job_title: Optional[str]
     backend: str
     timestamp: str
     ats_score: Optional[float]
@@ -695,6 +696,7 @@ async def create_job(
     job_desc_file: UploadFile = File(...),
     cv_id: Optional[int] = Form(None),
     company_name: Optional[str] = Form(None),
+    job_title: Optional[str] = Form(None),
     enable_ats: bool = Form(True),
     backend_type: str = Form("ollama"),
     backend_model: Optional[str] = Form(None),
@@ -770,6 +772,7 @@ async def create_job(
             cv_path=str(cv_path),
             job_desc_path=str(job_desc_path),
             company_name=company_name,
+            job_title=job_title,
             backend_type=backend_type
         )
         
@@ -1051,6 +1054,7 @@ async def list_applications(
                     "job_id": folder.name,
                     "job_name": folder.name.split("_")[0] if "_" in folder.name else folder.name,
                     "company_name": None,
+                    "job_title": None,
                     "backend": "unknown",
                     "model": None,
                     "timestamp": folder.stat().st_mtime,
@@ -1089,7 +1093,9 @@ async def list_applications(
                     # No database record for this user - skip it
                     continue
 
-                # Merge outcome data from database
+                # Merge data from database
+                app_info["company_name"] = db_job.get("company_name") or app_info["company_name"]
+                app_info["job_title"] = db_job.get("job_title")
                 app_info["outcome_status"] = db_job.get("outcome_status", "draft")
                 app_info["submitted_at"] = db_job.get("submitted_at")
                 app_info["response_at"] = db_job.get("response_at")
