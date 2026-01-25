@@ -1,471 +1,110 @@
-# CLAUDE.md - Project Context for Claude Code
+# CLAUDE.md - Job Application Workflow
 
-## Project Overview
+AI-powered tool that generates tailored CVs, cover letters, and ATS analysis.
 
-**Job Application Workflow** - AI-powered tool that generates tailored CVs, cover letters, and ATS analysis for job applications.
-
-**Current Status**: Track 2.7 COMPLETE - UI Improvements (Dark Mode + Paste Job Description)
+**Current Status**: Track 2.7 COMPLETE | **Branch**: `track2-web-ui`
 
 ---
 
-## Quick Start Commands
+## IMPORTANT: Start Services Before Testing
 
-### Run Web UI (Track 2)
+**YOU MUST check services are running before any frontend testing:**
 
-**Terminal 1 - Backend:**
-```powershell
-cd "C:\Users\davidgp2022\My Drive\Kaizen\job_applications"
-.\venv\Scripts\Activate.ps1
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-**Terminal 2 - Frontend:**
-```powershell
-cd "C:\Users\davidgp2022\My Drive\Kaizen\job_applications\frontend"
-npm run dev
-```
-
-**Access:**
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-
----
-
-## IMPORTANT: Auto-Start Services for Testing
-
-**Before testing any frontend changes, Claude must ensure services are running.**
-
-Check if services are running:
 ```bash
-curl -s http://localhost:8000/api/health  # Backend
+# Check status
+curl -s http://localhost:8000/api/health  # Backend (expect JSON)
 curl -s -o /dev/null -w "%{http_code}" http://localhost:5173  # Frontend (expect 200)
-```
 
-If not running, start them in background:
-```bash
-# Backend (run in background)
+# If not running, start in background:
 cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications" && python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-
-# Frontend (run in background)
 cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications/frontend" && npm run dev
 ```
 
-**Note**: Use forward slashes in paths for bash compatibility.
+---
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload` | Start backend |
+| `cd frontend && npm run dev` | Start frontend |
+| `cd frontend && npx tsc --noEmit` | TypeScript check |
+| `python scripts/ideas.py list` | View ideas backlog |
+| `python scripts/ideas.py add` | Add new idea |
+| `python scripts/ideas_html.py && start ideas.html` | View ideas in browser |
+| `curl http://localhost:8000/api/health` | Health check |
 
 ---
 
-### Run CLI (Track 1)
-```powershell
-.\venv\Scripts\Activate.ps1
-python scripts\run_workflow.py --cv inputs\davidcv.txt --job inputs\job_descriptions\test.txt --backend ollama
-```
+## IMPORTANT: Feature Development Workflow
+
+**YOU MUST funnel ALL new features through `ideas.db` before implementing:**
+
+1. **Capture** → `python scripts/ideas.py add`
+2. **Plan** → Enter plan mode, explore codebase, design approach
+3. **Implement** → Follow the plan, update diary
+4. **Complete** → `python scripts/ideas.py update <id> --status Done`, update docs
 
 ---
 
-## Architecture
+## Code Style
 
-```
-User Browser (5173) → Vite Dev Server → FastAPI (8000) → LLM Backends
-                                                         ├── Ollama (11434)
-                                                         ├── Llama.cpp (8080)
-                                                         └── Gemini (Cloud)
-```
-
----
-
-## Directory Structure
-
-```
-job_applications/
-├── MASTER_VISION.md         ← Strategic direction
-├── QUICKSTART.md            ← How to run
-├── CLAUDE.md                ← This file (project context)
-│
-├── src/                     ← Core Python modules
-│   ├── job_application_workflow.py  (Main workflow)
-│   ├── docx_templates.py            (DOCX generation)
-│   ├── ats_optimizer.py             (ATS analysis)
-│   ├── llm_backend.py               (Multi-backend support)
-│   └── generate_output.py           (Output generation)
-│
-├── backend/                 ← FastAPI REST API
-│   ├── main.py              (API endpoints)
-│   ├── job_processor.py     (Background tasks)
-│   └── job_store.py         (SQLite persistence: users, jobs, CVs)
-│
-├── frontend/                ← React Web UI
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── NewApplication.tsx
-│   │   │   ├── ApplicationHistory.tsx
-│   │   │   ├── JobDetail.tsx        (Job detail view with file preview)
-│   │   │   └── FilePreview.tsx      (Markdown/text file preview)
-│   │   ├── api.ts           (API client)
-│   │   ├── types.ts         (TypeScript interfaces)
-│   │   └── App.tsx          (Main app with routing)
-│   ├── package.json
-│   └── vite.config.ts       (Dev server + API proxy)
-│
-├── scripts/                 ← CLI entry points
-│   ├── run_workflow.py      (Main CLI workflow)
-│   ├── ideas.py             (Ideas database CLI)
-│   └── ideas_html.py        (Generate interactive ideas HTML)
-│
-├── inputs/                  ← User data
-│   ├── davidcv.txt
-│   └── job_descriptions/
-│
-├── outputs/                 ← Generated applications
-│   └── [job-name]_[BACKEND]_[timestamp]/
-│
-└── docs/
-    ├── journal/             ← Progress history
-    │   ├── PROJECT_DIARY_006.md  (Track 2 Week 2 - Frontend)
-    │   ├── PROJECT_DIARY_007.md  (Claude Code adoption)
-    │   ├── PROJECT_DIARY_008.md  (Track 2 Week 3 - WebSocket)
-    │   └── PROJECT_DIARY_012.md  (Track 2.6 - Multi-user + UI enhancements)
-    └── raw/                 ← LLM conversation outputs for idea extraction
-        └── newideas.md      (Feature ideas from ChatGPT analysis)
-```
-
----
-
-## Current Status: Track 2.7 COMPLETE
-
-### Completed
-- [x] Track 1: CLI workflow (production ready)
-- [x] Track 2 Week 1: FastAPI backend
-- [x] Track 2 Week 2: React frontend (end-to-end working)
-- [x] Track 2 Week 3: Polish & WebSockets - COMPLETE (23 Jan 2026)
-- [x] SQLite persistence for jobs and CVs (23 Jan 2026)
-- [x] Multiple CV management with default selection (23 Jan 2026)
-- [x] Track 2.5: Outcome Tracking (24 Jan 2026)
-- [x] Track 2.6: Multi-User Support (25 Jan 2026)
-- [x] Track 2.7: UI Improvements - Dark Mode + Paste Job Description (25 Jan 2026)
-
-### Track 2.7: UI Improvements (ideas #8, #42)
-- [x] Dark mode toggle (Sun/Moon icon in header)
-- [x] Theme persistence in localStorage
-- [x] System preference as default
-- [x] Paste job description text directly (Upload/Paste toggle)
-
-### Track 2.6: Multi-User Support (idea #21)
-- [x] Users table and user management API (create, list, get)
-- [x] User isolation: jobs, CVs, and metrics scoped per user
-- [x] Profile selector dropdown in header with add user button
-- [x] X-User-ID header for API user scoping
-- [x] localStorage persistence for current user selection
-- [x] Automatic data refresh when switching users
-
-### Now Ready: Validation Phase
-- [ ] Use web UI for 10-20 real job applications
-- [ ] Track success metrics (response rates, interview conversions)
-- [ ] Decide on Track 3 (SaaS) based on results
-
-### Deferred Enhancements
-- [ ] Llama.cpp model selection (scan GGUF files from models directory)
-- [ ] Profile management features
-- [ ] LinkedIn job import
-
----
-
-## Key Files to Reference
-
-| File | Purpose |
-|------|---------|
-| `MASTER_VISION.md` | Strategic direction and roadmap |
-| `docs/journal/PROJECT_DIARY_011.md` | Track 2.5 - Outcome tracking |
-| `docs/journal/PROJECT_DIARY_012.md` | Track 2.6 - Multi-user support |
-| `backend/main.py` | API endpoints (including user management) |
-| `backend/job_store.py` | SQLite persistence (users, jobs, CVs) |
-| `frontend/src/api.ts` | Frontend API client (user header management) |
-| `frontend/src/App.tsx` | Main app with profile selector |
-| `ideas.db` | Feature tracking database (42 ideas) |
-| `.env` | API keys (GEMINI_API_KEY) |
-
----
-
-## Frontend Routes
-
-| Route | Component | Purpose |
-|-------|-----------|---------|
-| `/` | Dashboard | Stats, active jobs, recent applications |
-| `/new` | NewApplication | Create new job application |
-| `/history` | ApplicationHistory | Full application list with filters |
-| `/job/:id` | JobDetail | View job details, files, update status |
-
----
-
-## API Endpoints
-
-All endpoints (except `/api/users` and `/api/health`) support `X-User-ID` header for user scoping.
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET | `/api/users` | List all users |
-| POST | `/api/users` | Create new user |
-| GET | `/api/users/{id}` | Get user details |
-| POST | `/api/jobs` | Create new job |
-| GET | `/api/jobs/{id}` | Get job status |
-| DELETE | `/api/jobs/{id}` | Delete a job |
-| PATCH | `/api/jobs/{id}/outcome` | Update application outcome status |
-| GET | `/api/jobs/{id}/files` | List output files |
-| GET | `/api/jobs/{id}/files/{name}` | Download file |
-| GET | `/api/jobs/{id}/files/{name}/content` | Get file content for preview |
-| WS | `/api/ws/jobs/{id}` | WebSocket for real-time progress |
-| GET | `/api/cvs` | List stored CVs |
-| POST | `/api/cvs` | Upload and store a CV |
-| GET | `/api/cvs/{id}` | Get CV details |
-| DELETE | `/api/cvs/{id}` | Delete a CV |
-| PUT | `/api/cvs/{id}/default` | Set CV as default |
-| GET | `/api/backends` | List available LLM backends |
-| GET | `/api/applications` | List past applications (supports `?outcome_status=` filter) |
-| GET | `/api/metrics` | Get application funnel metrics |
-| GET | `/api/health` | Health check |
-
----
-
-## Database Schema (SQLite)
-
-**File**: `jobs.db`
-
-```sql
--- Users table
-CREATE TABLE users (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    created_at TEXT NOT NULL
-);
-
--- Jobs table
-CREATE TABLE jobs (
-    job_id TEXT PRIMARY KEY,
-    user_id TEXT DEFAULT 'default',
-    status TEXT,
-    progress INTEGER,
-    current_step TEXT,
-    company_name TEXT,
-    backend_type TEXT,
-    backend_model TEXT,
-    output_dir TEXT,
-    ats_score INTEGER,
-    error TEXT,
-    created_at TEXT,
-    completed_at TEXT,
-    outcome_status TEXT DEFAULT 'draft',
-    submitted_at TEXT,
-    response_at TEXT,
-    outcome_at TEXT,
-    notes TEXT
-);
-
--- CVs table
-CREATE TABLE cvs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT DEFAULT 'default',
-    name TEXT NOT NULL,
-    filename TEXT NOT NULL,
-    content TEXT NOT NULL,
-    is_default INTEGER DEFAULT 0,
-    created_at TEXT,
-    updated_at TEXT
-);
-```
-
-**Current Users**: David, Tomomi (+ Default User)
-
----
-
-## Files to NOT Commit
-
-These files are local/generated and should stay out of git:
-
-| File | Reason |
-|------|--------|
-| `jobs.db` | User application data |
-| `ideas.html` | Generated (run `python scripts/ideas_html.py`) |
-| `.env` | API keys |
-| `.claude/settings.local.json` | Local IDE settings |
-| `nul` | Junk file |
-
----
-
-## Coding Conventions
-
-### Python (backend, src)
+### Python
 - Use type hints
-- Follow existing patterns in `job_application_workflow.py`
-- Use `JobStore` for job tracking
+- Follow patterns in `src/job_application_workflow.py`
+- Use `JobStore` for persistence
 
-### TypeScript/React (frontend)
+### TypeScript/React
 - Functional components with hooks
 - TailwindCSS for styling
-- Use `api.ts` for all API calls
-- Normalize API responses in `api.ts`
+- All API calls through `frontend/src/api.ts`
+- Normalize responses in api.ts
 
 ### General
 - Keep changes minimal and focused
-- Test changes before committing
-- Update relevant diary entry for significant changes
-
----
-
-## Feature Development Workflow
-
-**Always funnel new features through `ideas.db` before implementing:**
-
-1. **Capture** - Add idea to `ideas.db` with description, category, priority
-   ```powershell
-   python scripts/ideas.py add   # Interactive
-   python scripts/ideas.py list  # View backlog
-   ```
-
-2. **Plan** - Enter plan mode, explore codebase, design approach
-
-3. **Implement** - Follow the plan, update diary
-
-4. **Complete** - Mark idea as "Done", update CLAUDE.md and MASTER_VISION.md
-
-**Why this matters:**
-- Creates a traceable backlog of ideas
-- Prevents scope creep mid-implementation
-- Documents decisions for future reference
-- Ensures nothing gets lost
-
-**Ideas CLI:**
-```powershell
-python scripts/ideas.py list              # List all
-python scripts/ideas.py list --status Planned  # Filter by status
-python scripts/ideas.py show 21           # View details
-python scripts/ideas.py update 21 --status "In Progress"
-python scripts/ideas.py summary           # Stats
-```
-
-**Ideas HTML View:**
-```powershell
-python scripts/ideas_html.py              # Generate ideas.html
-start ideas.html                          # Open in browser
-```
-Interactive page with filters for Status, Priority, Impact, Complexity, Category.
-
-**Extracting Ideas from LLM Conversations:**
-1. Save LLM conversation output to `docs/raw/`
-2. Ask Claude to review and extract features
-3. Add to `ideas.db` with appropriate priority/category
-
----
-
-## Git Branch
-
-Current branch: `track2-web-ui`
-
----
-
-## LLM Backends
-
-| Backend | Port | Notes |
-|---------|------|-------|
-| Ollama | 11434 | Local, default |
-| Llama.cpp | 8080 | Local, manual start |
-| Gemini | Cloud | Requires API key |
+- Test before committing
+- Update diary for significant changes
 
 ---
 
 ## Common Tasks
 
-### Add a new API endpoint
+### Add API endpoint
 1. Edit `backend/main.py`
 2. Update `frontend/src/api.ts`
-3. Update `frontend/src/types.ts` if new types needed
+3. Update `frontend/src/types.ts` if needed
 
-### Modify frontend component
+### Modify frontend
 1. Edit component in `frontend/src/components/`
 2. Test at http://localhost:5173
-
-### Run backend only
-```powershell
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-```
 
 ---
 
 ## Troubleshooting
 
-### Frontend not connecting to backend
-- Check backend is running on port 8000
-- Check Vite proxy config in `frontend/vite.config.ts`
-
-### API 422 errors
-- Check field names match between frontend FormData and backend expectations
-- See `PROJECT_DIARY_006.md` for field name mapping
-
-### Ollama not responding
-- Run `ollama list` to check models
-- Run `ollama serve` if not running
-
-### Unicode/Emoji errors on Windows
-- Windows console uses cp1252 encoding, can't display emojis
-- Use text labels like `[OK]`, `[WARN]` instead of emojis in print statements
-- Already fixed in `backend/main.py` and `src/ats_optimizer.py`
-
-### Llama.cpp slow or hanging
-- Large models (14B+) are slow on GPU with limited VRAM
-- Use Llama 3.1 8B for faster results
-- Check GPU memory in Task Manager
-
-### Job stuck at percentage
-- LLM is generating (especially large models)
-- Check llama-server console for activity
-- Backend logs show WebSocket connection status
+| Issue | Solution |
+|-------|----------|
+| Frontend not connecting | Check backend on port 8000, check `vite.config.ts` proxy |
+| API 422 errors | Check FormData field names match backend |
+| Ollama not responding | Run `ollama list`, then `ollama serve` |
+| Unicode/emoji errors | Use text labels `[OK]` not emojis (Windows cp1252) |
+| Job stuck at % | LLM generating - check llama-server console |
 
 ---
 
-## Quick Reference
+## Files to NOT Commit
 
-```powershell
-# Start everything
-cd "C:\Users\davidgp2022\My Drive\Kaizen\job_applications"
-.\venv\Scripts\Activate.ps1
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-# (new terminal)
-cd frontend && npm run dev
+`jobs.db`, `ideas.html`, `.env`, `.claude/settings.local.json`, `CLAUDE.local.md`
 
-# View ideas backlog
-python scripts/ideas_html.py && start ideas.html
+---
 
-# Add an idea
-python scripts/ideas.py add
+## Reference Docs
 
-# Check backend health
-curl http://localhost:8000/api/health
-
-# Start Llama.cpp (if needed)
-llama-server.exe -m "C:\Users\davidgp2022\models\Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf" --port 8080 --ctx-size 8192
-```
+- `MASTER_VISION.md` - Strategic direction and roadmap
+- `docs/ARCHITECTURE.md` - Directory structure, system overview
+- `docs/API.md` - Endpoints, routes, database schema
+- `docs/journal/PROJECT_DIARY_*.md` - Progress history
 
 ---
 
 **Last Updated**: 25 January 2026
-**Current Phase**: Track 2.7 COMPLETE - UI Improvements Bundle
-
----
-
-## Llama.cpp Configuration
-
-**Server Location**: `C:\Users\davidgp2022\AppData\Local\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe`
-
-**Models Directory**: `C:\Users\davidgp2022\models\`
-
-**Available Models**:
-- `Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf` (recommended - fits in VRAM)
-- `Mistral-Small-Instruct-2409-Q3_K_M.gguf`
-- `Qwen2.5-14B-Instruct-Q4_K_M.gguf`
-- `Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf`
-- `gemma-3-27b-it-q4_k_m.gguf` (too large for GPU - needs CPU offload)
-
-**Start Command**:
-```powershell
-llama-server.exe -m "C:\Users\davidgp2022\models\Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf" --port 8080 --ctx-size 8192
-```
