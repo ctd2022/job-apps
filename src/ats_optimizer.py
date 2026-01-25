@@ -2,12 +2,17 @@
 """
 ATS Optimization Module (Enhanced)
 Analyzes job descriptions and optimizes CVs for Applicant Tracking Systems
-Features: N-gram extraction, synonym matching, weighted scoring, LLM integration
+Features: N-gram extraction, synonym matching, weighted scoring, LLM integration,
+          Section-level matching, Evidence-weighted scoring (Track 2.8)
 """
 
 import re
 from collections import Counter
 from llm_backend import LLMBackend
+from document_parser import (
+    DocumentParser, ParsedCV, ParsedJD,
+    CVSectionType, JDSectionType, EntityType, Entity
+)
 
 
 class ATSOptimizer:
@@ -203,6 +208,9 @@ class ATSOptimizer:
         self.dynamic_stopwords = set()
         if company_name:
             self._add_company_variations(company_name)
+
+        # Initialize document parser for section-level analysis (Track 2.8)
+        self.document_parser = DocumentParser()
 
     def _add_company_variations(self, company_name: str):
         """Add company name variations to stopwords"""
@@ -433,6 +441,110 @@ Be specific and use the exact terminology from the job description. Include mult
 
         return self.backend.chat(messages, temperature=0.3, max_tokens=1024)
 
+    def _calculate_section_match(self, parsed_cv: ParsedCV, parsed_jd: ParsedJD) -> dict:
+        """
+        Calculate section-level matching between CV and JD.
+        Maps JD Requirements -> CV sections to find where skills are demonstrated.
+        """
+        section_matches = {
+            'experience_matches': [],  # Skills found in experience section
+            'skills_matches': [],      # Skills found in skills section
+            'projects_matches': [],    # Skills found in projects section
+            'other_matches': [],       # Skills found elsewhere
+            'not_found': []            # Required skills not found
+        }
+
+        # Get required skills from JD
+        jd_required = {e.text.lower() for e in parsed_jd.required_entities}
+        jd_preferred = {e.text.lower() for e in parsed_jd.preferred_entities}
+        all_jd_skills = jd_required | jd_preferred
+
+        # Check each CV entity and categorize by section
+        cv_skills_by_section = {}
+        for entity in parsed_cv.entities:
+            skill_lower = entity.text.lower()
+            section = entity.section or 'unknown'
+            if section not in cv_skills_by_section:
+                cv_skills_by_section[section] = set()
+            cv_skills_by_section[section].add(skill_lower)
+
+        # Find where each JD skill appears in CV
+        for skill in all_jd_skills:
+            found = False
+            if skill in cv_skills_by_section.get('experience', set()):
+                section_matches['experience_matches'].append(skill)
+                found = True
+            elif skill in cv_skills_by_section.get('projects', set()):
+                section_matches['projects_matches'].append(skill)
+                found = True
+            elif skill in cv_skills_by_section.get('skills', set()):
+                section_matches['skills_matches'].append(skill)
+                found = True
+            else:
+                # Check all sections
+                for section, skills in cv_skills_by_section.items():
+                    if skill in skills:
+                        section_matches['other_matches'].append(skill)
+                        found = True
+                        break
+
+            if not found:
+                section_matches['not_found'].append(skill)
+
+        return section_matches
+
+    def _calculate_evidence_scores(self, parsed_cv: ParsedCV, parsed_jd: ParsedJD) -> dict:
+        """
+        Calculate evidence-weighted scores for skills.
+        Skills demonstrated in Experience with metrics are weighted higher.
+        """
+        evidence_results = {
+            'strong_evidence': [],    # High evidence strength (>1.3)
+            'moderate_evidence': [],  # Moderate evidence (1.0-1.3)
+            'weak_evidence': [],      # Listed but not demonstrated (<1.0)
+            'average_strength': 0.0,
+            'total_weighted_score': 0.0
+        }
+
+        # Get required skills from JD
+        jd_skills = {e.text.lower() for e in parsed_jd.entities
+                     if e.entity_type in (EntityType.HARD_SKILL, EntityType.SOFT_SKILL)}
+
+        # Calculate evidence for each matched skill
+        total_strength = 0.0
+        count = 0
+
+        for entity in parsed_cv.entities:
+            skill_lower = entity.text.lower()
+            if skill_lower in jd_skills:
+                count += 1
+                total_strength += entity.evidence_strength
+
+                if entity.evidence_strength > 1.3:
+                    evidence_results['strong_evidence'].append({
+                        'skill': entity.text,
+                        'strength': entity.evidence_strength,
+                        'section': entity.section
+                    })
+                elif entity.evidence_strength >= 1.0:
+                    evidence_results['moderate_evidence'].append({
+                        'skill': entity.text,
+                        'strength': entity.evidence_strength,
+                        'section': entity.section
+                    })
+                else:
+                    evidence_results['weak_evidence'].append({
+                        'skill': entity.text,
+                        'strength': entity.evidence_strength,
+                        'section': entity.section
+                    })
+
+        if count > 0:
+            evidence_results['average_strength'] = round(total_strength / count, 2)
+            evidence_results['total_weighted_score'] = round(total_strength, 2)
+
+        return evidence_results
+
     def calculate_ats_score(self, cv_text: str, job_description: str, key_requirements: str) -> dict:
         """
         Calculate how well the CV matches the job description.
@@ -441,10 +553,22 @@ Be specific and use the exact terminology from the job description. Include mult
         - Required vs preferred skills
         - N-gram matching (phrases worth more than single words)
         - Synonym/abbreviation matching
+        - Section-level matching (Track 2.8)
+        - Evidence-weighted scoring (Track 2.8)
         """
 
         # Parse LLM requirements
         parsed_reqs = self._parse_llm_requirements(key_requirements)
+
+        # Parse documents for section-level analysis (Track 2.8)
+        parsed_cv = self.document_parser.parse_cv(cv_text)
+        parsed_jd = self.document_parser.parse_jd(job_description)
+
+        # Calculate section-level matching
+        section_matches = self._calculate_section_match(parsed_cv, parsed_jd)
+
+        # Calculate evidence-weighted scores
+        evidence_scores = self._calculate_evidence_scores(parsed_cv, parsed_jd)
 
         # Extract keywords from both documents
         job_keywords = self.extract_keywords(job_description)
@@ -565,7 +689,34 @@ Be specific and use the exact terminology from the job description. Include mult
                 for cat, data in scores.items()
             },
             'matched_phrases': matched_bigrams[:10],
-            'missing_phrases': missing_bigrams[:10]
+            'missing_phrases': missing_bigrams[:10],
+            # Track 2.8: Section-level analysis
+            'section_analysis': {
+                'experience_matches': section_matches['experience_matches'][:10],
+                'skills_matches': section_matches['skills_matches'][:10],
+                'projects_matches': section_matches['projects_matches'][:5],
+                'not_found_in_cv': section_matches['not_found'][:10],
+                'cv_sections_detected': len(parsed_cv.sections),
+                'jd_sections_detected': len(parsed_jd.sections),
+            },
+            # Track 2.8: Evidence-weighted scoring
+            'evidence_analysis': {
+                'strong_evidence_count': len(evidence_scores['strong_evidence']),
+                'moderate_evidence_count': len(evidence_scores['moderate_evidence']),
+                'weak_evidence_count': len(evidence_scores['weak_evidence']),
+                'average_strength': evidence_scores['average_strength'],
+                'strong_skills': [e['skill'] for e in evidence_scores['strong_evidence'][:5]],
+                'weak_skills': [e['skill'] for e in evidence_scores['weak_evidence'][:5]],
+            },
+            # Track 2.8: Extracted entities summary
+            'parsed_entities': {
+                'cv_hard_skills': list(parsed_cv.get_hard_skills())[:15],
+                'cv_soft_skills': list(parsed_cv.get_soft_skills())[:10],
+                'jd_required_skills': list(parsed_jd.get_required_skills())[:15],
+                'jd_preferred_skills': list(parsed_jd.get_preferred_skills())[:10],
+                'cv_years_experience': parsed_cv.years_experience,
+                'jd_years_required': parsed_jd.years_required,
+            }
         }
 
     def generate_ats_optimized_cv(self, base_cv: str, job_description: str, key_requirements: str) -> str:
@@ -721,6 +872,49 @@ Generate the complete CV now:"""
                 mp = matched_phrases[i] if i < len(matched_phrases) else ''
                 np = missing_phrases[i] if i < len(missing_phrases) else ''
                 report += f"  {mp:<29} | {np}\n"
+
+        # Section Analysis (Track 2.8)
+        section_data = ats_score.get('section_analysis', {})
+        evidence_data = ats_score.get('evidence_analysis', {})
+        entities_data = ats_score.get('parsed_entities', {})
+
+        if section_data:
+            report += """
+--------------------------------------------------------------------------------
+                    SECTION-LEVEL ANALYSIS (Track 2.8)
+--------------------------------------------------------------------------------
+"""
+            exp_matches = section_data.get('experience_matches', [])
+            skills_matches = section_data.get('skills_matches', [])
+            not_found = section_data.get('not_found_in_cv', [])
+
+            report += f"  CV Sections Detected: {section_data.get('cv_sections_detected', 0)}\n"
+            report += f"  JD Sections Detected: {section_data.get('jd_sections_detected', 0)}\n\n"
+
+            if exp_matches:
+                report += f"  Skills demonstrated in EXPERIENCE: {', '.join(exp_matches[:6])}\n"
+            if skills_matches:
+                report += f"  Skills listed in SKILLS section:   {', '.join(skills_matches[:6])}\n"
+            if not_found:
+                report += f"  Skills NOT found in CV:            {', '.join(not_found[:6])}\n"
+
+        if evidence_data:
+            report += f"""
+  Evidence Strength Analysis:
+    - Strong evidence (with metrics/context): {evidence_data.get('strong_evidence_count', 0)} skills
+    - Moderate evidence:                      {evidence_data.get('moderate_evidence_count', 0)} skills
+    - Weak evidence (just listed):            {evidence_data.get('weak_evidence_count', 0)} skills
+    - Average evidence strength:              {evidence_data.get('average_strength', 0)}
+"""
+            strong = evidence_data.get('strong_skills', [])
+            if strong:
+                report += f"    - Top demonstrated skills: {', '.join(strong[:4])}\n"
+
+        if entities_data:
+            years_cv = entities_data.get('cv_years_experience')
+            years_jd = entities_data.get('jd_years_required')
+            if years_cv or years_jd:
+                report += f"\n  Experience: CV shows {years_cv or '?'} years, JD requires {years_jd or '?'} years\n"
 
         # AI-identified requirements
         report += f"""
