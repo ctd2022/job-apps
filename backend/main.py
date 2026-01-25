@@ -50,6 +50,7 @@ sys.path.insert(0, str(PROJECT_ROOT))  # Also add root for any root-level module
 try:
     from job_application_workflow import JobApplicationWorkflow
     from llm_backend import LLMBackendFactory
+    from ats_optimizer import ATSOptimizer
     WORKFLOW_AVAILABLE = True
     print(f"[OK] Successfully imported workflow modules from {SRC_DIR}")
 except ImportError as e:
@@ -380,7 +381,7 @@ async def process_job_application(
         ats_score = None
         
         if enable_ats:
-            from ats_optimizer import ATSOptimizer
+            # ATSOptimizer imported at module level to ensure correct path
             ats_optimizer = ATSOptimizer(
                 backend=workflow.backend,
                 company_name=company_name

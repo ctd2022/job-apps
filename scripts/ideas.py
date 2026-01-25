@@ -85,6 +85,8 @@ def show_idea(idea_id):
     print(f"Status: {row['status']}")
     print(f"Created: {row['created_at']}")
     print(f"Source: {row['source']}")
+    if row['source_url']:
+        print(f"Source URL: {row['source_url']}")
     print(f"\nDescription:\n{row['description']}")
     if row['notes']:
         print(f"\nNotes:\n{row['notes']}")
@@ -117,14 +119,15 @@ def add_idea():
     priority = int(priority)
 
     source = input("Source [Manual entry]: ").strip() or "Manual entry"
+    source_url = input("Source URL (optional): ").strip() or None
 
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
-        INSERT INTO ideas (title, description, category, complexity, impact, priority, source)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (title, description, category, complexity, impact, priority, source))
+        INSERT INTO ideas (title, description, category, complexity, impact, priority, source, source_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (title, description, category, complexity, impact, priority, source, source_url))
 
     conn.commit()
     idea_id = cursor.lastrowid

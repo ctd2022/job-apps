@@ -27,7 +27,9 @@ for idea in ideas:
         'status': idea['status'],
         'complexity': idea['complexity'] or 'Medium',
         'impact': idea['impact'] or 'Medium',
-        'created_at': idea['created_at']
+        'created_at': idea['created_at'][:10] if idea['created_at'] else '',
+        'source': idea['source'] or '',
+        'source_url': idea['source_url'] if 'source_url' in idea.keys() else ''
     })
 
 # Get unique categories
@@ -101,6 +103,10 @@ html = f'''<!DOCTYPE html>
         .search-box:focus {{ outline: none; border-color: #94a3b8; }}
         .clear-btn {{ padding: 4px 12px; font-size: 12px; background: #f1f5f9; border: 1px solid #e2e8f0; cursor: pointer; margin-left: 10px; }}
         .clear-btn:hover {{ background: #e2e8f0; }}
+        .source {{ font-size: 12px; color: #64748b; }}
+        .source-link {{ color: #2563eb; text-decoration: none; }}
+        .source-link:hover {{ text-decoration: underline; }}
+        .date {{ font-size: 12px; color: #94a3b8; font-family: monospace; }}
     </style>
 </head>
 <body>
@@ -176,11 +182,13 @@ html = f'''<!DOCTYPE html>
                 <tr>
                     <th data-sort="id" style="width:50px">ID</th>
                     <th data-sort="title">Title & Description</th>
-                    <th data-sort="category" style="width:110px">Category</th>
-                    <th data-sort="priority" style="width:60px">Pri</th>
-                    <th data-sort="impact" style="width:80px">Impact</th>
-                    <th data-sort="complexity" style="width:100px">Complexity</th>
-                    <th data-sort="status" style="width:100px">Status</th>
+                    <th data-sort="category" style="width:100px">Category</th>
+                    <th data-sort="priority" style="width:50px">Pri</th>
+                    <th data-sort="impact" style="width:70px">Impact</th>
+                    <th data-sort="complexity" style="width:90px">Complexity</th>
+                    <th data-sort="status" style="width:90px">Status</th>
+                    <th data-sort="source" style="width:120px">Source</th>
+                    <th data-sort="created_at" style="width:90px">Date</th>
                 </tr>
             </thead>
             <tbody id="ideas-body">
@@ -191,17 +199,22 @@ html = f'''<!DOCTYPE html>
     <script>
         const ideas = {json.dumps(ideas_json)};
 
-        let filters = {{ status: 'all', priority: 'all', impact: 'all', complexity: 'all', category: 'all', search: '' }};
+        // Multi-select filters: empty array means "all"
+        let filters = {{ status: [], priority: [], impact: [], complexity: [], category: [], search: '' }};
         let sortCol = 'priority';
         let sortDir = 'desc';
 
+        function matchesFilter(value, filterArray) {{
+            return filterArray.length === 0 || filterArray.includes(String(value));
+        }}
+
         function renderTable() {{
             let filtered = ideas.filter(idea => {{
-                if (filters.status !== 'all' && idea.status !== filters.status) return false;
-                if (filters.priority !== 'all' && idea.priority != filters.priority) return false;
-                if (filters.impact !== 'all' && idea.impact !== filters.impact) return false;
-                if (filters.complexity !== 'all' && idea.complexity !== filters.complexity) return false;
-                if (filters.category !== 'all' && idea.category !== filters.category) return false;
+                if (!matchesFilter(idea.status, filters.status)) return false;
+                if (!matchesFilter(idea.priority, filters.priority)) return false;
+                if (!matchesFilter(idea.impact, filters.impact)) return false;
+                if (!matchesFilter(idea.complexity, filters.complexity)) return false;
+                if (!matchesFilter(idea.category, filters.category)) return false;
                 if (filters.search && !idea.title.toLowerCase().includes(filters.search) && !idea.description.toLowerCase().includes(filters.search)) return false;
                 return true;
             }});
@@ -221,6 +234,9 @@ html = f'''<!DOCTYPE html>
                 const priClass = 'pri-' + idea.priority;
                 const impactClass = 'impact-' + idea.impact.toLowerCase();
                 const complexityClass = 'complexity-' + idea.complexity.toLowerCase();
+                const sourceHtml = idea.source_url
+                    ? `<a href="${{idea.source_url}}" target="_blank" class="source-link">${{idea.source || 'Link'}}</a>`
+                    : (idea.source || '-');
                 return `<tr>
                     <td class="id">#${{idea.id}}</td>
                     <td><div class="title">${{idea.title}}</div><div class="desc">${{idea.description}}</div></td>
@@ -229,6 +245,8 @@ html = f'''<!DOCTYPE html>
                     <td><span class="badge ${{impactClass}}">${{idea.impact}}</span></td>
                     <td><span class="badge ${{complexityClass}}">${{idea.complexity}}</span></td>
                     <td><span class="badge ${{statusClass}}">${{idea.status}}</span></td>
+                    <td class="source">${{sourceHtml}}</td>
+                    <td class="date">${{idea.created_at}}</td>
                 </tr>`;
             }}).join('');
 
@@ -246,19 +264,46 @@ html = f'''<!DOCTYPE html>
             tag.addEventListener('click', () => {{
                 const filter = tag.dataset.filter;
                 const value = tag.dataset.value;
-                filters[filter] = value;
 
-                document.querySelectorAll(`.tag[data-filter="${{filter}}"]`).forEach(t => {{
-                    t.classList.remove('active', 'active-status-idea', 'active-status-planned', 'active-status-in-progress', 'active-status-done', 'active-status-deferred', 'active-pri', 'active-impact', 'active-complexity', 'active-category');
-                }});
-                if (value !== 'all') {{
-                    if (filter === 'status') tag.classList.add('active-status-' + value.toLowerCase().replace(' ', '-'));
-                    else if (filter === 'priority') tag.classList.add('active-pri');
-                    else if (filter === 'impact') tag.classList.add('active-impact');
-                    else if (filter === 'complexity') tag.classList.add('active-complexity');
-                    else if (filter === 'category') tag.classList.add('active-category');
+                if (value === 'all') {{
+                    // Clear this filter group
+                    filters[filter] = [];
+                    document.querySelectorAll(`.tag[data-filter="${{filter}}"]`).forEach(t => {{
+                        t.classList.remove('active', 'active-status-idea', 'active-status-planned', 'active-status-in-progress', 'active-status-done', 'active-status-deferred', 'active-pri', 'active-impact', 'active-complexity', 'active-category');
+                    }});
+                    tag.classList.add('active');
+                }} else {{
+                    // Toggle this value in the filter array
+                    const idx = filters[filter].indexOf(value);
+                    if (idx === -1) {{
+                        filters[filter].push(value);
+                    }} else {{
+                        filters[filter].splice(idx, 1);
+                    }}
+
+                    // Update tag styling
+                    const allTag = document.querySelector(`.tag[data-filter="${{filter}}"][data-value="all"]`);
+                    if (filters[filter].length === 0) {{
+                        // No specific filters, show "All" as active
+                        allTag.classList.add('active');
+                    }} else {{
+                        allTag.classList.remove('active');
+                    }}
+
+                    // Toggle this tag's active state
+                    if (idx === -1) {{
+                        // Was added
+                        if (filter === 'status') tag.classList.add('active-status-' + value.toLowerCase().replace(' ', '-'));
+                        else if (filter === 'priority') tag.classList.add('active-pri');
+                        else if (filter === 'impact') tag.classList.add('active-impact');
+                        else if (filter === 'complexity') tag.classList.add('active-complexity');
+                        else if (filter === 'category') tag.classList.add('active-category');
+                        tag.classList.add('active');
+                    }} else {{
+                        // Was removed
+                        tag.classList.remove('active', 'active-status-idea', 'active-status-planned', 'active-status-in-progress', 'active-status-done', 'active-status-deferred', 'active-pri', 'active-impact', 'active-complexity', 'active-category');
+                    }}
                 }}
-                tag.classList.add('active');
                 renderTable();
             }});
         }});
@@ -282,7 +327,7 @@ html = f'''<!DOCTYPE html>
         }});
 
         function clearFilters() {{
-            filters = {{ status: 'all', priority: 'all', impact: 'all', complexity: 'all', category: 'all', search: '' }};
+            filters = {{ status: [], priority: [], impact: [], complexity: [], category: [], search: '' }};
             document.querySelectorAll('.tag').forEach(t => t.classList.remove('active', 'active-status-idea', 'active-status-planned', 'active-status-in-progress', 'active-status-done', 'active-status-deferred', 'active-pri', 'active-impact', 'active-complexity', 'active-category'));
             document.querySelectorAll('.tag[data-value="all"]').forEach(t => t.classList.add('active'));
             document.getElementById('search').value = '';

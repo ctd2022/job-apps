@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-ATS Optimization Module
+ATS Optimization Module (Enhanced)
 Analyzes job descriptions and optimizes CVs for Applicant Tracking Systems
-Now supports multiple LLM backends
+Features: N-gram extraction, synonym matching, weighted scoring, LLM integration
 """
 
 import re
@@ -14,7 +14,7 @@ class ATSOptimizer:
     def __init__(self, backend: LLMBackend = None, model_name: str = None, company_name: str = None):
         """
         Initialize with an LLM backend
-        
+
         Args:
             backend: LLMBackend instance (Ollama, Llama.cpp, or Gemini)
             model_name: Legacy parameter for backward compatibility (ignored if backend provided)
@@ -23,7 +23,7 @@ class ATSOptimizer:
         self.backend = backend
         self.model_name = model_name  # Store for legacy compatibility
         self.company_name = company_name
-        
+
         # Base ATS stopwords (articles, prepositions, common verbs)
         self.base_stopwords = {
             'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
@@ -32,9 +32,12 @@ class ATSOptimizer:
             'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this',
             'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
             'us', 'them', 'what', 'which', 'who', 'when', 'where', 'why', 'how',
-            'all', 'each', 'every', 'both', 'few', 'more', 'most', 'some', 'such'
+            'all', 'each', 'every', 'both', 'few', 'more', 'most', 'some', 'such',
+            'into', 'through', 'above', 'below', 'between', 'under', 'over',
+            'out', 'up', 'down', 'off', 'then', 'than', 'so', 'just', 'also',
+            'very', 'too', 'any', 'only', 'own', 'same', 'no', 'not', 'now'
         }
-        
+
         # Job posting UI/navigation words (common across job sites)
         self.ui_stopwords = {
             'apply', 'job', 'save', 'show', 'view', 'click', 'here', 'read',
@@ -42,85 +45,364 @@ class ATSOptimizer:
             'sort', 'share', 'print', 'email', 'download', 'upload', 'submit',
             'send', 'post', 'date', 'ago', 'day', 'week', 'month', 'year',
             'new', 'updated', 'end', 'start', 'while', 'during', 'about',
-            'our', 'your', 'their', 'its', 'my'
+            'our', 'your', 'their', 'its', 'my', 'we', 'us'
         }
-        
+
+        # Job posting boilerplate words (appear in most job postings)
+        self.job_posting_stopwords = {
+            'responsibilities', 'responsibility', 'requirements', 'requirement',
+            'qualifications', 'qualification', 'preferred', 'required', 'must',
+            'candidate', 'candidates', 'position', 'role', 'opportunity',
+            'looking', 'seeking', 'hiring', 'join', 'team', 'company',
+            'ideal', 'strong', 'excellent', 'good', 'great', 'best',
+            'ability', 'able', 'skills', 'skill', 'experience', 'experienced',
+            'knowledge', 'understanding', 'familiar', 'familiarity',
+            'work', 'working', 'environment', 'based', 'including', 'includes',
+            'well', 'within', 'across', 'using', 'used', 'use',
+            'ensure', 'ensuring', 'provide', 'providing', 'support', 'supporting',
+            'develop', 'developing', 'development', 'create', 'creating',
+            'manage', 'managing', 'management', 'lead', 'leading',
+            'build', 'building', 'design', 'designing', 'implement', 'implementing',
+            'etc', 'other', 'others', 'various', 'multiple', 'different',
+            'minimum', 'maximum', 'least', 'plus', 'years', 'year',
+            'full', 'time', 'part', 'remote', 'onsite', 'hybrid', 'office',
+            'salary', 'benefits', 'compensation', 'package', 'competitive',
+            'equal', 'employer', 'employment', 'applicants', 'applicant'
+        }
+
+        # Common tech abbreviation mappings (abbreviation -> [full forms])
+        self.abbreviation_map = {
+            'js': ['javascript'],
+            'ts': ['typescript'],
+            'py': ['python'],
+            'rb': ['ruby'],
+            'ml': ['machine learning'],
+            'ai': ['artificial intelligence'],
+            'dl': ['deep learning'],
+            'nlp': ['natural language processing'],
+            'cv': ['computer vision'],
+            'aws': ['amazon web services'],
+            'gcp': ['google cloud platform', 'google cloud'],
+            'azure': ['microsoft azure'],
+            'k8s': ['kubernetes'],
+            'docker': ['containerization', 'containers'],
+            'ci': ['continuous integration'],
+            'cd': ['continuous deployment', 'continuous delivery'],
+            'cicd': ['ci/cd', 'continuous integration', 'continuous deployment'],
+            'api': ['apis', 'rest api', 'restful'],
+            'sql': ['mysql', 'postgresql', 'database'],
+            'nosql': ['mongodb', 'dynamodb', 'non-relational'],
+            'db': ['database', 'databases'],
+            'ui': ['user interface'],
+            'ux': ['user experience'],
+            'qa': ['quality assurance', 'testing'],
+            'pm': ['project management', 'product management'],
+            'scrum': ['agile', 'sprint'],
+            'agile': ['scrum', 'kanban', 'sprint'],
+            'oop': ['object oriented programming', 'object-oriented'],
+            'fp': ['functional programming'],
+            'tdd': ['test driven development', 'test-driven'],
+            'bdd': ['behavior driven development'],
+            'saas': ['software as a service'],
+            'paas': ['platform as a service'],
+            'iaas': ['infrastructure as a service'],
+            'rest': ['restful', 'rest api'],
+            'graphql': ['graph ql'],
+            'react': ['reactjs', 'react.js'],
+            'vue': ['vuejs', 'vue.js'],
+            'angular': ['angularjs', 'angular.js'],
+            'node': ['nodejs', 'node.js'],
+            'express': ['expressjs', 'express.js'],
+            'django': ['python django'],
+            'flask': ['python flask'],
+            'spring': ['spring boot', 'spring framework'],
+            'dotnet': ['.net', 'dot net', 'asp.net'],
+            'tf': ['tensorflow'],
+            'pytorch': ['torch'],
+            'pandas': ['data analysis'],
+            'numpy': ['numerical python'],
+            'git': ['github', 'gitlab', 'version control'],
+            'linux': ['unix', 'ubuntu', 'centos', 'redhat'],
+            'bash': ['shell', 'shell scripting'],
+            'powershell': ['windows scripting'],
+            'html': ['html5'],
+            'css': ['css3', 'styling'],
+            'sass': ['scss'],
+            'jwt': ['json web token', 'authentication'],
+            'oauth': ['oauth2', 'authentication'],
+            'sso': ['single sign-on'],
+            'sdk': ['software development kit'],
+            'ide': ['integrated development environment'],
+            'vscode': ['visual studio code'],
+            'jira': ['atlassian', 'issue tracking'],
+            'confluence': ['atlassian', 'documentation'],
+            'slack': ['team communication'],
+            'etl': ['extract transform load', 'data pipeline'],
+            'bi': ['business intelligence'],
+            'kpi': ['key performance indicator', 'metrics'],
+            'roi': ['return on investment'],
+            'b2b': ['business to business'],
+            'b2c': ['business to consumer'],
+            'crm': ['customer relationship management', 'salesforce'],
+            'erp': ['enterprise resource planning'],
+            'hr': ['human resources'],
+            'devops': ['dev ops', 'development operations'],
+            'sre': ['site reliability engineering', 'site reliability'],
+            'sla': ['service level agreement'],
+            'cdn': ['content delivery network'],
+            'dns': ['domain name system'],
+            'ssl': ['tls', 'https', 'security'],
+            'vpc': ['virtual private cloud'],
+            'ec2': ['elastic compute', 'aws compute'],
+            's3': ['aws storage', 'object storage'],
+            'rds': ['relational database service'],
+            'lambda': ['serverless', 'aws lambda'],
+        }
+
+        # Role/title suffix variations (manager <-> management, etc.)
+        self.role_variations = {
+            'manager': ['management', 'managing'],
+            'management': ['manager', 'managing'],
+            'engineer': ['engineering'],
+            'engineering': ['engineer'],
+            'developer': ['development', 'developing'],
+            'development': ['developer', 'developing'],
+            'analyst': ['analysis', 'analytics', 'analyzing'],
+            'analysis': ['analyst', 'analytics'],
+            'analytics': ['analyst', 'analysis'],
+            'architect': ['architecture', 'architecting'],
+            'architecture': ['architect'],
+            'administrator': ['administration', 'admin'],
+            'administration': ['administrator', 'admin'],
+            'admin': ['administrator', 'administration'],
+            'consultant': ['consulting', 'consultancy'],
+            'consulting': ['consultant', 'consultancy'],
+            'director': ['directing', 'directorship'],
+            'lead': ['leader', 'leading', 'leadership'],
+            'leader': ['lead', 'leading', 'leadership'],
+            'leadership': ['lead', 'leader', 'leading'],
+            'coordinator': ['coordination', 'coordinating'],
+            'coordination': ['coordinator', 'coordinating'],
+            'specialist': ['specialization', 'specialized'],
+            'supervisor': ['supervision', 'supervising'],
+            'programme': ['program', 'programs', 'programmes'],
+            'program': ['programme', 'programs', 'programmes'],
+            'project': ['projects'],
+            'projects': ['project'],
+        }
+
+        # Build reverse mapping (full form -> abbreviation)
+        self.reverse_abbreviation_map = {}
+        for abbr, full_forms in self.abbreviation_map.items():
+            for full_form in full_forms:
+                if full_form not in self.reverse_abbreviation_map:
+                    self.reverse_abbreviation_map[full_form] = []
+                self.reverse_abbreviation_map[full_form].append(abbr)
+
         # Initialize dynamic stopwords
         self.dynamic_stopwords = set()
         if company_name:
             self._add_company_variations(company_name)
-    
+
     def _add_company_variations(self, company_name: str):
         """Add company name variations to stopwords"""
         # Add lowercase company name
         self.dynamic_stopwords.add(company_name.lower())
-        
+
         # Add individual words if multi-word company name
         for word in company_name.lower().split():
             if len(word) > 2:  # Skip very short words
                 self.dynamic_stopwords.add(word)
-        
+
         # Add common company suffixes to exclude
         company_suffixes = {
             'ltd', 'limited', 'inc', 'incorporated', 'corp', 'corporation',
             'llc', 'plc', 'group', 'holdings', 'company', 'co'
         }
         self.dynamic_stopwords.update(company_suffixes)
-    
+
     def _extract_company_from_text(self, job_description: str):
         """Extract likely company name from job description if not provided"""
-        # Simple extraction - look for common patterns
-        # This is a fallback if company name not provided via CLI
-        
-        # Pattern 1: "Company: XYZ" or "Organization: XYZ"
-        import re
         patterns = [
             r'(?:company|organization|employer):\s*([A-Z][A-Za-z\s&]+?)(?:\n|\.|,)',
             r'(?:join|at)\s+([A-Z][A-Za-z\s&]+?)\s+(?:as|in|for)',
             r'^([A-Z][A-Za-z\s&]+?)\s+is\s+(?:seeking|looking|hiring)'
         ]
-        
+
         for pattern in patterns:
             match = re.search(pattern, job_description, re.MULTILINE | re.IGNORECASE)
             if match:
                 company = match.group(1).strip()
-                # Validate it's not too long (probably not a company name)
                 if len(company.split()) <= 4:
                     return company
-        
+
         return None
-    
+
     def get_all_stopwords(self):
         """Get combined set of all stopwords"""
-        return self.base_stopwords | self.ui_stopwords | self.dynamic_stopwords
-    
-    def extract_keywords(self, text, auto_detect_company=True):
-        """Extract important keywords from job description"""
+        return (self.base_stopwords | self.ui_stopwords |
+                self.job_posting_stopwords | self.dynamic_stopwords)
+
+    def _normalize_text(self, text: str) -> str:
+        """Normalize text for keyword extraction"""
+        # Convert to lowercase
+        text = text.lower()
+        # Normalize common variations
+        text = re.sub(r'\.js\b', 'js', text)  # React.js -> Reactjs
+        text = re.sub(r'\.net\b', 'dotnet', text)  # .NET -> dotnet
+        text = re.sub(r'\bci/cd\b', 'cicd', text)  # CI/CD -> cicd
+        text = re.sub(r'\bc\+\+\b', 'cpp', text)  # C++ -> cpp
+        text = re.sub(r'\bc#\b', 'csharp', text)  # C# -> csharp
+        text = re.sub(r'\bf#\b', 'fsharp', text)  # F# -> fsharp
+        # Remove special chars but keep hyphens for compound words
+        text = re.sub(r'[^\w\s\-]', ' ', text)
+        return text
+
+    def extract_ngrams(self, text: str, n: int = 2) -> list:
+        """Extract n-grams from text"""
+        words = text.split()
+        ngrams = []
+        for i in range(len(words) - n + 1):
+            ngram = ' '.join(words[i:i+n])
+            ngrams.append(ngram)
+        return ngrams
+
+    def extract_keywords(self, text: str, auto_detect_company: bool = True) -> dict:
+        """
+        Extract important keywords from text including:
+        - Single words (unigrams)
+        - Two-word phrases (bigrams)
+        - Three-word phrases (trigrams)
+
+        Returns dict with 'unigrams', 'bigrams', 'trigrams', and 'all' counters
+        """
         # Auto-detect company name if not provided and requested
         if auto_detect_company and not self.company_name:
             detected_company = self._extract_company_from_text(text)
             if detected_company:
                 self._add_company_variations(detected_company)
-        
-        # Convert to lowercase and split into words
-        words = re.findall(r'\b[a-z]{3,}\b', text.lower())
-        
-        # Get all stopwords (base + UI + dynamic)
+
+        # Normalize text
+        normalized = self._normalize_text(text)
+
+        # Get all stopwords
         all_stopwords = self.get_all_stopwords()
-        
-        # Remove stopwords
-        keywords = [w for w in words if w not in all_stopwords]
-        
-        # Count frequency
-        keyword_freq = Counter(keywords)
-        
-        return keyword_freq
-    
-    def identify_key_requirements(self, job_description):
+
+        # Extract unigrams (single words, min 2 chars)
+        words = re.findall(r'\b[a-z][a-z0-9\-]{1,}\b', normalized)
+        unigrams = [w for w in words if w not in all_stopwords and len(w) >= 2]
+
+        # Extract bigrams (2-word phrases)
+        bigrams = []
+        for bigram in self.extract_ngrams(normalized, 2):
+            words_in_bigram = bigram.split()
+            # Keep if at least one word is not a stopword
+            if any(w not in all_stopwords and len(w) >= 2 for w in words_in_bigram):
+                # Skip if all words are stopwords
+                if not all(w in all_stopwords for w in words_in_bigram):
+                    bigrams.append(bigram)
+
+        # Extract trigrams (3-word phrases)
+        trigrams = []
+        for trigram in self.extract_ngrams(normalized, 3):
+            words_in_trigram = trigram.split()
+            # Keep if at least two words are meaningful
+            meaningful = [w for w in words_in_trigram if w not in all_stopwords and len(w) >= 2]
+            if len(meaningful) >= 2:
+                trigrams.append(trigram)
+
+        return {
+            'unigrams': Counter(unigrams),
+            'bigrams': Counter(bigrams),
+            'trigrams': Counter(trigrams),
+            'all': Counter(unigrams)  # For backward compatibility
+        }
+
+    def _expand_with_synonyms(self, keywords: set) -> set:
+        """Expand keyword set with known synonyms/abbreviations and role variations"""
+        expanded = set(keywords)
+
+        for keyword in keywords:
+            keyword_lower = keyword.lower()
+
+            # Check if it's an abbreviation
+            if keyword_lower in self.abbreviation_map:
+                expanded.update(self.abbreviation_map[keyword_lower])
+
+            # Check if it has an abbreviation
+            if keyword_lower in self.reverse_abbreviation_map:
+                expanded.update(self.reverse_abbreviation_map[keyword_lower])
+
+            # Check role variations (manager <-> management, etc.)
+            if keyword_lower in self.role_variations:
+                expanded.update(self.role_variations[keyword_lower])
+
+            # For multi-word phrases, expand each word
+            words = keyword_lower.split()
+            if len(words) > 1:
+                for i, word in enumerate(words):
+                    if word in self.role_variations:
+                        for variation in self.role_variations[word]:
+                            new_phrase = ' '.join(words[:i] + [variation] + words[i+1:])
+                            expanded.add(new_phrase)
+
+        return expanded
+
+    def _parse_llm_requirements(self, llm_output: str) -> dict:
+        """Parse the structured output from LLM requirement identification"""
+        result = {
+            'hard_skills': [],
+            'soft_skills': [],
+            'qualifications': [],
+            'critical_keywords': [],
+            'required': [],  # Keywords marked as "required"/"must have"
+            'preferred': []  # Keywords marked as "preferred"/"nice to have"
+        }
+
+        current_section = None
+
+        for line in llm_output.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+
+            line_lower = line.lower()
+
+            if line_lower.startswith('hard skills:'):
+                current_section = 'hard_skills'
+                content = line.split(':', 1)[1].strip()
+            elif line_lower.startswith('soft skills:'):
+                current_section = 'soft_skills'
+                content = line.split(':', 1)[1].strip()
+            elif line_lower.startswith('qualifications:') or line_lower.startswith('required qualifications:'):
+                current_section = 'qualifications'
+                content = line.split(':', 1)[1].strip()
+            elif line_lower.startswith('critical keywords:'):
+                current_section = 'critical_keywords'
+                content = line.split(':', 1)[1].strip()
+            elif line_lower.startswith('required:') or line_lower.startswith('must have:'):
+                current_section = 'required'
+                content = line.split(':', 1)[1].strip()
+            elif line_lower.startswith('preferred:') or line_lower.startswith('nice to have:'):
+                current_section = 'preferred'
+                content = line.split(':', 1)[1].strip()
+            else:
+                content = line
+
+            if current_section and content:
+                # Split by comma and clean up
+                items = [item.strip() for item in content.split(',') if item.strip()]
+                result[current_section].extend(items)
+
+        return result
+
+    def identify_key_requirements(self, job_description: str) -> str:
         """Use LLM to identify critical requirements and keywords"""
-        
-        system_message = """You are an expert at analyzing job descriptions and identifying what ATS (Applicant Tracking Systems) look for. Extract the most important keywords and requirements."""
-        
+
+        system_message = """You are an expert at analyzing job descriptions and identifying what ATS (Applicant Tracking Systems) look for. Extract the most important keywords and requirements.
+
+IMPORTANT: Distinguish between REQUIRED skills (must-have, required, essential) and PREFERRED skills (nice-to-have, preferred, bonus)."""
+
         prompt = f"""Analyze this job description and identify:
 
 Job Description:
@@ -131,61 +413,169 @@ Provide:
 2. SOFT SKILLS (leadership, communication, etc.) - list as comma-separated keywords
 3. REQUIRED QUALIFICATIONS (education, years of experience, must-haves)
 4. CRITICAL KEYWORDS that an ATS would scan for
+5. REQUIRED (must-have skills explicitly stated as required)
+6. PREFERRED (nice-to-have skills, bonus qualifications)
 
 Format your response exactly like this:
 HARD SKILLS: keyword1, keyword2, keyword3
 SOFT SKILLS: keyword1, keyword2, keyword3
 QUALIFICATIONS: requirement1, requirement2
 CRITICAL KEYWORDS: keyword1, keyword2, keyword3
+REQUIRED: skill1, skill2, skill3
+PREFERRED: skill1, skill2, skill3
 
-Be specific and use the exact terminology from the job description."""
+Be specific and use the exact terminology from the job description. Include multi-word terms like "machine learning" or "project management"."""
 
         messages = [
             {'role': 'system', 'content': system_message},
             {'role': 'user', 'content': prompt}
         ]
-        
+
         return self.backend.chat(messages, temperature=0.3, max_tokens=1024)
-    
-    def calculate_ats_score(self, cv_text, job_description, key_requirements):
-        """Calculate how well the CV matches the job description"""
-        
-        # Extract keywords from both
+
+    def calculate_ats_score(self, cv_text: str, job_description: str, key_requirements: str) -> dict:
+        """
+        Calculate how well the CV matches the job description.
+        Uses weighted scoring based on:
+        - LLM-identified critical keywords (high weight)
+        - Required vs preferred skills
+        - N-gram matching (phrases worth more than single words)
+        - Synonym/abbreviation matching
+        """
+
+        # Parse LLM requirements
+        parsed_reqs = self._parse_llm_requirements(key_requirements)
+
+        # Extract keywords from both documents
         job_keywords = self.extract_keywords(job_description)
         cv_keywords = self.extract_keywords(cv_text)
-        
-        # Get top keywords from job description
-        top_job_keywords = dict(job_keywords.most_common(30))
-        
-        # Check how many appear in CV
-        matched = 0
-        total = len(top_job_keywords)
-        missing_keywords = []
-        
-        for keyword in top_job_keywords:
-            if keyword in cv_keywords:
-                matched += 1
-            else:
-                missing_keywords.append(keyword)
-        
-        score = (matched / total * 100) if total > 0 else 0
-        
-        return {
-            'score': round(score, 1),
-            'matched': matched,
-            'total': total,
-            'missing_keywords': missing_keywords[:10],  # Top 10 missing
-            'top_job_keywords': list(top_job_keywords.keys())[:15]
+
+        # Build CV keyword sets for matching (including synonyms)
+        cv_unigrams = set(cv_keywords['unigrams'].keys())
+        cv_bigrams = set(cv_keywords['bigrams'].keys())
+        cv_trigrams = set(cv_keywords['trigrams'].keys())
+        cv_all_text = self._normalize_text(cv_text)
+
+        # Expand CV keywords with synonyms
+        cv_unigrams_expanded = self._expand_with_synonyms(cv_unigrams)
+
+        # Scoring breakdown
+        scores = {
+            'critical_keywords': {'matched': [], 'missing': [], 'weight': 3.0},
+            'hard_skills': {'matched': [], 'missing': [], 'weight': 2.5},
+            'required': {'matched': [], 'missing': [], 'weight': 2.0},
+            'soft_skills': {'matched': [], 'missing': [], 'weight': 1.5},
+            'preferred': {'matched': [], 'missing': [], 'weight': 1.0},
+            'frequency_keywords': {'matched': [], 'missing': [], 'weight': 0.5}
         }
-    
-    def generate_ats_optimized_cv(self, base_cv, job_description, key_requirements):
+
+        def check_keyword_match(keyword: str, cv_text: str, cv_unigrams: set) -> bool:
+            """Check if a keyword or its synonyms appear in CV"""
+            keyword_lower = keyword.lower().strip()
+
+            # Direct phrase match in text
+            if keyword_lower in cv_text:
+                return True
+
+            # Single word match
+            if keyword_lower in cv_unigrams:
+                return True
+
+            # Check synonyms/abbreviations
+            expanded = self._expand_with_synonyms({keyword_lower})
+            for variant in expanded:
+                if variant in cv_text or variant in cv_unigrams:
+                    return True
+
+            return False
+
+        # Score LLM-identified keywords
+        for category in ['critical_keywords', 'hard_skills', 'required', 'soft_skills', 'preferred']:
+            for keyword in parsed_reqs.get(category, []):
+                if check_keyword_match(keyword, cv_all_text, cv_unigrams_expanded):
+                    scores[category]['matched'].append(keyword)
+                else:
+                    scores[category]['missing'].append(keyword)
+
+        # Also check top frequency-based keywords from job description
+        top_job_unigrams = [k for k, v in job_keywords['unigrams'].most_common(20)]
+        top_job_bigrams = [k for k, v in job_keywords['bigrams'].most_common(15)]
+
+        for keyword in top_job_unigrams:
+            if keyword not in cv_unigrams_expanded:
+                # Check if not already tracked
+                already_tracked = any(
+                    keyword.lower() in [k.lower() for k in scores[cat]['matched'] + scores[cat]['missing']]
+                    for cat in scores if cat != 'frequency_keywords'
+                )
+                if not already_tracked:
+                    scores['frequency_keywords']['missing'].append(keyword)
+            else:
+                scores['frequency_keywords']['matched'].append(keyword)
+
+        # Check bigrams (phrases) - these are important!
+        matched_bigrams = []
+        missing_bigrams = []
+        for bigram in top_job_bigrams:
+            if bigram in cv_bigrams or bigram in cv_all_text:
+                matched_bigrams.append(bigram)
+            else:
+                missing_bigrams.append(bigram)
+
+        # Calculate weighted score
+        total_weight = 0
+        weighted_score = 0
+
+        for category, data in scores.items():
+            total_items = len(data['matched']) + len(data['missing'])
+            if total_items > 0:
+                category_score = len(data['matched']) / total_items
+                weighted_score += category_score * data['weight'] * total_items
+                total_weight += data['weight'] * total_items
+
+        final_score = (weighted_score / total_weight * 100) if total_weight > 0 else 0
+
+        # Compile results
+        all_matched = []
+        all_missing = []
+        for category, data in scores.items():
+            all_matched.extend(data['matched'])
+            all_missing.extend(data['missing'])
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_matched = [x for x in all_matched if not (x.lower() in seen or seen.add(x.lower()))]
+        seen = set()
+        unique_missing = [x for x in all_missing if not (x.lower() in seen or seen.add(x.lower()))]
+
+        return {
+            'score': round(final_score, 1),
+            'matched': len(unique_matched),
+            'total': len(unique_matched) + len(unique_missing),
+            'missing_keywords': unique_missing[:15],
+            'matched_keywords': unique_matched[:15],
+            'top_job_keywords': top_job_unigrams[:15],
+            'scores_by_category': {
+                cat: {
+                    'matched': len(data['matched']),
+                    'missing': len(data['missing']),
+                    'items_matched': data['matched'][:5],
+                    'items_missing': data['missing'][:5]
+                }
+                for cat, data in scores.items()
+            },
+            'matched_phrases': matched_bigrams[:10],
+            'missing_phrases': missing_bigrams[:10]
+        }
+
+    def generate_ats_optimized_cv(self, base_cv: str, job_description: str, key_requirements: str) -> str:
         """Generate CV specifically optimized for ATS scanning"""
-        
-        system_message = """You are an expert CV writer specializing in ATS (Applicant Tracking System) optimization. 
+
+        system_message = """You are an expert CV writer specializing in ATS (Applicant Tracking System) optimization.
 
 CRITICAL ATS FORMATTING RULES:
 - Use simple, standard section headers: PROFESSIONAL SUMMARY, WORK EXPERIENCE, SKILLS, EDUCATION
-- Use standard bullet points (•) or hyphens (-), no fancy symbols
+- Use standard bullet points (-), no fancy symbols
 - Include keywords naturally throughout the CV
 - Use standard date formats (Month Year - Month Year)
 - No tables, text boxes, headers, footers, or columns
@@ -243,92 +633,156 @@ Generate the complete CV now:"""
             {'role': 'system', 'content': system_message},
             {'role': 'user', 'content': prompt}
         ]
-        
+
         return self.backend.chat(messages, temperature=0.7, max_tokens=8192)
-    
-    def generate_ats_report(self, cv_text, job_description):
+
+    def generate_ats_report(self, cv_text: str, job_description: str) -> tuple:
         """Generate a comprehensive ATS analysis report"""
-        
+
         print("\n[ATS] Analyzing job description for ATS requirements...")
         key_requirements = self.identify_key_requirements(job_description)
 
-        print("\n[ATS] Calculating ATS match score...")
+        print("\n[ATS] Calculating ATS match score (enhanced algorithm)...")
         ats_score = self.calculate_ats_score(cv_text, job_description, key_requirements)
-        
-        # Build matched/missing keyword breakdown
-        all_keywords_breakdown = []
-        for keyword in ats_score['top_job_keywords']:
-            if keyword in ats_score['missing_keywords']:
-                all_keywords_breakdown.append(f"[MISSING] {keyword}")
-            else:
-                all_keywords_breakdown.append(f"[MATCH] {keyword}")
-        
-        # Format report
+
+        # Build category breakdown table
+        category_labels = {
+            'critical_keywords': 'Critical Keywords',
+            'hard_skills': 'Hard/Technical Skills',
+            'required': 'Required Skills',
+            'soft_skills': 'Soft Skills',
+            'preferred': 'Preferred/Bonus',
+            'frequency_keywords': 'Other Keywords'
+        }
+
+        # Format report with tables
         report = f"""
-========================================
-ATS OPTIMIZATION REPORT
-========================================
+================================================================================
+              ATS OPTIMIZATION REPORT v2.0 (Enhanced)
+================================================================================
 
-ATS MATCH SCORE: {ats_score['score']}%
-Matched Keywords: {ats_score['matched']} / {ats_score['total']}
+  OVERALL SCORE: {ats_score['score']}%    |    Keywords Matched: {ats_score['matched']} / {ats_score['total']}
 """
-        
-        # Add company exclusion note if applicable
+
         if self.company_name:
-            report += f"\nCompany excluded from analysis: {self.company_name}\n"
-        
-        report += f"""
-KEY REQUIREMENTS IDENTIFIED:
-{key_requirements}
+            report += f"  Company excluded: {self.company_name}\n"
 
-ALL TOP {ats_score['total']} KEYWORDS ([MATCH] = in your CV, [MISSING] = missing):
-{chr(10).join(all_keywords_breakdown)}
-
-TOP MATCHED KEYWORDS:
-{', '.join([k for k in ats_score['top_job_keywords'] if k not in ats_score['missing_keywords']][:10])}
-
-MISSING KEYWORDS (Consider adding):
-{', '.join(ats_score['missing_keywords'])}
-
-RECOMMENDATIONS:
-"""
-        
-        if ats_score['score'] >= 80:
-            report += "[EXCELLENT] Your CV has strong keyword coverage.\n"
-        elif ats_score['score'] >= 60:
-            report += "[GOOD] Good coverage, but consider adding more of the missing keywords.\n"
-        else:
-            report += "[LOW] Low match score. Strongly recommend incorporating more keywords from the job description.\n"
-        
+        # Category score table
         report += """
-ATS-FRIENDLY FORMATTING CHECKLIST:
-☐ Simple section headers (EXPERIENCE, SKILLS, EDUCATION)
-☐ No tables or complex layouts
-☐ Standard bullet points
-☐ Plain text compatible
-☐ Key skills listed prominently
-☐ Dates in standard format (Month Year)
-☐ No headers/footers/text boxes
-☐ Includes relevant keywords naturally
-
-========================================
+--------------------------------------------------------------------------------
+                           SCORE BY CATEGORY
+--------------------------------------------------------------------------------
+  Category                    | Match  | Score | Top Missing
+  ----------------------------|--------|-------|-----------------------------
 """
-        
+        for cat, label in category_labels.items():
+            data = ats_score['scores_by_category'].get(cat, {})
+            matched = data.get('matched', 0)
+            missing = data.get('missing', 0)
+            total = matched + missing
+            if total > 0:
+                pct = round(matched / total * 100)
+                missing_items = ', '.join(data.get('items_missing', [])[:2]) or '-'
+                report += f"  {label:<27} | {matched:>2}/{total:<2}  | {pct:>3}%  | {missing_items[:28]}\n"
+
+        # Keywords table
+        report += """
+--------------------------------------------------------------------------------
+                         KEYWORD MATCHING TABLE
+--------------------------------------------------------------------------------
+"""
+        # Create side-by-side matched vs missing
+        matched_kw = ats_score['matched_keywords']
+        missing_kw = ats_score['missing_keywords']
+        max_rows = max(len(matched_kw), len(missing_kw), 1)
+
+        report += "  MATCHED (in your CV)           | MISSING (consider adding)\n"
+        report += "  -------------------------------|--------------------------------\n"
+
+        for i in range(min(max_rows, 12)):
+            m = matched_kw[i] if i < len(matched_kw) else ''
+            n = missing_kw[i] if i < len(missing_kw) else ''
+            report += f"  {m:<31} | {n}\n"
+
+        # Phrases table
+        matched_phrases = ats_score.get('matched_phrases', [])
+        missing_phrases = ats_score.get('missing_phrases', [])
+
+        if matched_phrases or missing_phrases:
+            report += """
+--------------------------------------------------------------------------------
+                       KEY PHRASES (2-word terms)
+--------------------------------------------------------------------------------
+  MATCHED PHRASES              | MISSING PHRASES
+  -----------------------------|--------------------------------
+"""
+            max_phrase_rows = max(len(matched_phrases), len(missing_phrases), 1)
+            for i in range(min(max_phrase_rows, 8)):
+                mp = matched_phrases[i] if i < len(matched_phrases) else ''
+                np = missing_phrases[i] if i < len(missing_phrases) else ''
+                report += f"  {mp:<29} | {np}\n"
+
+        # AI-identified requirements
+        report += f"""
+--------------------------------------------------------------------------------
+                      AI-IDENTIFIED REQUIREMENTS
+--------------------------------------------------------------------------------
+{key_requirements}
+"""
+
+        # Recommendations
+        report += """
+--------------------------------------------------------------------------------
+                          RECOMMENDATIONS
+--------------------------------------------------------------------------------
+"""
+        if ats_score['score'] >= 80:
+            report += "  [EXCELLENT] Your CV has strong keyword coverage for this role.\n"
+        elif ats_score['score'] >= 60:
+            report += "  [GOOD] Good coverage. Focus on adding missing REQUIRED keywords.\n"
+        elif ats_score['score'] >= 40:
+            report += "  [FAIR] Moderate match. Review the missing keywords and phrases.\n"
+        else:
+            report += "  [LOW] Low match. Strongly recommend adding more keywords.\n"
+
+        cat_scores = ats_score['scores_by_category']
+        if cat_scores.get('required', {}).get('missing', 0) > 0:
+            report += "  - PRIORITY: Add missing REQUIRED skills\n"
+        if cat_scores.get('hard_skills', {}).get('missing', 0) > 2:
+            report += "  - Add more technical/hard skills from job description\n"
+        if missing_phrases:
+            report += f"  - Add key phrases: {', '.join(missing_phrases[:3])}\n"
+
+        report += """
+--------------------------------------------------------------------------------
+                      ATS FORMATTING CHECKLIST
+--------------------------------------------------------------------------------
+  [ ] Simple section headers (EXPERIENCE, SKILLS, EDUCATION)
+  [ ] No tables or complex layouts
+  [ ] Standard bullet points (- or *)
+  [ ] Key skills listed prominently
+  [ ] Dates in standard format (Month Year)
+================================================================================
+"""
+
         return report, key_requirements, ats_score
 
 
 def main():
     """Example usage"""
     print("""
-╔═══════════════════════════════════════════════════════╗
-║          ATS Optimization Module                      ║
-║  Optimize your CV for Applicant Tracking Systems     ║
-╚═══════════════════════════════════════════════════════╝
+ATS Optimization Module (Enhanced)
+==================================
+Features:
+- N-gram extraction (single words + phrases)
+- Synonym/abbreviation matching (JS=JavaScript, etc.)
+- Weighted scoring (required > preferred)
+- LLM-powered requirement analysis
+- Category-based score breakdown
 
-This module will be integrated into the main workflow.
+This module is integrated into the main workflow.
     """)
 
 
 if __name__ == "__main__":
     main()
-    
