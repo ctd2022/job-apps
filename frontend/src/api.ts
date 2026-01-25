@@ -1,6 +1,37 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, OutcomeUpdate, Metrics, OutcomeStatus, User } from './types';
 
 const API_BASE = '/api';
+
+// ============================================================================
+// User State Management
+// ============================================================================
+
+let currentUserId: string | null = null;
+
+export function setCurrentUser(userId: string): void {
+  currentUserId = userId;
+  localStorage.setItem('userId', userId);
+}
+
+export function getCurrentUser(): string {
+  if (!currentUserId) {
+    currentUserId = localStorage.getItem('userId') || 'default';
+  }
+  return currentUserId;
+}
+
+export function clearCurrentUser(): void {
+  currentUserId = null;
+  localStorage.removeItem('userId');
+}
+
+function getUserHeaders(): HeadersInit {
+  return { 'X-User-ID': getCurrentUser() };
+}
+
+// ============================================================================
+// API Client
+// ============================================================================
 
 class ApiError extends Error {
   status: number;
@@ -29,6 +60,27 @@ export async function getHealth(): Promise<HealthStatus> {
   return handleResponse(response);
 }
 
+// User Management
+export async function getUsers(): Promise<User[]> {
+  const response = await fetch(`${API_BASE}/users`);
+  const data = await handleResponse<any>(response);
+  return data?.users || data || [];
+}
+
+export async function createUser(name: string): Promise<User> {
+  const response = await fetch(`${API_BASE}/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  return handleResponse(response);
+}
+
+export async function getUser(userId: string): Promise<User> {
+  const response = await fetch(`${API_BASE}/users/${userId}`);
+  return handleResponse(response);
+}
+
 // Backends
 export async function getBackends(): Promise<Backend[]> {
   const response = await fetch(`${API_BASE}/backends`);
@@ -52,16 +104,50 @@ function normalizeJob(data: any): Job {
     output_dir: data.output_dir,
     ats_score: data.ats_score,
     error: data.error,
+    // Outcome tracking fields
+    outcome_status: data.outcome_status || 'draft',
+    submitted_at: data.submitted_at,
+    response_at: data.response_at,
+    outcome_at: data.outcome_at,
+    notes: data.notes,
+  };
+}
+
+// Normalize application from backend
+function normalizeApplication(data: any): Application {
+  return {
+    folder_name: data.folder_name || data.output_dir?.split('/').pop() || '',
+    job_id: data.job_id || '',
+    job_name: data.job_name || '',
+    backend: data.backend || 'unknown',
+    timestamp: data.timestamp || '',
+    ats_score: data.ats_score,
+    company_name: data.company_name,
+    files: data.files || [],
+    output_dir: data.output_dir,
+    // Outcome tracking fields
+    outcome_status: data.outcome_status || 'draft',
+    submitted_at: data.submitted_at,
+    response_at: data.response_at,
+    outcome_at: data.outcome_at,
+    notes: data.notes,
   };
 }
 
 export async function createJob(data: JobCreate): Promise<Job> {
   const formData = new FormData();
-  // Field names must match backend: cv_file, job_desc_file, backend_type, backend_model
-  formData.append('cv_file', data.cv_file);
+
+  // CV: either upload file OR use stored CV ID
+  if (data.cv_file) {
+    formData.append('cv_file', data.cv_file);
+  } else if (data.cv_id !== undefined) {
+    formData.append('cv_id', String(data.cv_id));
+  }
+
+  // Job description (always required)
   formData.append('job_desc_file', data.job_file);  // Backend expects "job_desc_file"
   formData.append('backend_type', data.backend);     // Backend expects "backend_type"
-  
+
   if (data.company_name) {
     formData.append('company_name', data.company_name);
   }
@@ -74,9 +160,10 @@ export async function createJob(data: JobCreate): Promise<Job> {
   if (data.questions) {
     formData.append('custom_questions', data.questions);  // Backend expects "custom_questions"
   }
-  
+
   const response = await fetch(`${API_BASE}/jobs`, {
     method: 'POST',
+    headers: getUserHeaders(),
     body: formData,
   });
   const rawJob = await handleResponse<any>(response);
@@ -84,7 +171,9 @@ export async function createJob(data: JobCreate): Promise<Job> {
 }
 
 export async function getJobs(): Promise<Job[]> {
-  const response = await fetch(`${API_BASE}/jobs`);
+  const response = await fetch(`${API_BASE}/jobs`, {
+    headers: getUserHeaders(),
+  });
   return handleResponse(response);
 }
 
@@ -97,6 +186,7 @@ export async function getJob(id: string): Promise<Job> {
 export async function deleteJob(id: string): Promise<void> {
   const response = await fetch(`${API_BASE}/jobs/${id}`, {
     method: 'DELETE',
+    headers: getUserHeaders(),
   });
   if (!response.ok) {
     throw new ApiError('Failed to delete job', response.status);
@@ -131,8 +221,37 @@ export async function getJobFileContent(jobId: string, fileName: string): Promis
 }
 
 // Applications (past outputs)
-export async function getApplications(): Promise<Application[]> {
-  const response = await fetch(`${API_BASE}/applications`);
+export async function getApplications(outcomeStatus?: OutcomeStatus): Promise<Application[]> {
+  const url = outcomeStatus
+    ? `${API_BASE}/applications?outcome_status=${outcomeStatus}`
+    : `${API_BASE}/applications`;
+  const response = await fetch(url, {
+    headers: getUserHeaders(),
+  });
+  const data = await handleResponse<any>(response);
+  const apps = data?.applications || data || [];
+  return apps.map(normalizeApplication);
+}
+
+// Outcome Tracking
+export async function updateJobOutcome(
+  jobId: string,
+  update: OutcomeUpdate
+): Promise<Job> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/outcome`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(update),
+  });
+  const data = await handleResponse<any>(response);
+  return normalizeJob(data);
+}
+
+// Metrics
+export async function getMetrics(): Promise<Metrics> {
+  const response = await fetch(`${API_BASE}/metrics`, {
+    headers: getUserHeaders(),
+  });
   return handleResponse(response);
 }
 
@@ -273,6 +392,63 @@ export function subscribeToJobWithFallback(
       cleanup();
     }
   };
+}
+
+// ============================================================================
+// CV Management
+// ============================================================================
+
+export async function getCVs(): Promise<StoredCV[]> {
+  const response = await fetch(`${API_BASE}/cvs`, {
+    headers: getUserHeaders(),
+  });
+  const data = await handleResponse<any>(response);
+  return data?.cvs || data || [];
+}
+
+export async function getCV(id: number): Promise<StoredCV> {
+  const response = await fetch(`${API_BASE}/cvs/${id}`, {
+    headers: getUserHeaders(),
+  });
+  return handleResponse(response);
+}
+
+export async function createCV(
+  file: File,
+  name: string,
+  isDefault: boolean = false
+): Promise<StoredCV> {
+  const formData = new FormData();
+  formData.append('cv_file', file);
+  formData.append('name', name);
+  formData.append('is_default', String(isDefault));
+
+  const response = await fetch(`${API_BASE}/cvs`, {
+    method: 'POST',
+    headers: getUserHeaders(),
+    body: formData,
+  });
+  return handleResponse(response);
+}
+
+export async function deleteCV(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/cvs/${id}`, {
+    method: 'DELETE',
+    headers: getUserHeaders(),
+  });
+  if (!response.ok) {
+    throw new ApiError('Failed to delete CV', response.status);
+  }
+}
+
+export async function setDefaultCV(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/cvs/${id}/default`, {
+    method: 'PUT',
+    headers: getUserHeaders(),
+  });
+  if (!response.ok) {
+    throw new ApiError('Failed to set default CV', response.status);
+  }
 }
 
 export { ApiError };

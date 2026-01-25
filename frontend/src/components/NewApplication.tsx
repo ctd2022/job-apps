@@ -10,52 +10,123 @@ import {
   XCircle,
   AlertCircle,
   ChevronDown,
-  Sparkles
+  Sparkles,
+  Save,
+  Star,
+  Trash2
 } from 'lucide-react';
-import { getBackends, createJob, subscribeToJobWithFallback, getJobFiles } from '../api';
-import type { Backend, Job, OutputFile } from '../types';
+import { getBackends, createJob, subscribeToJobWithFallback, getJobFiles, getCVs, createCV, deleteCV, setDefaultCV } from '../api';
+import type { Backend, Job, OutputFile, StoredCV } from '../types';
 import FilePreview from './FilePreview';
 
 function NewApplication() {
   const navigate = useNavigate();
   const [backends, setBackends] = useState<Backend[]>([]);
+  const [storedCVs, setStoredCVs] = useState<StoredCV[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Form state
+
+  // CV selection state
+  const [cvMode, setCvMode] = useState<'stored' | 'upload'>('stored');
+  const [selectedCvId, setSelectedCvId] = useState<number | null>(null);
   const [cvFile, setCvFile] = useState<File | null>(null);
+  const [saveCvName, setSaveCvName] = useState('');
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
+
+  // Form state
   const [jobFile, setJobFile] = useState<File | null>(null);
   const [companyName, setCompanyName] = useState('');
   const [selectedBackend, setSelectedBackend] = useState('ollama');
   const [selectedModel, setSelectedModel] = useState('');
   const [enableAts, setEnableAts] = useState(true);
-  
+
   // Job state
   const [submitting, setSubmitting] = useState(false);
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
   const [outputFiles, setOutputFiles] = useState<OutputFile[]>([]);
   const [error, setError] = useState<string | null>(null);
-  
+
   useEffect(() => {
-    loadBackends();
+    loadInitialData();
   }, []);
-  
-  async function loadBackends() {
+
+  async function loadInitialData() {
     try {
-      const data = await getBackends();
+      const [backendData, cvData] = await Promise.all([
+        getBackends(),
+        getCVs(),
+      ]);
+
       // Handle various response formats
-      const backendList = Array.isArray(data) ? data : (data?.backends || []);
+      const backendList = Array.isArray(backendData) ? backendData : (backendData?.backends || []);
       setBackends(backendList);
-      
+
       // Set default model for selected backend
       const defaultBackend = backendList.find((b: Backend) => b.id === 'ollama');
       if (defaultBackend?.default_model) {
         setSelectedModel(defaultBackend.default_model);
       }
+
+      // Set stored CVs
+      setStoredCVs(cvData);
+
+      // Select default CV if available
+      const defaultCv = cvData.find((cv: StoredCV) => cv.is_default);
+      if (defaultCv) {
+        setSelectedCvId(defaultCv.id);
+        setCvMode('stored');
+      } else if (cvData.length > 0) {
+        setSelectedCvId(cvData[0].id);
+        setCvMode('stored');
+      } else {
+        setCvMode('upload');
+      }
     } catch (err) {
-      console.error('Failed to load backends:', err);
-      setError('Failed to load backends');
+      console.error('Failed to load data:', err);
+      setError('Failed to load data');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSaveCV() {
+    if (!cvFile || !saveCvName.trim()) return;
+
+    try {
+      const newCv = await createCV(cvFile, saveCvName.trim(), saveAsDefault);
+      setStoredCVs(prev => [newCv, ...prev]);
+      setSelectedCvId(newCv.id);
+      setCvMode('stored');
+      setSaveCvName('');
+      setSaveAsDefault(false);
+      setCvFile(null);
+    } catch (err) {
+      console.error('Failed to save CV:', err);
+      setError('Failed to save CV');
+    }
+  }
+
+  async function handleDeleteCV(id: number) {
+    try {
+      await deleteCV(id);
+      setStoredCVs(prev => prev.filter(cv => cv.id !== id));
+      if (selectedCvId === id) {
+        const remaining = storedCVs.filter(cv => cv.id !== id);
+        setSelectedCvId(remaining.length > 0 ? remaining[0].id : null);
+      }
+    } catch (err) {
+      console.error('Failed to delete CV:', err);
+    }
+  }
+
+  async function handleSetDefaultCV(id: number) {
+    try {
+      await setDefaultCV(id);
+      setStoredCVs(prev => prev.map(cv => ({
+        ...cv,
+        is_default: cv.id === id
+      })));
+    } catch (err) {
+      console.error('Failed to set default CV:', err);
     }
   }
   
@@ -82,8 +153,10 @@ function NewApplication() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!cvFile || !jobFile) {
-      setError('Please upload both CV and job description files');
+    // Validate CV selection
+    const hasCV = cvMode === 'stored' ? selectedCvId !== null : cvFile !== null;
+    if (!hasCV || !jobFile) {
+      setError('Please select a CV and upload a job description');
       return;
     }
 
@@ -91,9 +164,10 @@ function NewApplication() {
     setError(null);
 
     try {
-      // Create job
+      // Create job with either stored CV ID or uploaded file
       const job = await createJob({
-        cv_file: cvFile,
+        cv_id: cvMode === 'stored' ? selectedCvId! : undefined,
+        cv_file: cvMode === 'upload' ? cvFile! : undefined,
         job_file: jobFile,
         company_name: companyName || undefined,
         backend: selectedBackend,
@@ -181,7 +255,7 @@ function NewApplication() {
   // Show results if job completed
   if (currentJob?.status === 'completed' && outputFiles.length > 0) {
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-green-50 px-6 py-4 border-b border-green-100">
             <div className="flex items-center space-x-3">
@@ -246,169 +320,412 @@ function NewApplication() {
   }
   
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">New Application</h2>
-          <p className="text-sm text-gray-500">Upload your CV and job description to generate tailored materials.</p>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* CV Upload */}
-          <FileDropZone
-            label="Your CV"
-            accept=".txt,.pdf,.docx"
-            file={cvFile}
-            onFileSelect={setCvFile}
-            disabled={submitting}
-          />
-          
-          {/* Job Description Upload */}
-          <FileDropZone
-            label="Job Description"
-            accept=".txt"
-            file={jobFile}
-            onFileSelect={setJobFile}
-            disabled={submitting}
-          />
-          
-          {/* Company Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Building2 className="w-4 h-4 inline mr-2" />
-              Company Name (optional)
-            </label>
+    <div className="max-w-6xl mx-auto">
+      <div className="bg-white border border-slate-200">
+        {/* Compact header bar */}
+        <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <span className="text-sm font-semibold text-slate-700">New Application</span>
+          <label className="flex items-center space-x-2 text-xs text-slate-600 cursor-pointer">
+            <span>ATS</span>
             <input
-              type="text"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="e.g., Google, Microsoft"
+              type="checkbox"
+              checked={enableAts}
+              onChange={(e) => setEnableAts(e.target.checked)}
               disabled={submitting}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
+              className="w-3.5 h-3.5 rounded-sm border-slate-300 text-slate-700 focus:ring-slate-500"
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Helps filter company name from ATS keywords for more accurate scoring.
-            </p>
-          </div>
-          
-          {/* Backend Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Server className="w-4 h-4 inline mr-2" />
-              LLM Backend
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(backends || []).map(backend => (
-                <button
-                  key={backend.id}
-                  type="button"
-                  onClick={() => handleBackendChange(backend.id)}
-                  disabled={!backend.available || submitting}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
-                    selectedBackend === backend.id
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : backend.available
-                        ? 'border-gray-200 hover:border-gray-300'
-                        : 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
-                  }`}
-                >
-                  <p className="font-medium text-gray-900">{backend.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {backend.available ? 'Available' : 'Not configured'}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          {/* Model Selection */}
-          {currentBackend?.models && currentBackend.models.length > 0 && (
+          </label>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-3">
+          {/* Two Column Layout: CV and Job Description */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            {/* CV Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Model
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  disabled={submitting}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg appearance-none bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
-                >
-                  {currentBackend.models.map(model => (
-                    <option key={model} value={model}>{model}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">CV</span>
+                <div className="flex">
+                  <button
+                    type="button"
+                    onClick={() => setCvMode('stored')}
+                    disabled={submitting || storedCVs.length === 0}
+                    className={`px-2 py-0.5 text-xs border-y border-l transition-colors ${
+                      cvMode === 'stored'
+                        ? 'bg-slate-700 text-white border-slate-700'
+                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                    } ${storedCVs.length === 0 ? 'opacity-40' : ''}`}
+                  >
+                    Saved ({storedCVs.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCvMode('upload')}
+                    disabled={submitting}
+                    className={`px-2 py-0.5 text-xs border transition-colors ${
+                      cvMode === 'upload'
+                        ? 'bg-slate-700 text-white border-slate-700'
+                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    Upload
+                  </button>
+                </div>
               </div>
+
+              {/* Stored CVs - Compact */}
+              {cvMode === 'stored' && storedCVs.length > 0 && (
+                <div className="border border-slate-200 divide-y divide-slate-100">
+                  {storedCVs.map(cv => (
+                    <div
+                      key={cv.id}
+                      onClick={() => !submitting && setSelectedCvId(cv.id)}
+                      className={`flex items-center justify-between px-2 py-1.5 cursor-pointer transition-colors ${
+                        selectedCvId === cv.id
+                          ? 'bg-slate-100'
+                          : 'hover:bg-slate-50'
+                      } ${submitting ? 'opacity-50' : ''}`}
+                    >
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <input
+                          type="radio"
+                          checked={selectedCvId === cv.id}
+                          onChange={() => {}}
+                          className="w-3 h-3 text-slate-600 border-slate-300"
+                        />
+                        <span className="text-sm text-slate-800 truncate">{cv.name}</span>
+                        {cv.is_default && <span className="text-xs text-slate-400">(default)</span>}
+                      </div>
+                      <div className="flex items-center">
+                        {!cv.is_default && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleSetDefaultCV(cv.id); }}
+                            className="p-1 text-slate-400 hover:text-slate-600"
+                            title="Set default"
+                          >
+                            <Star className="w-3 h-3" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteCV(cv.id); }}
+                          className="p-1 text-slate-400 hover:text-red-600"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Upload Mode */}
+              {cvMode === 'upload' && (
+                <div>
+                  <SharpDropZone
+                    accept=".txt,.pdf,.docx"
+                    file={cvFile}
+                    onFileSelect={setCvFile}
+                    disabled={submitting}
+                  />
+                  {cvFile && (
+                    <div className="flex items-center mt-1.5 space-x-1.5">
+                      <input
+                        type="text"
+                        value={saveCvName}
+                        onChange={(e) => setSaveCvName(e.target.value)}
+                        placeholder="Name to save..."
+                        className="flex-1 px-2 py-1 text-xs border border-slate-300 focus:outline-none focus:border-slate-500"
+                      />
+                      <label className="flex items-center space-x-1 text-xs text-slate-500">
+                        <input
+                          type="checkbox"
+                          checked={saveAsDefault}
+                          onChange={(e) => setSaveAsDefault(e.target.checked)}
+                          className="w-3 h-3 rounded-sm border-slate-300"
+                        />
+                        <span>Def</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleSaveCV}
+                        disabled={!saveCvName.trim()}
+                        className="px-2 py-1 bg-slate-700 text-white text-xs hover:bg-slate-800 disabled:bg-slate-300"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-          
-          {/* ATS Toggle */}
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+
+            {/* Job Description */}
             <div>
-              <p className="font-medium text-gray-900">ATS Optimization</p>
-              <p className="text-sm text-gray-500">Optimize CV for Applicant Tracking Systems</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEnableAts(!enableAts)}
-              disabled={submitting}
-              className={`relative w-12 h-6 rounded-full transition-colors ${
-                enableAts ? 'bg-indigo-600' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                  enableAts ? 'translate-x-7' : 'translate-x-1'
-                }`}
+              <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5 block">Job Description</span>
+              <SharpDropZone
+                accept=".txt"
+                file={jobFile}
+                onFileSelect={setJobFile}
+                disabled={submitting}
               />
+            </div>
+          </div>
+
+          {/* Settings Row */}
+          <div className="flex items-end space-x-2 mb-3">
+            <div className="flex-1">
+              <label className="text-xs text-slate-500 mb-0.5 block">Company</label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Optional"
+                disabled={submitting}
+                className="w-full px-2 py-1.5 text-sm border border-slate-300 focus:outline-none focus:border-slate-500 disabled:bg-slate-50"
+              />
+            </div>
+
+            <div className="w-36">
+              <label className="text-xs text-slate-500 mb-0.5 block">Backend</label>
+              <select
+                value={selectedBackend}
+                onChange={(e) => handleBackendChange(e.target.value)}
+                disabled={submitting}
+                className="w-full px-2 py-1.5 text-sm border border-slate-300 bg-white focus:outline-none focus:border-slate-500"
+              >
+                {(backends || []).map(backend => (
+                  <option key={backend.id} value={backend.id} disabled={!backend.available}>
+                    {backend.name}{!backend.available ? ' (N/A)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="w-40">
+              <label className="text-xs text-slate-500 mb-0.5 block">Model</label>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                disabled={submitting}
+                className="w-full px-2 py-1.5 text-sm border border-slate-300 bg-white focus:outline-none focus:border-slate-500"
+              >
+                {(currentBackend?.models || [selectedModel]).map(model => (
+                  <option key={model} value={model}>{model}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={!(cvMode === 'stored' ? selectedCvId : cvFile) || !jobFile || submitting}
+              className="px-6 py-1.5 bg-slate-800 text-white text-sm font-medium hover:bg-slate-900 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center space-x-1.5"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Processing</span>
+                </>
+              ) : (
+                <span>Generate</span>
+              )}
             </button>
           </div>
           
           {/* Error Message */}
           {error && (
-            <div className="flex items-center space-x-2 p-4 bg-red-50 text-red-700 rounded-lg">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <p>{error}</p>
+            <div className="flex items-center space-x-2 px-2 py-1.5 bg-red-50 border border-red-200 text-red-700 text-xs">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>{error}</span>
             </div>
           )}
-          
+
           {/* Progress */}
           {currentJob && currentJob.status !== 'completed' && (
-            <div className="p-4 bg-indigo-50 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-indigo-700">{currentJob.stage}</span>
-                <span className="text-sm text-indigo-600">{currentJob.progress}%</span>
+            <div className="border border-slate-200 bg-slate-50 px-2 py-1.5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-slate-600">{currentJob.stage}</span>
+                <span className="text-xs font-mono text-slate-500">{currentJob.progress}%</span>
               </div>
-              <div className="w-full bg-indigo-200 rounded-full h-2">
+              <div className="w-full bg-slate-200 h-1">
                 <div
-                  className="bg-indigo-600 h-2 rounded-full transition-all duration-500"
+                  className="bg-slate-600 h-1 transition-all duration-500"
                   style={{ width: `${currentJob.progress}%` }}
                 />
               </div>
             </div>
           )}
-          
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={!cvFile || !jobFile || submitting}
-            className="w-full py-3 px-4 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Processing...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                <span>Generate Application</span>
-              </>
-            )}
-          </button>
         </form>
       </div>
+    </div>
+  );
+}
+
+function SharpDropZone({
+  accept,
+  file,
+  onFileSelect,
+  disabled,
+}: {
+  accept: string;
+  file: File | null;
+  onFileSelect: (file: File | null) => void;
+  disabled?: boolean;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (!disabled) setIsDragging(true);
+  }, [disabled]);
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (disabled) return;
+
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) {
+      onFileSelect(droppedFile);
+    }
+  }, [disabled, onFileSelect]);
+
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      onFileSelect(selectedFile);
+    }
+  }, [onFileSelect]);
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`relative border px-3 py-3 transition-colors ${
+        isDragging
+          ? 'border-slate-500 bg-slate-100'
+          : file
+            ? 'border-slate-400 bg-slate-50'
+            : 'border-slate-300 hover:border-slate-400'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      <input
+        type="file"
+        accept={accept}
+        onChange={handleFileInput}
+        disabled={disabled}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+      />
+      {file ? (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2 min-w-0">
+            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+            <span className="text-sm text-slate-700 truncate">{file.name}</span>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onFileSelect(null); }}
+            className="p-0.5 text-slate-400 hover:text-slate-600"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center space-x-2 text-sm text-slate-500">
+          <Upload className="w-4 h-4" />
+          <span>Drop file or click to browse</span>
+          <span className="text-xs text-slate-400">({accept})</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompactDropZone({
+  accept,
+  file,
+  onFileSelect,
+  disabled,
+}: {
+  accept: string;
+  file: File | null;
+  onFileSelect: (file: File | null) => void;
+  disabled?: boolean;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (!disabled) setIsDragging(true);
+  }, [disabled]);
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (disabled) return;
+
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) {
+      onFileSelect(droppedFile);
+    }
+  }, [disabled, onFileSelect]);
+
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      onFileSelect(selectedFile);
+    }
+  }, [onFileSelect]);
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`relative border-2 border-dashed rounded px-3 py-4 text-center transition-colors ${
+        isDragging
+          ? 'border-indigo-500 bg-indigo-50'
+          : file
+            ? 'border-green-400 bg-green-50'
+            : 'border-gray-300 hover:border-gray-400'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      <input
+        type="file"
+        accept={accept}
+        onChange={handleFileInput}
+        disabled={disabled}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+      />
+      {file ? (
+        <div className="flex items-center justify-center space-x-2">
+          <CheckCircle className="w-4 h-4 text-green-500" />
+          <span className="text-sm font-medium text-gray-900 truncate max-w-[150px]">{file.name}</span>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onFileSelect(null); }}
+            className="p-0.5 hover:bg-gray-200 rounded"
+          >
+            <XCircle className="w-4 h-4 text-gray-400" />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+          <Upload className="w-4 h-4" />
+          <span>Drop or <span className="text-indigo-600">browse</span></span>
+          <span className="text-xs text-gray-400">({accept})</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -427,34 +744,34 @@ function FileDropZone({
   disabled?: boolean;
 }) {
   const [isDragging, setIsDragging] = useState(false);
-  
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     if (!disabled) setIsDragging(true);
   }, [disabled]);
-  
+
   const handleDragLeave = useCallback(() => {
     setIsDragging(false);
   }, []);
-  
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     if (disabled) return;
-    
+
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile) {
       onFileSelect(droppedFile);
     }
   }, [disabled, onFileSelect]);
-  
+
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       onFileSelect(selectedFile);
     }
   }, [onFileSelect]);
-  
+
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">

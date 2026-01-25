@@ -22,7 +22,7 @@ from enum import Enum
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -95,11 +95,12 @@ class BackendType(str, Enum):
     gemini = "gemini"
 
 
-class JobStatus(str, Enum):
-    pending = "pending"
-    processing = "processing"
-    completed = "completed"
-    failed = "failed"
+# Import from job_store module
+# Handle both direct run and uvicorn import contexts
+try:
+    from job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore
+except ImportError:
+    from backend.job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore
 
 
 class BackendConfig(BaseModel):
@@ -178,67 +179,53 @@ class ApplicationSummary(BaseModel):
     output_dir: str
 
 
+class OutcomeUpdateRequest(BaseModel):
+    """Request to update job application outcome"""
+    outcome_status: str  # draft, submitted, response, interview, offer, rejected, withdrawn
+    notes: Optional[str] = None
+
+
+class MetricsResponse(BaseModel):
+    """Application funnel metrics"""
+    total: int
+    by_status: Dict[str, int]
+    funnel: Dict[str, int]
+    rates: Dict[str, float]
+    avg_time_to_response_days: Optional[float]
+
+
+class UserCreateRequest(BaseModel):
+    """Request to create a new user"""
+    name: str
+
+
+class UserResponse(BaseModel):
+    """User response"""
+    id: str
+    name: str
+    created_at: str
+
+
 # ============================================================================
-# In-Memory Job Store (for MVP - upgrade to SQLite later)
+# User ID Header Dependency
 # ============================================================================
 
-class JobStore:
-    """Simple in-memory store for job processing status"""
-    
-    def __init__(self):
-        self.jobs: Dict[str, Dict[str, Any]] = {}
-    
-    def create_job(self, job_id: str) -> Dict[str, Any]:
-        """Create a new job entry"""
-        job = {
-            "job_id": job_id,
-            "status": JobStatus.pending,
-            "progress": 0,
-            "current_step": "Initializing",
-            "message": "Job created, waiting to start",
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-            "output_dir": None,
-            "ats_score": None,
-            "files": [],
-            "error": None,
-            "cv_path": None,
-            "job_desc_path": None,
-            "company_name": None,
-            "backend_type": None,
-        }
-        self.jobs[job_id] = job
-        return job
-    
-    def update_job(self, job_id: str, **kwargs) -> Dict[str, Any]:
-        """Update job status"""
-        if job_id not in self.jobs:
-            raise KeyError(f"Job {job_id} not found")
-        
-        self.jobs[job_id].update(kwargs)
-        self.jobs[job_id]["updated_at"] = datetime.now().isoformat()
-        return self.jobs[job_id]
-    
-    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Get job by ID"""
-        return self.jobs.get(job_id)
-    
-    def list_jobs(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """List recent jobs"""
-        jobs = list(self.jobs.values())
-        jobs.sort(key=lambda x: x["created_at"], reverse=True)
-        return jobs[:limit]
-    
-    def delete_job(self, job_id: str) -> bool:
-        """Delete job from store"""
-        if job_id in self.jobs:
-            del self.jobs[job_id]
-            return True
-        return False
+def get_current_user_id(x_user_id: Optional[str] = Header(None)) -> str:
+    """
+    Extract user ID from X-User-ID header.
+    Falls back to 'default' if not provided (backwards compatibility).
+    """
+    return x_user_id or "default"
 
 
-# Global job store instance
+# ============================================================================
+# SQLite Stores (persistent across restarts)
+# ============================================================================
+
+# Global store instances (SQLite-backed)
 job_store = JobStore()
+cv_store = CVStore()
+user_store = UserStore()
 
 
 # ============================================================================
@@ -631,12 +618,39 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {
-        "status": "ok", 
+        "status": "ok",
         "timestamp": datetime.now().isoformat(),
         "workflow_available": WORKFLOW_AVAILABLE,
         "src_dir": str(settings.SRC_DIR),
         "src_exists": settings.SRC_DIR.exists()
     }
+
+
+# ============================================================================
+# User Management Endpoints
+# ============================================================================
+
+@app.get("/api/users")
+async def list_users():
+    """List all users."""
+    users = user_store.list_users()
+    return {"users": users, "total": len(users)}
+
+
+@app.post("/api/users", response_model=UserResponse)
+async def create_user(request: UserCreateRequest):
+    """Create a new user."""
+    user = user_store.create_user(request.name)
+    return UserResponse(**user)
+
+
+@app.get("/api/users/{user_id}", response_model=UserResponse)
+async def get_user(user_id: str):
+    """Get a user by ID."""
+    user = user_store.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+    return UserResponse(**user)
 
 
 @app.get("/api/backends", response_model=BackendListResponse)
@@ -676,43 +690,64 @@ async def list_backends():
 @app.post("/api/jobs", response_model=JobResponse)
 async def create_job(
     background_tasks: BackgroundTasks,
-    cv_file: UploadFile = File(...),
+    cv_file: Optional[UploadFile] = File(None),
     job_desc_file: UploadFile = File(...),
+    cv_id: Optional[int] = Form(None),
     company_name: Optional[str] = Form(None),
     enable_ats: bool = Form(True),
     backend_type: str = Form("ollama"),
     backend_model: Optional[str] = Form(None),
     custom_questions: Optional[str] = Form(None),
+    user_id: str = Header(None, alias="X-User-ID"),
 ):
     """
     Create a new job application processing task.
-    
-    Upload CV and job description files, configure backend, and start processing.
+
+    Provide CV either by uploading cv_file OR by specifying cv_id (stored CV).
+    Upload job description file, configure backend, and start processing.
     """
+    # Default to 'default' user if not specified
+    user_id = user_id or "default"
+
     # Check if workflow is available
     if not WORKFLOW_AVAILABLE:
         raise HTTPException(
-            status_code=503, 
+            status_code=503,
             detail="Workflow modules not available. Check server logs and ensure src/ folder contains the required modules."
         )
-    
+
+    # Must provide either cv_file or cv_id
+    if not cv_file and not cv_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Must provide either cv_file (upload) or cv_id (stored CV)"
+        )
+
     # Generate unique job ID
     job_id = str(uuid.uuid4())[:8]
-    
-    # Create job in store
-    job_store.create_job(job_id)
-    
+
+    # Create job in store with user_id
+    job_store.create_job(job_id, user_id=user_id)
+
     try:
-        # Save uploaded files
-        cv_path = settings.UPLOADS_DIR / f"{job_id}_cv{Path(cv_file.filename).suffix}"
+        # Handle CV - either from upload or from stored CV
+        if cv_file:
+            # Use uploaded file
+            cv_path = settings.UPLOADS_DIR / f"{job_id}_cv{Path(cv_file.filename).suffix}"
+            with open(cv_path, "wb") as f:
+                content = await cv_file.read()
+                f.write(content)
+        else:
+            # Use stored CV (verify user ownership)
+            cv_content = cv_store.get_cv_content(cv_id, user_id=user_id)
+            if not cv_content:
+                raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+            cv_path = settings.UPLOADS_DIR / f"{job_id}_cv.txt"
+            with open(cv_path, "w", encoding="utf-8") as f:
+                f.write(cv_content)
+
+        # Save job description file
         job_desc_path = settings.UPLOADS_DIR / f"{job_id}_job{Path(job_desc_file.filename).suffix}"
-        
-        # Write CV file
-        with open(cv_path, "wb") as f:
-            content = await cv_file.read()
-            f.write(content)
-        
-        # Write job description file
         with open(job_desc_path, "wb") as f:
             content = await job_desc_file.read()
             f.write(content)
@@ -788,29 +823,90 @@ async def get_job_status(job_id: str):
 
 
 @app.get("/api/jobs")
-async def list_jobs(limit: int = 50):
-    """List recent job processing tasks"""
-    jobs = job_store.list_jobs(limit)
+async def list_jobs(
+    limit: int = 50,
+    outcome_status: Optional[str] = None,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """List recent job processing tasks, optionally filtered by outcome status"""
+    user_id = user_id or "default"
+    jobs = job_store.list_jobs(user_id=user_id, limit=limit, outcome_status=outcome_status)
     return {"jobs": jobs, "total": len(jobs)}
 
 
 @app.delete("/api/jobs/{job_id}")
-async def delete_job(job_id: str):
+async def delete_job(job_id: str, user_id: str = Header(None, alias="X-User-ID")):
     """Delete a job and optionally its output files"""
-    job = job_store.get_job(job_id)
-    
+    user_id = user_id or "default"
+    job = job_store.get_job(job_id, user_id=user_id)
+
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    
-    # Delete from store
-    job_store.delete_job(job_id)
-    
+
+    # Delete from store (with user verification)
+    job_store.delete_job(job_id, user_id=user_id)
+
     # Clean up uploaded files
     for pattern in [f"{job_id}_cv*", f"{job_id}_job*"]:
         for f in settings.UPLOADS_DIR.glob(pattern):
             f.unlink()
-    
+
     return {"message": f"Job {job_id} deleted"}
+
+
+@app.patch("/api/jobs/{job_id}/outcome")
+async def update_job_outcome(
+    job_id: str,
+    request: OutcomeUpdateRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """
+    Update the application outcome status for a job.
+
+    Status flow: draft -> submitted -> response -> interview -> offer/rejected/withdrawn
+
+    Timestamps are automatically set:
+    - submitted -> sets submitted_at
+    - response/interview -> sets response_at (if not already set)
+    - offer/rejected/withdrawn -> sets outcome_at
+    """
+    user_id = user_id or "default"
+
+    # Validate outcome_status
+    valid_statuses = ["draft", "submitted", "response", "interview", "offer", "rejected", "withdrawn"]
+    if request.outcome_status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid outcome_status. Must be one of: {', '.join(valid_statuses)}"
+        )
+
+    try:
+        job = job_store.update_outcome(
+            job_id,
+            outcome_status=request.outcome_status,
+            notes=request.notes,
+            user_id=user_id
+        )
+        return job
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+
+@app.get("/api/metrics", response_model=MetricsResponse)
+async def get_metrics(user_id: str = Header(None, alias="X-User-ID")):
+    """
+    Get application funnel metrics and success rates for the current user.
+
+    Returns:
+    - total: Total completed jobs
+    - by_status: Count of jobs by outcome status
+    - funnel: Progression through stages (draft -> submitted -> response -> interview -> offer)
+    - rates: Response rate, interview rate, offer rate (as percentages)
+    - avg_time_to_response_days: Average days from submission to first response
+    """
+    user_id = user_id or "default"
+    metrics = job_store.get_outcome_metrics(user_id=user_id)
+    return MetricsResponse(**metrics)
 
 
 @app.get("/api/jobs/{job_id}/files")
@@ -929,18 +1025,27 @@ async def get_file_content(job_id: str, filename: str):
 
 
 @app.get("/api/applications")
-async def list_applications(limit: int = 50):
+async def list_applications(
+    limit: int = 50,
+    outcome_status: Optional[str] = None,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
     """
-    List all processed applications from the outputs directory.
-    Scans the filesystem for application folders.
+    List all processed applications with outcome tracking data for the current user.
+    Combines filesystem data with database outcome tracking.
     """
+    user_id = user_id or "default"
     applications = []
-    
+
+    # Get jobs from database (has outcome tracking) - filtered by user
+    jobs = job_store.list_jobs(user_id=user_id, limit=500, outcome_status=outcome_status)
+    job_map = {j["job_id"]: j for j in jobs}
+
     if settings.OUTPUTS_DIR.exists():
         for folder in settings.OUTPUTS_DIR.iterdir():
             if folder.is_dir():
                 metadata_path = folder / "metadata.json"
-                
+
                 app_info = {
                     "job_id": folder.name,
                     "job_name": folder.name.split("_")[0] if "_" in folder.name else folder.name,
@@ -949,9 +1054,15 @@ async def list_applications(limit: int = 50):
                     "timestamp": folder.stat().st_mtime,
                     "ats_score": None,
                     "status": "completed",
-                    "output_dir": str(folder)
+                    "output_dir": str(folder),
+                    # Outcome tracking fields (defaults)
+                    "outcome_status": "draft",
+                    "submitted_at": None,
+                    "response_at": None,
+                    "outcome_at": None,
+                    "notes": None,
                 }
-                
+
                 # Try to read metadata
                 if metadata_path.exists():
                     try:
@@ -961,15 +1072,129 @@ async def list_applications(limit: int = 50):
                             app_info["backend"] = metadata.get("backend", {}).get("type", "unknown")
                             app_info["ats_score"] = metadata.get("ats_score")
                             app_info["timestamp"] = metadata.get("timestamp", app_info["timestamp"])
+
+                            # Try to get job_id from metadata
+                            if "job_id" in metadata:
+                                app_info["job_id"] = metadata["job_id"]
                     except:
                         pass
-                
+
+                # Merge outcome data from database if available
+                db_job = job_map.get(app_info["job_id"])
+                if db_job:
+                    app_info["outcome_status"] = db_job.get("outcome_status", "draft")
+                    app_info["submitted_at"] = db_job.get("submitted_at")
+                    app_info["response_at"] = db_job.get("response_at")
+                    app_info["outcome_at"] = db_job.get("outcome_at")
+                    app_info["notes"] = db_job.get("notes")
+
+                # Apply outcome_status filter if specified
+                if outcome_status and app_info["outcome_status"] != outcome_status:
+                    continue
+
                 applications.append(app_info)
-    
+
     # Sort by timestamp (newest first)
     applications.sort(key=lambda x: x["timestamp"], reverse=True)
 
     return {"applications": applications[:limit], "total": len(applications)}
+
+
+# ============================================================================
+# CV Management Endpoints
+# ============================================================================
+
+@app.get("/api/cvs")
+async def list_cvs(user_id: str = Header(None, alias="X-User-ID")):
+    """List all stored CVs for the current user (without content)."""
+    user_id = user_id or "default"
+    cvs = cv_store.list_cvs(user_id=user_id)
+    return {"cvs": cvs, "total": len(cvs)}
+
+
+@app.post("/api/cvs")
+async def create_cv(
+    cv_file: UploadFile = File(...),
+    name: str = Form(...),
+    is_default: bool = Form(False),
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Upload and store a new CV for the current user."""
+    user_id = user_id or "default"
+    try:
+        # Read file content
+        content = await cv_file.read()
+        content_str = content.decode('utf-8')
+
+        # Create CV in store with user_id
+        cv = cv_store.create_cv(
+            name=name,
+            filename=cv_file.filename,
+            content=content_str,
+            user_id=user_id,
+            is_default=is_default
+        )
+
+        # Return without the full content
+        return {
+            "id": cv["id"],
+            "user_id": cv["user_id"],
+            "name": cv["name"],
+            "filename": cv["filename"],
+            "is_default": cv["is_default"],
+            "created_at": cv["created_at"],
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/cvs/{cv_id}")
+async def get_cv(cv_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """Get a CV by ID (includes content). Verifies user ownership."""
+    user_id = user_id or "default"
+    cv = cv_store.get_cv(cv_id, user_id=user_id)
+    if not cv:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return cv
+
+
+@app.delete("/api/cvs/{cv_id}")
+async def delete_cv(cv_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """Delete a CV. Verifies user ownership."""
+    user_id = user_id or "default"
+    deleted = cv_store.delete_cv(cv_id, user_id=user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return {"message": f"CV {cv_id} deleted"}
+
+
+@app.put("/api/cvs/{cv_id}/default")
+async def set_default_cv(cv_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """Set a CV as the default for the current user."""
+    user_id = user_id or "default"
+    updated = cv_store.set_default(cv_id, user_id=user_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return {"message": f"CV {cv_id} set as default"}
+
+
+@app.get("/api/cvs/default")
+async def get_default_cv(user_id: str = Header(None, alias="X-User-ID")):
+    """Get the default CV for the current user."""
+    user_id = user_id or "default"
+    cv = cv_store.get_default_cv(user_id=user_id)
+    if not cv:
+        raise HTTPException(status_code=404, detail="No default CV set")
+    # Return without full content for listing
+    return {
+        "id": cv["id"],
+        "user_id": cv["user_id"],
+        "name": cv["name"],
+        "filename": cv["filename"],
+        "is_default": cv["is_default"],
+        "created_at": cv["created_at"],
+    }
 
 
 # ============================================================================

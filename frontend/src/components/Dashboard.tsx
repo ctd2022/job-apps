@@ -1,325 +1,326 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  PlusCircle,
   FileText,
-  Clock,
   CheckCircle,
   XCircle,
   Loader2,
-  TrendingUp,
-  Briefcase,
-  Server,
-  RefreshCw
+  RefreshCw,
+  ArrowRight,
+  TrendingUp
 } from 'lucide-react';
-import { getHealth, getJobs, getApplications } from '../api';
-import type { Job, Application, HealthStatus } from '../types';
-import { SkeletonStats, SkeletonList } from './LoadingState';
+import { getHealth, getJobs, getApplications, getMetrics } from '../api';
+import type { Job, Application, HealthStatus, Metrics } from '../types';
 
 function Dashboard() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   useEffect(() => {
     loadData();
-    
-    // Poll for job updates every 3 seconds
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
   }, []);
-  
+
   async function loadData() {
     try {
-      const [healthData, jobsData, appsData] = await Promise.all([
+      const [healthData, jobsData, appsData, metricsData] = await Promise.all([
         getHealth(),
         getJobs(),
         getApplications(),
+        getMetrics(),
       ]);
       setHealth(healthData);
-      // Handle various response formats - could be array or {jobs: [...]}
       setJobs(Array.isArray(jobsData) ? jobsData : (jobsData?.jobs || []));
       setApplications(Array.isArray(appsData) ? appsData : (appsData?.applications || []));
+      setMetrics(metricsData);
       setError(null);
     } catch (err) {
       console.error('API Error:', err);
-      setError('Failed to connect to backend. Is the server running?');
+      setError('Failed to connect to backend');
     } finally {
       setLoading(false);
     }
   }
-  
+
   const activeJobs = (jobs || []).filter(j => j.status === 'processing' || j.status === 'pending');
-  const recentApps = (applications || []).slice(0, 5);
-  
-  // Calculate stats
+  const recentApps = (applications || []).slice(0, 8);
+
   const totalApps = (applications || []).length;
   const appsWithScore = (applications || []).filter(a => a.ats_score);
   const avgAtsScore = appsWithScore.length > 0
     ? Math.round(appsWithScore.reduce((sum, a) => sum + (a.ats_score || 0), 0) / appsWithScore.length)
     : 0;
-  
+
   if (loading) {
     return (
-      <div className="space-y-8">
-        <SkeletonStats />
-        <SkeletonList count={2} />
+      <div className="flex items-center justify-center h-32">
+        <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
       </div>
     );
   }
-  
+
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <div className="flex items-start space-x-3">
-          <XCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h3 className="font-semibold text-red-800">Connection Error</h3>
-            <p className="text-red-600">{error}</p>
-            <p className="text-sm text-red-500 mt-2">
-              Start the backend: <code className="bg-red-100 px-2 py-1 rounded">python -m uvicorn backend.main:app --reload</code>
-            </p>
-            <button
-              onClick={() => { setLoading(true); setError(null); loadData(); }}
-              className="mt-4 flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Retry</span>
-            </button>
+      <div className="border border-red-200 bg-red-50 p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <XCircle className="w-4 h-4 text-red-500" />
+            <span className="text-sm text-red-700">{error}</span>
           </div>
+          <button
+            onClick={() => { setLoading(true); setError(null); loadData(); }}
+            className="flex items-center space-x-1 px-2 py-1 text-xs text-red-600 hover:bg-red-100"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Retry</span>
+          </button>
         </div>
       </div>
     );
   }
-  
+
   return (
-    <div className="space-y-8">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={Briefcase}
-          label="Total Applications"
-          value={totalApps}
-          color="indigo"
-        />
-        <StatCard
-          icon={TrendingUp}
-          label="Average ATS Score"
-          value={`${avgAtsScore}%`}
-          color="green"
-        />
-        <StatCard
-          icon={Clock}
-          label="Active Jobs"
-          value={activeJobs.length}
-          color="yellow"
-        />
-        <StatCard
-          icon={Server}
-          label="Backends Available"
+    <div className="space-y-3">
+      {/* Stats Row */}
+      <div className="grid grid-cols-5 gap-2">
+        <StatBox label="Applications" value={totalApps} />
+        <StatBox label="Avg ATS" value={`${avgAtsScore}%`} />
+        <StatBox label="Active" value={activeJobs.length} />
+        <StatBox
+          label="Backends"
           value={health?.backends ? Object.values(health.backends).filter(Boolean).length : 0}
-          color="purple"
         />
+        <Link
+          to="/new"
+          className="bg-slate-800 text-white px-3 py-2 flex items-center justify-center space-x-2 text-sm font-medium hover:bg-slate-900"
+        >
+          <span>New Application</span>
+          <ArrowRight className="w-4 h-4" />
+        </Link>
       </div>
-      
+
       {/* Backend Status */}
       {health?.backends && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Backend Status</h3>
-          <div className="flex space-x-4">
-            <BackendBadge name="Ollama" available={health.backends.ollama ?? false} />
-            <BackendBadge name="Llama.cpp" available={health.backends.llamacpp ?? false} />
-            <BackendBadge name="Gemini" available={health.backends.gemini ?? false} />
+        <div className="flex items-center space-x-4 text-xs text-slate-500 px-1">
+          <span className="uppercase tracking-wide font-medium">Backends:</span>
+          <BackendStatus name="Ollama" available={health.backends.ollama ?? false} />
+          <BackendStatus name="Llama.cpp" available={health.backends.llamacpp ?? false} />
+          <BackendStatus name="Gemini" available={health.backends.gemini ?? false} />
+        </div>
+      )}
+
+      {/* Application Funnel Metrics */}
+      {metrics && metrics.funnel.submitted > 0 && (
+        <div className="bg-white border border-slate-200">
+          <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center space-x-2">
+            <TrendingUp className="w-4 h-4 text-slate-500" />
+            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Application Funnel</span>
+          </div>
+          <div className="p-3">
+            <FunnelChart metrics={metrics} />
+            <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-200">
+              <RateBox label="Response Rate" value={metrics.rates.response_rate} />
+              <RateBox label="Interview Rate" value={metrics.rates.interview_rate} />
+              <RateBox label="Offer Rate" value={metrics.rates.offer_rate} />
+            </div>
+            {metrics.avg_time_to_response_days !== null && (
+              <p className="text-xs text-slate-500 mt-2 text-center">
+                Avg time to response: {metrics.avg_time_to_response_days} days
+              </p>
+            )}
           </div>
         </div>
       )}
-      
+
       {/* Active Jobs */}
       {activeJobs.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Active Jobs</h2>
+        <div className="bg-white border border-slate-200">
+          <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
+            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Active Jobs</span>
           </div>
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-slate-100">
             {activeJobs.map(job => (
-              <JobCard key={job.id} job={job} />
+              <JobRow key={job.id} job={job} />
             ))}
           </div>
         </div>
       )}
-      
-      {/* Quick Actions */}
-      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold">Ready to apply?</h2>
-            <p className="text-indigo-100 mt-1">
-              Upload your CV and job description to generate tailored application materials.
-            </p>
-          </div>
-          <Link
-            to="/new"
-            className="flex items-center space-x-2 bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-indigo-50 transition-colors"
-          >
-            <PlusCircle className="w-5 h-5" />
-            <span>New Application</span>
-          </Link>
-        </div>
-      </div>
-      
+
       {/* Recent Applications */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Applications</h2>
-          <Link to="/history" className="text-sm text-indigo-600 hover:text-indigo-800">
+      <div className="bg-white border border-slate-200">
+        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Recent Applications</span>
+          <Link to="/history" className="text-xs text-slate-500 hover:text-slate-700">
             View all →
           </Link>
         </div>
         {recentApps.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            <FileText className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-            <p>No applications yet. Create your first one!</p>
+          <div className="p-4 text-center text-sm text-slate-400">
+            No applications yet
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
-            {recentApps.map(app => (
-              <ApplicationRow key={app.folder_name} application={app} />
-            ))}
-          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">Job</th>
+                <th className="text-left px-3 py-2 font-medium">Company</th>
+                <th className="text-left px-3 py-2 font-medium">Status</th>
+                <th className="text-left px-3 py-2 font-medium">Backend</th>
+                <th className="text-right px-3 py-2 font-medium">ATS</th>
+                <th className="text-right px-3 py-2 font-medium">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {recentApps.map(app => (
+                <ApplicationTableRow key={app.folder_name} application={app} />
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
   );
 }
 
-function StatCard({ 
-  icon: Icon, 
-  label, 
-  value, 
-  color 
-}: { 
-  icon: React.ElementType;
-  label: string;
-  value: string | number;
-  color: 'indigo' | 'green' | 'yellow' | 'purple';
-}) {
-  const colorClasses = {
-    indigo: 'bg-indigo-50 text-indigo-600',
-    green: 'bg-green-50 text-green-600',
-    yellow: 'bg-yellow-50 text-yellow-600',
-    purple: 'bg-purple-50 text-purple-600',
-  };
-  
+function StatBox({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <div className="flex items-center space-x-3">
-        <div className={`p-2 rounded-lg ${colorClasses[color]}`}>
-          <Icon className="w-5 h-5" />
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
-          <p className="text-sm text-gray-500">{label}</p>
-        </div>
-      </div>
+    <div className="bg-white border border-slate-200 px-3 py-2">
+      <div className="text-xl font-semibold text-slate-800 font-mono">{value}</div>
+      <div className="text-xs text-slate-500">{label}</div>
     </div>
   );
 }
 
-function BackendBadge({ name, available }: { name: string; available: boolean }) {
+function BackendStatus({ name, available }: { name: string; available: boolean }) {
   return (
-    <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm ${
-      available 
-        ? 'bg-green-100 text-green-700' 
-        : 'bg-gray-100 text-gray-500'
-    }`}>
-      {available ? (
-        <CheckCircle className="w-4 h-4" />
-      ) : (
-        <XCircle className="w-4 h-4" />
-      )}
+    <span className={`flex items-center space-x-1 ${available ? 'text-green-600' : 'text-slate-400'}`}>
+      {available ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
       <span>{name}</span>
+    </span>
+  );
+}
+
+function FunnelChart({ metrics }: { metrics: Metrics }) {
+  const stages = [
+    { key: 'submitted', label: 'Submitted', count: metrics.funnel.submitted, color: 'bg-blue-500' },
+    { key: 'response', label: 'Response', count: metrics.funnel.response, color: 'bg-indigo-500' },
+    { key: 'interview', label: 'Interview', count: metrics.funnel.interview, color: 'bg-purple-500' },
+    { key: 'offer', label: 'Offer', count: metrics.funnel.offer, color: 'bg-green-500' },
+  ];
+
+  const maxCount = Math.max(...stages.map(s => s.count), 1);
+
+  return (
+    <div className="space-y-2">
+      {stages.map((stage, index) => {
+        const width = Math.max((stage.count / maxCount) * 100, stage.count > 0 ? 10 : 0);
+        const prevCount = index > 0 ? stages[index - 1].count : metrics.funnel.submitted;
+        const conversionRate = prevCount > 0 ? Math.round((stage.count / prevCount) * 100) : 0;
+
+        return (
+          <div key={stage.key} className="flex items-center space-x-2">
+            <span className="text-xs text-slate-500 w-20">{stage.label}</span>
+            <div className="flex-1 bg-slate-100 h-5 relative">
+              <div
+                className={`${stage.color} h-5 transition-all`}
+                style={{ width: `${width}%` }}
+              />
+              <span className="absolute inset-0 flex items-center justify-center text-xs font-mono">
+                {stage.count}
+              </span>
+            </div>
+            {index > 0 && stage.count > 0 && (
+              <span className="text-xs text-slate-400 w-12 text-right">{conversionRate}%</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function JobCard({ job }: { job: Job }) {
-  const statusColors = {
-    pending: 'text-yellow-600 bg-yellow-50',
-    processing: 'text-blue-600 bg-blue-50',
-    completed: 'text-green-600 bg-green-50',
-    failed: 'text-red-600 bg-red-50',
-  };
-  
+function RateBox({ label, value }: { label: string; value: number }) {
+  const color = value >= 30 ? 'text-green-600' : value >= 15 ? 'text-yellow-600' : 'text-slate-600';
   return (
-    <div className="px-6 py-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center space-x-3">
-          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[job.status]}`}>
+    <div className="text-center">
+      <div className={`text-lg font-semibold font-mono ${color}`}>{value}%</div>
+      <div className="text-xs text-slate-500">{label}</div>
+    </div>
+  );
+}
+
+function JobRow({ job }: { job: Job }) {
+  return (
+    <div className="px-3 py-2">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center space-x-2">
+          <span className={`text-xs px-1.5 py-0.5 ${
+            job.status === 'processing' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
+          }`}>
             {job.status === 'processing' && <Loader2 className="w-3 h-3 inline mr-1 animate-spin" />}
             {job.status}
           </span>
-          <span className="text-sm text-gray-500">{job.company_name || 'Unknown company'}</span>
+          <span className="text-sm text-slate-600">{job.company_name || 'Unknown'}</span>
         </div>
-        <span className="text-sm text-gray-400">{job.backend}</span>
+        <span className="text-xs text-slate-400 font-mono">{job.progress}%</span>
       </div>
-      
-      {/* Progress bar */}
-      <div className="mb-2">
-        <div className="flex items-center justify-between text-sm mb-1">
-          <span className="text-gray-600">{job.stage}</span>
-          <span className="text-gray-500">{job.progress}%</span>
+      <div className="flex items-center space-x-2">
+        <div className="flex-1 bg-slate-200 h-1">
+          <div className="bg-slate-600 h-1 transition-all" style={{ width: `${job.progress}%` }} />
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div
-            className="bg-indigo-600 h-2 rounded-full transition-all duration-500"
-            style={{ width: `${job.progress}%` }}
-          />
-        </div>
+        <span className="text-xs text-slate-500 w-24 truncate">{job.stage}</span>
       </div>
     </div>
   );
 }
 
-function ApplicationRow({ application }: { application: Application }) {
-  const atsColor = application.ats_score 
-    ? application.ats_score >= 80 
-      ? 'text-green-600' 
-      : application.ats_score >= 60 
-        ? 'text-yellow-600' 
-        : 'text-red-600'
-    : 'text-gray-400';
-  
+const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+  draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600' },
+  submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-700' },
+  response: { label: 'Response', className: 'bg-indigo-100 text-indigo-700' },
+  interview: { label: 'Interview', className: 'bg-purple-100 text-purple-700' },
+  offer: { label: 'Offer', className: 'bg-green-100 text-green-700' },
+  rejected: { label: 'Rejected', className: 'bg-red-100 text-red-700' },
+  withdrawn: { label: 'Withdrawn', className: 'bg-gray-100 text-gray-500' },
+};
+
+function ApplicationTableRow({ application }: { application: Application }) {
+  const atsColor = application.ats_score
+    ? application.ats_score >= 70 ? 'text-green-600' : application.ats_score >= 50 ? 'text-yellow-600' : 'text-red-600'
+    : 'text-slate-400';
+
+  const statusConfig = STATUS_CONFIG[application.outcome_status] || STATUS_CONFIG.draft;
+
   return (
-    <div className="px-6 py-4 hover:bg-gray-50 transition-colors">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-            <FileText className="w-5 h-5 text-gray-500" />
-          </div>
-          <div>
-            <p className="font-medium text-gray-900">{application.job_name}</p>
-            <p className="text-sm text-gray-500">
-              {application.company_name || 'Unknown company'} • {application.backend}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-6">
-          {application.ats_score && (
-            <div className="text-right">
-              <p className={`text-lg font-semibold ${atsColor}`}>{application.ats_score}%</p>
-              <p className="text-xs text-gray-500">ATS Score</p>
-            </div>
-          )}
-          <div className="text-right">
-            <p className="text-sm text-gray-500">{application.timestamp}</p>
-            <p className="text-xs text-gray-400">{(application.files || []).length} files</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <tr className="hover:bg-slate-50">
+      <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[200px]">{application.job_name}</td>
+      <td className="px-3 py-2 text-slate-600">{application.company_name || '-'}</td>
+      <td className="px-3 py-2">
+        <span className={`text-xs px-1.5 py-0.5 ${statusConfig.className}`}>{statusConfig.label}</span>
+      </td>
+      <td className="px-3 py-2">
+        <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-600">{application.backend}</span>
+      </td>
+      <td className={`px-3 py-2 text-right font-mono ${atsColor}`}>
+        {application.ats_score ? `${application.ats_score}%` : '-'}
+      </td>
+      <td className="px-3 py-2 text-right text-slate-500 text-xs font-mono">
+        {formatTimestamp(application.timestamp)}
+      </td>
+    </tr>
   );
+}
+
+function formatTimestamp(timestamp: string): string {
+  const match = timestamp.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})/);
+  if (!match) return timestamp;
+  const [, , month, day, hour, minute] = match;
+  return `${day}/${month} ${hour}:${minute}`;
 }
 
 export default Dashboard;

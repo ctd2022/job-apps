@@ -1,8 +1,8 @@
 # MASTER VISION - Job Application Workflow
 
-**Last Updated**: 23 January 2026
-**Current Status**: Track 2 COMPLETE - Ready for Validation
-**Next Phase**: Use for real job applications, then decide on Track 3
+**Last Updated**: 25 January 2026
+**Current Status**: Track 2.6 COMPLETE - Multi-User Support Added
+**Next Phase**: Validate with real job applications, track success metrics
 
 ---
 
@@ -51,6 +51,42 @@ All tasks completed 23 Jan:
 - [x] File preview in browser (markdown rendering)
 - [x] Error boundaries and loading states
 - [x] Test with all three backends (Ollama, Llama.cpp, Gemini)
+
+### **✅ Track 2.5: Outcome Tracking** - COMPLETE (24 Jan 2026)
+
+**Why This Was MVP**: Cannot validate the system without tracking what happens after applying.
+
+**Features Implemented (ideas #19, #20):**
+- [x] Application status workflow: Draft → Submitted → Response → Interview → Offer/Rejected
+- [x] Key dates tracking: submitted_at, response_at, outcome_at (auto-set on status change)
+- [x] Notes field for communications and feedback
+- [x] Success metrics dashboard: funnel visualization, response/interview/offer rates
+- [x] History filters by application status
+- [x] Inline status editing in expanded row
+
+**Database Changes:**
+- Added to `jobs` table: `outcome_status`, `submitted_at`, `response_at`, `outcome_at`, `notes`
+
+### **✅ Track 2.6: Multi-User Support** - COMPLETE (25 Jan 2026)
+
+**Why This Was Important**: Foundation for scaling to multiple users; enables 2-person validation testing.
+
+**Features Implemented (idea #21):**
+- [x] Users table and user management (create, list, get)
+- [x] User isolation: jobs, CVs, and metrics scoped per user
+- [x] Profile selector in header (dropdown + add user button)
+- [x] X-User-ID header for API authentication
+- [x] localStorage persistence for current user
+- [x] Automatic data refresh when switching users
+
+**Database Changes:**
+- Added `users` table: `id`, `name`, `created_at`
+- Added `user_id` column to `jobs` and `cvs` tables
+- Migration: existing data assigned to 'default' user
+
+**API Changes:**
+- New endpoints: `GET/POST /api/users`, `GET /api/users/{id}`
+- All existing endpoints now accept `X-User-ID` header for user scoping
 
 ---
 
@@ -136,19 +172,26 @@ See `PROJECT_DIARY_007.md` for details on this decision.
 - ATS optimization with scoring
 - Multi-backend support
 
-### **Track 2: Local Web UI** ✅ COMPLETE
+### **Track 2: Local Web UI** ✅ COMPLETE (Core Features)
 
 | Week | Focus | Status |
 |------|-------|--------|
 | Week 1 | FastAPI Backend | ✅ Complete |
 | Week 2 | React Frontend | ✅ Complete |
 | Week 3 | Polish & WebSockets | ✅ Complete |
+| **Track 2.5** | **Outcome Tracking** | **✅ Complete** |
 
-**All Features Working:**
+**Core Features Working:**
 - WebSocket real-time progress updates
 - File preview with markdown rendering
 - Error boundaries and skeleton loading
 - All three backends tested (Ollama, Llama.cpp, Gemini)
+- SQLite persistence for jobs and CVs
+- Multiple CV management
+
+**MVP for Validation (Track 2.5):**
+- Application outcome tracking (status, dates, notes)
+- Success metrics dashboard (funnel, rates)
 
 ### **Track 3: SaaS Deployment** 🔮 FUTURE
 
@@ -277,7 +320,7 @@ npm run dev
 - [x] Cover letters professional
 - [x] Multi-backend support
 
-### **Track 2 (Local Web UI):** ✅ COMPLETE
+### **Track 2 (Local Web UI):** ✅ Core Complete, 🔄 Track 2.5 In Progress
 - [x] Web app runs on localhost
 - [x] File uploads work via drag & drop
 - [x] All backends selectable in UI
@@ -286,6 +329,10 @@ npm run dev
 - [x] File preview in browser
 - [x] Error boundaries and loading states
 - [x] All three backends tested
+- [x] SQLite persistence
+- [x] Multiple CV management
+- [x] **Application outcome tracking** (Track 2.5) - 24 Jan 2026
+- [x] **Success metrics dashboard** (Track 2.5) - 24 Jan 2026
 
 ### **Track 3 (SaaS):** 🔮 FUTURE
 - [ ] 10 beta users testing
@@ -308,10 +355,14 @@ npm run dev
 | Jan 2026 | Adopt Claude Code for development | 007 |
 | Jan 2026 | **WebSocket for real-time progress** | 008 |
 | Jan 2026 | **Track 2 Complete** - File preview, error handling, all backends | 009 |
+| Jan 2026 | SQLite + CV management + UI overhaul | 010 |
+| Jan 2026 | **Track 2.5 required** - Outcome tracking before validation | 011 |
+| Jan 2026 | **Track 2.6** - Multi-user support with profile selector | 012 |
 
 ### **Pending Decisions:**
-- ⏳ SQLite vs in-memory for job history?
-- ⏳ When to validate and move to Track 3?
+- ~~SQLite vs in-memory for job history?~~ ✅ SQLite implemented (23 Jan)
+- ~~Multiple CV management?~~ ✅ Implemented (23 Jan)
+- ⏳ When to validate and move to Track 3? (after 20+ tracked applications)
 - ⏳ Profile management in Track 3 or separate phase?
 - ⏳ Llama.cpp model selection UI (deferred enhancement)
 
@@ -346,38 +397,41 @@ npm run dev
 ### **Immediate (This Week):**
 1. ~~Complete Track 2 Week 3~~ ✅ DONE
 2. ~~Test with all three backends~~ ✅ DONE
-3. Start using web UI for real job applications
+3. ~~Implement Track 2.5: Outcome Tracking~~ ✅ DONE (24 Jan 2026)
+4. **Start validation phase** ← CURRENT FOCUS
+   - Use web UI for real job applications
+   - Track outcomes as applications progress
+   - Monitor metrics dashboard
 
 ### **Short-term (Next 2-3 Weeks):**
 1. Use web UI for 10-20 real job applications
-2. Validate workflow effectiveness
-3. Track success metrics
+2. Track outcomes (submitted → response → interview → offer)
+3. Validate workflow effectiveness with actual metrics
 
 ### **Medium-term (1-3 Months):**
-1. Track success metrics (interviews, offers)
+1. Analyze tracked metrics (response rates, interview conversions)
 2. Decide: Continue local-only OR proceed to Track 3?
 3. If validated: Begin Track 3 planning
 
 ### **Deferred Enhancements:**
-See `ideas.db` for full backlog (18 ideas). Top priorities:
+See `ideas.db` for full backlog (20 ideas). Top priorities after Track 2.5:
 - Multi-user support with isolated profiles
-- Multiple CV management with default selection
 - Llama.cpp model selection dropdown
-- Wider, info-dense UI layout
+- LinkedIn job import
 
 ---
 
 ## 🎯 **ONE-SENTENCE SUMMARY**
 
-**Track 2 is complete: we have a fully functional local web UI (React + FastAPI) with real-time WebSocket updates, file preview, error handling, and all three backends (Ollama, Llama.cpp, Gemini) tested; next step is validation with real job applications.**
+**Track 2.5 complete: full outcome tracking (status workflow, dates, notes, funnel metrics) is now ready; next step is to validate with real job applications.**
 
 ---
 
-**Last Updated**: 23 January 2026
-**Next Review**: After 10-20 real applications processed
+**Last Updated**: 24 January 2026
+**Next Review**: After 10-20 real applications tracked
 **Development Tool**: Claude Code (see PROJECT_DIARY_007.md)
 
-**Status**: 🟢 **TRACK 2 COMPLETE** - Ready for validation phase
+**Status**: 🟢 **TRACK 2.5 COMPLETE** - Ready for validation phase
 
 ---
 

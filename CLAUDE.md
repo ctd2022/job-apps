@@ -4,7 +4,7 @@
 
 **Job Application Workflow** - AI-powered tool that generates tailored CVs, cover letters, and ATS analysis for job applications.
 
-**Current Status**: Track 2 COMPLETE - Validation Phase
+**Current Status**: Track 2.6 COMPLETE - Multi-User Support Added
 
 ---
 
@@ -100,27 +100,35 @@ job_applications/
 
 ---
 
-## Current Status: Track 2 COMPLETE
+## Current Status: Track 2.6 COMPLETE
 
 ### Completed
 - [x] Track 1: CLI workflow (production ready)
 - [x] Track 2 Week 1: FastAPI backend
 - [x] Track 2 Week 2: React frontend (end-to-end working)
 - [x] Track 2 Week 3: Polish & WebSockets - COMPLETE (23 Jan 2026)
-  - [x] WebSocket integration for real-time progress
-  - [x] File preview in browser (markdown rendering)
-  - [x] Error boundaries and loading states
-  - [x] All three backends tested (Ollama, Llama.cpp, Gemini)
+- [x] SQLite persistence for jobs and CVs (23 Jan 2026)
+- [x] Multiple CV management with default selection (23 Jan 2026)
+- [x] Track 2.5: Outcome Tracking (24 Jan 2026)
+- [x] Track 2.6: Multi-User Support (25 Jan 2026)
 
-### Next Phase: Validation
+### Track 2.6: Multi-User Support (idea #21)
+- [x] Users table and user management API (create, list, get)
+- [x] User isolation: jobs, CVs, and metrics scoped per user
+- [x] Profile selector dropdown in header with add user button
+- [x] X-User-ID header for API user scoping
+- [x] localStorage persistence for current user selection
+- [x] Automatic data refresh when switching users
+
+### Now Ready: Validation Phase
 - [ ] Use web UI for 10-20 real job applications
-- [ ] Track success metrics (interviews, responses)
+- [ ] Track success metrics (response rates, interview conversions)
 - [ ] Decide on Track 3 (SaaS) based on results
 
 ### Deferred Enhancements
 - [ ] Llama.cpp model selection (scan GGUF files from models directory)
-- [ ] SQLite for persistent job history
 - [ ] Profile management features
+- [ ] LinkedIn job import
 
 ---
 
@@ -129,28 +137,36 @@ job_applications/
 | File | Purpose |
 |------|---------|
 | `MASTER_VISION.md` | Strategic direction and roadmap |
-| `docs/journal/PROJECT_DIARY_008.md` | Track 2 Week 3 - WebSocket integration |
-| `docs/journal/PROJECT_DIARY_009.md` | Track 2 Complete - File preview, backends tested |
-| `backend/main.py` | API endpoints |
-| `frontend/src/api.ts` | Frontend API client |
-| `frontend/src/components/NewApplication.tsx` | Job submission UI |
-| `frontend/src/components/FilePreview.tsx` | File preview with markdown |
+| `docs/journal/PROJECT_DIARY_011.md` | Track 2.5 - Outcome tracking |
+| `docs/journal/PROJECT_DIARY_012.md` | Track 2.6 - Multi-user support |
+| `backend/main.py` | API endpoints (including user management) |
+| `backend/job_store.py` | SQLite persistence (users, jobs, CVs) |
+| `frontend/src/api.ts` | Frontend API client (user header management) |
+| `frontend/src/App.tsx` | Main app with profile selector |
+| `ideas.db` | Feature tracking database |
 | `.env` | API keys (GEMINI_API_KEY) |
 
 ---
 
 ## API Endpoints
 
+All endpoints (except `/api/users` and `/api/health`) support `X-User-ID` header for user scoping.
+
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
+| GET | `/api/users` | List all users |
+| POST | `/api/users` | Create new user |
+| GET | `/api/users/{id}` | Get user details |
 | POST | `/api/jobs` | Create new job |
 | GET | `/api/jobs/{id}` | Get job status |
+| PATCH | `/api/jobs/{id}/outcome` | Update application outcome status |
 | GET | `/api/jobs/{id}/files` | List output files |
 | GET | `/api/jobs/{id}/files/{name}` | Download file |
 | GET | `/api/jobs/{id}/files/{name}/content` | Get file content for preview |
 | WS | `/api/ws/jobs/{id}` | WebSocket for real-time progress |
 | GET | `/api/backends` | List available LLM backends |
-| GET | `/api/applications` | List past applications |
+| GET | `/api/applications` | List past applications (supports `?outcome_status=` filter) |
+| GET | `/api/metrics` | Get application funnel metrics |
 | GET | `/api/health` | Health check |
 
 ---
@@ -172,6 +188,39 @@ job_applications/
 - Keep changes minimal and focused
 - Test changes before committing
 - Update relevant diary entry for significant changes
+
+---
+
+## Feature Development Workflow
+
+**Always funnel new features through `ideas.db` before implementing:**
+
+1. **Capture** - Add idea to `ideas.db` with description, category, priority
+   ```powershell
+   python scripts/ideas.py add   # Interactive
+   python scripts/ideas.py list  # View backlog
+   ```
+
+2. **Plan** - Enter plan mode, explore codebase, design approach
+
+3. **Implement** - Follow the plan, update diary
+
+4. **Complete** - Mark idea as "Done", update CLAUDE.md and MASTER_VISION.md
+
+**Why this matters:**
+- Creates a traceable backlog of ideas
+- Prevents scope creep mid-implementation
+- Documents decisions for future reference
+- Ensures nothing gets lost
+
+**Ideas CLI:**
+```powershell
+python scripts/ideas.py list              # List all
+python scripts/ideas.py list --status Planned  # Filter by status
+python scripts/ideas.py show 21           # View details
+python scripts/ideas.py update 21 --status "In Progress"
+python scripts/ideas.py summary           # Stats
+```
 
 ---
 
@@ -230,8 +279,8 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 
 ---
 
-**Last Updated**: 23 January 2026
-**Current Phase**: Track 2 COMPLETE - Validation Phase
+**Last Updated**: 25 January 2026
+**Current Phase**: Track 2.6 COMPLETE - Multi-User Support Added
 
 ---
 
