@@ -4,7 +4,7 @@
 
 **Job Application Workflow** - AI-powered tool that generates tailored CVs, cover letters, and ATS analysis for job applications.
 
-**Current Status**: Track 2.6 COMPLETE - Multi-User Support Added
+**Current Status**: Track 2.7 COMPLETE - UI Improvements (Dark Mode + Paste Job Description)
 
 ---
 
@@ -29,6 +29,31 @@ npm run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
+
+---
+
+## IMPORTANT: Auto-Start Services for Testing
+
+**Before testing any frontend changes, Claude must ensure services are running.**
+
+Check if services are running:
+```bash
+curl -s http://localhost:8000/api/health  # Backend
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5173  # Frontend (expect 200)
+```
+
+If not running, start them in background:
+```bash
+# Backend (run in background)
+cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications" && python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+
+# Frontend (run in background)
+cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications/frontend" && npm run dev
+```
+
+**Note**: Use forward slashes in paths for bash compatibility.
+
+---
 
 ### Run CLI (Track 1)
 ```powershell
@@ -107,7 +132,7 @@ job_applications/
 
 ---
 
-## Current Status: Track 2.6 COMPLETE
+## Current Status: Track 2.7 COMPLETE
 
 ### Completed
 - [x] Track 1: CLI workflow (production ready)
@@ -118,6 +143,13 @@ job_applications/
 - [x] Multiple CV management with default selection (23 Jan 2026)
 - [x] Track 2.5: Outcome Tracking (24 Jan 2026)
 - [x] Track 2.6: Multi-User Support (25 Jan 2026)
+- [x] Track 2.7: UI Improvements - Dark Mode + Paste Job Description (25 Jan 2026)
+
+### Track 2.7: UI Improvements (ideas #8, #42)
+- [x] Dark mode toggle (Sun/Moon icon in header)
+- [x] Theme persistence in localStorage
+- [x] System preference as default
+- [x] Paste job description text directly (Upload/Paste toggle)
 
 ### Track 2.6: Multi-User Support (idea #21)
 - [x] Users table and user management API (create, list, get)
@@ -416,7 +448,7 @@ llama-server.exe -m "C:\Users\davidgp2022\models\Meta-Llama-3.1-8B-Instruct-Q5_K
 ---
 
 **Last Updated**: 25 January 2026
-**Current Phase**: Track 2.6 COMPLETE - Multi-User Support Added
+**Current Phase**: Track 2.7 COMPLETE - UI Improvements Bundle
 
 ---
 

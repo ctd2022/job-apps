@@ -80,7 +80,7 @@ function FilePreview({ jobId, files }: FilePreviewProps) {
             className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               selectedFile === file.name
                 ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-500'
             }`}
           >
             <span className="w-6 h-6 bg-white/20 rounded text-xs flex items-center justify-center font-bold">
@@ -98,14 +98,14 @@ function FilePreview({ jobId, files }: FilePreviewProps) {
 
       {/* Preview panel */}
       {selectedFile && (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-gray-200 dark:border-slate-600 rounded-lg overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
-            <span className="text-sm font-medium text-gray-700">{selectedFile}</span>
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-slate-700 border-b border-gray-200 dark:border-slate-600">
+            <span className="text-sm font-medium text-gray-700 dark:text-slate-200">{selectedFile}</span>
             <a
               href={getJobFileUrl(jobId, selectedFile)}
               download
-              className="flex items-center space-x-1 text-sm text-indigo-600 hover:text-indigo-800"
+              className="flex items-center space-x-1 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
             >
               <Download className="w-4 h-4" />
               <span>Download</span>
@@ -113,28 +113,28 @@ function FilePreview({ jobId, files }: FilePreviewProps) {
           </div>
 
           {/* Content */}
-          <div className="max-h-96 overflow-auto">
+          <div className="max-h-96 overflow-auto bg-white dark:bg-slate-800">
             {loading ? (
               <div className="flex items-center justify-center p-8">
-                <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-600 dark:text-indigo-400" />
               </div>
             ) : error ? (
-              <div className="flex items-center space-x-2 p-4 text-red-600">
+              <div className="flex items-center space-x-2 p-4 text-red-600 dark:text-red-400">
                 <AlertCircle className="w-5 h-5" />
                 <span>{error}</span>
               </div>
             ) : content ? (
               <div className="p-4">
                 {content.type === 'markdown' ? (
-                  <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-li:text-gray-700 prose-strong:text-gray-900">
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-gray-900 dark:prose-headings:text-slate-100 prose-p:text-gray-700 dark:prose-p:text-slate-300 prose-li:text-gray-700 dark:prose-li:text-slate-300 prose-strong:text-gray-900 dark:prose-strong:text-slate-100">
                     <ReactMarkdown>{content.content}</ReactMarkdown>
                   </div>
                 ) : content.type === 'json' ? (
-                  <pre className="text-sm bg-gray-50 p-4 rounded overflow-x-auto">
+                  <pre className="text-sm bg-gray-50 dark:bg-slate-700 p-4 rounded overflow-x-auto text-gray-800 dark:text-slate-200">
                     <code>{JSON.stringify(JSON.parse(content.content), null, 2)}</code>
                   </pre>
                 ) : (
-                  <pre className="text-sm whitespace-pre-wrap text-gray-700 font-mono">
+                  <pre className="text-sm whitespace-pre-wrap text-gray-700 dark:text-slate-300 font-mono">
                     {content.content}
                   </pre>
                 )}
@@ -146,19 +146,19 @@ function FilePreview({ jobId, files }: FilePreviewProps) {
 
       {/* Download-only files (DOCX) */}
       {binaryFiles.length > 0 && (
-        <div className="border-t border-gray-200 pt-4">
-          <p className="text-sm font-medium text-gray-500 mb-2">Download Only</p>
+        <div className="border-t border-gray-200 dark:border-slate-600 pt-4">
+          <p className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-2">Download Only</p>
           <div className="flex flex-wrap gap-2">
             {binaryFiles.map(file => (
               <a
                 key={file.name}
                 href={getJobFileUrl(jobId, file.name)}
                 download
-                className="flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-700 hover:bg-gray-200 transition-colors"
+                className="flex items-center space-x-2 px-3 py-2 bg-gray-100 dark:bg-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-500 transition-colors"
               >
                 <FileText className="w-4 h-4" />
                 <span>{getFileLabel(file.name)}</span>
-                <span className="text-xs text-gray-400">.docx</span>
+                <span className="text-xs text-gray-400 dark:text-slate-400">.docx</span>
                 <Download className="w-4 h-4" />
               </a>
             ))}

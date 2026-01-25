@@ -86,12 +86,12 @@ function JobDetail() {
   if (error || !job) {
     return (
       <div className="max-w-4xl mx-auto">
-        <div className="bg-red-50 border border-red-200 p-4">
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 p-4">
           <div className="flex items-center space-x-3">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <span className="text-red-700">{error || 'Job not found'}</span>
+            <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400" />
+            <span className="text-red-700 dark:text-red-300">{error || 'Job not found'}</span>
           </div>
-          <Link to="/" className="mt-3 inline-flex items-center text-sm text-red-600 hover:text-red-800">
+          <Link to="/" className="mt-3 inline-flex items-center text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
             <ArrowLeft className="w-4 h-4 mr-1" />
             Back to Dashboard
           </Link>
@@ -106,39 +106,39 @@ function JobDetail() {
     <div className="max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-3 flex items-center justify-between">
-        <Link to="/" className="flex items-center text-sm text-slate-600 hover:text-slate-800">
+        <Link to="/" className="flex items-center text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
           <ArrowLeft className="w-4 h-4 mr-1" />
           Back to Dashboard
         </Link>
       </div>
 
-      <div className="bg-white border border-slate-200">
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
         {/* Job Status Header */}
         <div className={`px-4 py-3 border-b ${
-          job.status === 'completed' ? 'bg-green-50 border-green-100' :
-          job.status === 'failed' ? 'bg-red-50 border-red-100' :
-          'bg-slate-50 border-slate-200'
+          job.status === 'completed' ? 'bg-green-50 dark:bg-green-900/30 border-green-100 dark:border-green-800' :
+          job.status === 'failed' ? 'bg-red-50 dark:bg-red-900/30 border-red-100 dark:border-red-800' :
+          'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600'
         }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               {job.status === 'completed' ? (
-                <CheckCircle className="w-5 h-5 text-green-600" />
+                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
               ) : job.status === 'failed' ? (
-                <XCircle className="w-5 h-5 text-red-600" />
+                <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
               ) : (
-                <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" />
               )}
               <div>
-                <h1 className="text-lg font-semibold text-slate-800">
+                <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
                   {job.company_name || 'Application'}
                 </h1>
-                <p className="text-sm text-slate-500">Job ID: {job.id}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Job ID: {job.id}</p>
               </div>
             </div>
 
             {/* Outcome Status Selector */}
             <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-500">Status:</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Status:</span>
               <select
                 value={job.outcome_status}
                 onChange={(e) => handleOutcomeChange(e.target.value as OutcomeStatus)}
@@ -158,55 +158,55 @@ function JobDetail() {
         </div>
 
         {/* Job Details */}
-        <div className="px-4 py-3 border-b border-slate-200 grid grid-cols-4 gap-4 text-sm">
+        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600 grid grid-cols-4 gap-4 text-sm">
           <div className="flex items-center space-x-2">
             <Server className="w-4 h-4 text-slate-400" />
             <div>
-              <span className="text-slate-500">Backend:</span>
-              <span className="ml-1 text-slate-800">{job.backend}</span>
+              <span className="text-slate-500 dark:text-slate-400">Backend:</span>
+              <span className="ml-1 text-slate-800 dark:text-slate-200">{job.backend}</span>
               {job.model && <span className="text-slate-400 text-xs ml-1">({job.model})</span>}
             </div>
           </div>
           <div className="flex items-center space-x-2">
             <Calendar className="w-4 h-4 text-slate-400" />
             <div>
-              <span className="text-slate-500">Created:</span>
-              <span className="ml-1 text-slate-800">{formatDate(job.created_at)}</span>
+              <span className="text-slate-500 dark:text-slate-400">Created:</span>
+              <span className="ml-1 text-slate-800 dark:text-slate-200">{formatDate(job.created_at)}</span>
             </div>
           </div>
           {job.completed_at && (
             <div className="flex items-center space-x-2">
               <Clock className="w-4 h-4 text-slate-400" />
               <div>
-                <span className="text-slate-500">Completed:</span>
-                <span className="ml-1 text-slate-800">{formatDate(job.completed_at)}</span>
+                <span className="text-slate-500 dark:text-slate-400">Completed:</span>
+                <span className="ml-1 text-slate-800 dark:text-slate-200">{formatDate(job.completed_at)}</span>
               </div>
             </div>
           )}
           {job.enable_ats && (
             <div className="flex items-center space-x-2">
               <Sparkles className="w-4 h-4 text-slate-400" />
-              <span className="text-slate-500">ATS Analysis Enabled</span>
+              <span className="text-slate-500 dark:text-slate-400">ATS Analysis Enabled</span>
             </div>
           )}
         </div>
 
         {/* ATS Score */}
         {job.ats_score !== undefined && job.ats_score !== null && (
-          <div className="px-4 py-3 border-b border-slate-200">
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600">ATS Match Score</span>
+              <span className="text-sm text-slate-600 dark:text-slate-400">ATS Match Score</span>
               <div className="flex items-center space-x-2">
                 <span className={`text-2xl font-bold ${
-                  job.ats_score >= 80 ? 'text-green-600' :
-                  job.ats_score >= 60 ? 'text-yellow-600' : 'text-red-600'
+                  job.ats_score >= 80 ? 'text-green-600 dark:text-green-400' :
+                  job.ats_score >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
                 }`}>
                   {job.ats_score}%
                 </span>
-                {job.ats_score >= 80 && <Sparkles className="w-5 h-5 text-green-500" />}
+                {job.ats_score >= 80 && <Sparkles className="w-5 h-5 text-green-500 dark:text-green-400" />}
               </div>
             </div>
-            <div className="mt-2 w-full bg-slate-200 h-2">
+            <div className="mt-2 w-full bg-slate-200 dark:bg-slate-600 h-2">
               <div
                 className={`h-2 ${
                   job.ats_score >= 80 ? 'bg-green-500' :
@@ -220,12 +220,12 @@ function JobDetail() {
 
         {/* Error Message */}
         {job.status === 'failed' && job.error && (
-          <div className="px-4 py-3 bg-red-50 border-b border-red-200">
+          <div className="px-4 py-3 bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800">
             <div className="flex items-start space-x-2">
-              <AlertCircle className="w-4 h-4 text-red-500 mt-0.5" />
+              <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400 mt-0.5" />
               <div>
-                <span className="text-sm font-medium text-red-700">Error:</span>
-                <p className="text-sm text-red-600 mt-1">{job.error}</p>
+                <span className="text-sm font-medium text-red-700 dark:text-red-300">Error:</span>
+                <p className="text-sm text-red-600 dark:text-red-400 mt-1">{job.error}</p>
               </div>
             </div>
           </div>
@@ -233,12 +233,12 @@ function JobDetail() {
 
         {/* Processing Progress */}
         {(job.status === 'processing' || job.status === 'pending') && (
-          <div className="px-4 py-3 border-b border-slate-200">
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-slate-600">{job.stage || 'Processing...'}</span>
-              <span className="text-sm font-mono text-slate-500">{job.progress}%</span>
+              <span className="text-sm text-slate-600 dark:text-slate-300">{job.stage || 'Processing...'}</span>
+              <span className="text-sm font-mono text-slate-500 dark:text-slate-400">{job.progress}%</span>
             </div>
-            <div className="w-full bg-slate-200 h-2">
+            <div className="w-full bg-slate-200 dark:bg-slate-600 h-2">
               <div
                 className="bg-blue-500 h-2 transition-all"
                 style={{ width: `${job.progress}%` }}
@@ -250,16 +250,16 @@ function JobDetail() {
         {/* Output Files */}
         {files.length > 0 && (
           <div className="px-4 py-3">
-            <h3 className="text-sm font-medium text-slate-600 mb-3">Generated Files</h3>
+            <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-3">Generated Files</h3>
             <FilePreview jobId={job.id} files={files} />
           </div>
         )}
 
         {/* Footer Actions */}
-        <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex space-x-3">
+        <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700 border-t border-slate-200 dark:border-slate-600 flex space-x-3">
           <button
             onClick={() => navigate('/new')}
-            className="flex-1 px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50"
+            className="flex-1 px-4 py-2 bg-white dark:bg-slate-600 border border-slate-300 dark:border-slate-500 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-500"
           >
             New Application
           </button>

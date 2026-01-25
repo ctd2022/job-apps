@@ -453,3 +453,33 @@ export async function setDefaultCV(id: number): Promise<void> {
 }
 
 export { ApiError };
+
+// ============================================================================
+// Theme Management
+// ============================================================================
+
+export type Theme = 'light' | 'dark';
+
+export function getTheme(): Theme {
+  const stored = localStorage.getItem('theme');
+  if (stored === 'light' || stored === 'dark') {
+    return stored;
+  }
+  // Default to system preference
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+export function setTheme(theme: Theme): void {
+  localStorage.setItem('theme', theme);
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+}
+
+export function initTheme(): Theme {
+  const theme = getTheme();
+  setTheme(theme);
+  return theme;
+}

@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { FileText, PlusCircle, History, User, UserPlus } from 'lucide-react';
+import { FileText, PlusCircle, History, User, UserPlus, Sun, Moon } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import NewApplication from './components/NewApplication';
 import ApplicationHistory from './components/ApplicationHistory';
 import JobDetail from './components/JobDetail';
 import ErrorBoundary from './components/ErrorBoundary';
-import { getUsers, createUser, setCurrentUser, getCurrentUser } from './api';
+import { getUsers, createUser, setCurrentUser, getCurrentUser, initTheme, setTheme, Theme } from './api';
 import type { User as UserType } from './types';
 
 function App() {
@@ -16,11 +16,25 @@ function App() {
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [theme, setThemeState] = useState<Theme>('light');
+
+  // Initialize theme on mount
+  useEffect(() => {
+    const initialTheme = initTheme();
+    setThemeState(initialTheme);
+  }, []);
 
   // Load users on mount
   useEffect(() => {
     getUsers().then(setUsers).catch(console.error);
   }, []);
+
+  // Handle theme toggle
+  const toggleTheme = useCallback(() => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    setThemeState(newTheme);
+  }, [theme]);
 
   // Handle user change
   const handleUserChange = useCallback((userId: string) => {
@@ -53,9 +67,9 @@ function App() {
   ];
   
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700">
+      <header className="bg-slate-800 border-b border-slate-700 dark:bg-slate-950 dark:border-slate-800">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-12">
             <div className="flex items-center space-x-3">
@@ -83,6 +97,15 @@ function App() {
                 );
               })}
             </nav>
+
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+              title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            >
+              {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </button>
 
             {/* Profile Selector */}
             <div className="flex items-center space-x-2">
@@ -121,9 +144,9 @@ function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-slate-50">
+      <footer className="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-2">
-          <p className="text-center text-xs text-slate-500">
+          <p className="text-center text-xs text-slate-500 dark:text-slate-400">
             100% Local • Your data never leaves your machine • {currentUserName}
           </p>
         </div>
@@ -132,21 +155,21 @@ function App() {
       {/* New User Modal */}
       {showNewUserModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-80">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Add New User</h3>
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-80">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Add New User</h3>
             <input
               type="text"
               value={newUserName}
               onChange={(e) => setNewUserName(e.target.value)}
               placeholder="Enter name..."
-              className="w-full px-3 py-2 border border-slate-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
               autoFocus
               onKeyDown={(e) => e.key === 'Enter' && handleCreateUser()}
             />
             <div className="flex justify-end space-x-2">
               <button
                 onClick={() => { setShowNewUserModal(false); setNewUserName(''); }}
-                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-md"
+                className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md"
               >
                 Cancel
               </button>

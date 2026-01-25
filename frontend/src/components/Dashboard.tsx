@@ -66,15 +66,15 @@ function Dashboard() {
 
   if (error) {
     return (
-      <div className="border border-red-200 bg-red-50 p-3">
+      <div className="border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <XCircle className="w-4 h-4 text-red-500" />
-            <span className="text-sm text-red-700">{error}</span>
+            <XCircle className="w-4 h-4 text-red-500 dark:text-red-400" />
+            <span className="text-sm text-red-700 dark:text-red-300">{error}</span>
           </div>
           <button
             onClick={() => { setLoading(true); setError(null); loadData(); }}
-            className="flex items-center space-x-1 px-2 py-1 text-xs text-red-600 hover:bg-red-100"
+            className="flex items-center space-x-1 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-800"
           >
             <RefreshCw className="w-3 h-3" />
             <span>Retry</span>
@@ -106,7 +106,7 @@ function Dashboard() {
 
       {/* Backend Status */}
       {health?.backends && (
-        <div className="flex items-center space-x-4 text-xs text-slate-500 px-1">
+        <div className="flex items-center space-x-4 text-xs text-slate-500 dark:text-slate-400 px-1">
           <span className="uppercase tracking-wide font-medium">Backends:</span>
           <BackendStatus name="Ollama" available={health.backends.ollama ?? false} />
           <BackendStatus name="Llama.cpp" available={health.backends.llamacpp ?? false} />
@@ -116,20 +116,20 @@ function Dashboard() {
 
       {/* Application Funnel Metrics */}
       {metrics && metrics.funnel.submitted > 0 && (
-        <div className="bg-white border border-slate-200">
-          <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center space-x-2">
-            <TrendingUp className="w-4 h-4 text-slate-500" />
-            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Application Funnel</span>
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <div className="px-3 py-2 bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600 flex items-center space-x-2">
+            <TrendingUp className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Application Funnel</span>
           </div>
           <div className="p-3">
             <FunnelChart metrics={metrics} />
-            <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-200">
+            <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-200 dark:border-slate-600">
               <RateBox label="Response Rate" value={metrics.rates.response_rate} />
               <RateBox label="Interview Rate" value={metrics.rates.interview_rate} />
               <RateBox label="Offer Rate" value={metrics.rates.offer_rate} />
             </div>
             {metrics.avg_time_to_response_days !== null && (
-              <p className="text-xs text-slate-500 mt-2 text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">
                 Avg time to response: {metrics.avg_time_to_response_days} days
               </p>
             )}
@@ -139,11 +139,11 @@ function Dashboard() {
 
       {/* Active Jobs */}
       {activeJobs.length > 0 && (
-        <div className="bg-white border border-slate-200">
-          <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
-            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Active Jobs</span>
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <div className="px-3 py-2 bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Active Jobs</span>
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {activeJobs.map(job => (
               <JobRow key={job.id} job={job} />
             ))}
@@ -152,10 +152,10 @@ function Dashboard() {
       )}
 
       {/* Recent Applications */}
-      <div className="bg-white border border-slate-200">
-        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Recent Applications</span>
-          <Link to="/history" className="text-xs text-slate-500 hover:text-slate-700">
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+        <div className="px-3 py-2 bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Recent Applications</span>
+          <Link to="/history" className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300">
             View all →
           </Link>
         </div>
@@ -165,7 +165,7 @@ function Dashboard() {
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+            <thead className="bg-slate-50 dark:bg-slate-700 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Job</th>
                 <th className="text-left px-3 py-2 font-medium">Company</th>
@@ -176,7 +176,7 @@ function Dashboard() {
                 <th className="text-right px-3 py-2 font-medium">Date</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {recentApps.map(app => (
                 <ApplicationTableRow key={app.folder_name} application={app} />
               ))}
@@ -190,9 +190,9 @@ function Dashboard() {
 
 function StatBox({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-white border border-slate-200 px-3 py-2">
-      <div className="text-xl font-semibold text-slate-800 font-mono">{value}</div>
-      <div className="text-xs text-slate-500">{label}</div>
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2">
+      <div className="text-xl font-semibold text-slate-800 dark:text-slate-100 font-mono">{value}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
     </div>
   );
 }
@@ -225,13 +225,13 @@ function FunnelChart({ metrics }: { metrics: Metrics }) {
 
         return (
           <div key={stage.key} className="flex items-center space-x-2">
-            <span className="text-xs text-slate-500 w-20">{stage.label}</span>
-            <div className="flex-1 bg-slate-100 h-5 relative">
+            <span className="text-xs text-slate-500 dark:text-slate-400 w-20">{stage.label}</span>
+            <div className="flex-1 bg-slate-100 dark:bg-slate-600 h-5 relative">
               <div
                 className={`${stage.color} h-5 transition-all`}
                 style={{ width: `${width}%` }}
               />
-              <span className="absolute inset-0 flex items-center justify-center text-xs font-mono">
+              <span className="absolute inset-0 flex items-center justify-center text-xs font-mono text-slate-700 dark:text-slate-200">
                 {stage.count}
               </span>
             </div>
@@ -246,11 +246,11 @@ function FunnelChart({ metrics }: { metrics: Metrics }) {
 }
 
 function RateBox({ label, value }: { label: string; value: number }) {
-  const color = value >= 30 ? 'text-green-600' : value >= 15 ? 'text-yellow-600' : 'text-slate-600';
+  const color = value >= 30 ? 'text-green-600 dark:text-green-400' : value >= 15 ? 'text-yellow-600 dark:text-yellow-400' : 'text-slate-600 dark:text-slate-400';
   return (
     <div className="text-center">
       <div className={`text-lg font-semibold font-mono ${color}`}>{value}%</div>
-      <div className="text-xs text-slate-500">{label}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
     </div>
   );
 }
@@ -258,24 +258,24 @@ function RateBox({ label, value }: { label: string; value: number }) {
 function JobRow({ job }: { job: Job }) {
   const navigate = useNavigate();
   return (
-    <div className="px-3 py-2 cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/job/${job.id}`)}>
+    <div className="px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700" onClick={() => navigate(`/job/${job.id}`)}>
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center space-x-2">
           <span className={`text-xs px-1.5 py-0.5 ${
-            job.status === 'processing' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
+            job.status === 'processing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300'
           }`}>
             {job.status === 'processing' && <Loader2 className="w-3 h-3 inline mr-1 animate-spin" />}
             {job.status}
           </span>
-          <span className="text-sm text-slate-600">{job.company_name || 'Unknown'}</span>
+          <span className="text-sm text-slate-600 dark:text-slate-300">{job.company_name || 'Unknown'}</span>
         </div>
         <span className="text-xs text-slate-400 font-mono">{job.progress}%</span>
       </div>
       <div className="flex items-center space-x-2">
-        <div className="flex-1 bg-slate-200 h-1">
-          <div className="bg-slate-600 h-1 transition-all" style={{ width: `${job.progress}%` }} />
+        <div className="flex-1 bg-slate-200 dark:bg-slate-600 h-1">
+          <div className="bg-slate-600 dark:bg-slate-400 h-1 transition-all" style={{ width: `${job.progress}%` }} />
         </div>
-        <span className="text-xs text-slate-500 w-24 truncate">{job.stage}</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400 w-24 truncate">{job.stage}</span>
       </div>
     </div>
   );
@@ -294,31 +294,31 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 function ApplicationTableRow({ application }: { application: Application }) {
   const navigate = useNavigate();
   const atsColor = application.ats_score
-    ? application.ats_score >= 70 ? 'text-green-600' : application.ats_score >= 50 ? 'text-yellow-600' : 'text-red-600'
+    ? application.ats_score >= 70 ? 'text-green-600 dark:text-green-400' : application.ats_score >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
     : 'text-slate-400';
 
   const statusConfig = STATUS_CONFIG[application.outcome_status] || STATUS_CONFIG.draft;
 
   return (
     <tr
-      className="hover:bg-slate-50 cursor-pointer"
+      className="hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
       onClick={() => navigate(`/job/${application.job_id}`)}
     >
-      <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[200px]">{application.job_name}</td>
-      <td className="px-3 py-2 text-slate-600">{application.company_name || '-'}</td>
+      <td className="px-3 py-2 text-slate-800 dark:text-slate-200 font-medium truncate max-w-[200px]">{application.job_name}</td>
+      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{application.company_name || '-'}</td>
       <td className="px-3 py-2">
         <span className={`text-xs px-1.5 py-0.5 ${statusConfig.className}`}>{statusConfig.label}</span>
       </td>
       <td className="px-3 py-2">
-        <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-600">{application.backend}</span>
+        <span className="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300">{application.backend}</span>
       </td>
-      <td className="px-3 py-2 text-slate-600 text-xs truncate max-w-[120px]" title={application.model}>
+      <td className="px-3 py-2 text-slate-600 dark:text-slate-300 text-xs truncate max-w-[120px]" title={application.model}>
         {application.model || '-'}
       </td>
       <td className={`px-3 py-2 text-right font-mono ${atsColor}`}>
         {application.ats_score ? `${application.ats_score}%` : '-'}
       </td>
-      <td className="px-3 py-2 text-right text-slate-500 text-xs font-mono">
+      <td className="px-3 py-2 text-right text-slate-500 dark:text-slate-400 text-xs font-mono">
         {formatTimestamp(application.timestamp)}
       </td>
     </tr>

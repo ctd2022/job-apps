@@ -88,6 +88,12 @@ All tasks completed 23 Jan:
 - New endpoints: `GET/POST /api/users`, `GET /api/users/{id}`
 - All existing endpoints now accept `X-User-ID` header for user scoping
 
+### **✅ Track 2.7: UI Improvements Bundle** - COMPLETE (25 Jan 2026)
+
+**Features Implemented (ideas #8, #42):**
+- [x] **Dark Mode** (#8): Class-based Tailwind dark mode with Sun/Moon toggle in header, localStorage persistence, system preference default
+- [x] **Paste Job Description** (#42): Upload/Paste toggle for job descriptions, converts pasted text to File on submission
+
 ---
 
 ## 🛠️ **DEVELOPMENT WORKFLOW**
