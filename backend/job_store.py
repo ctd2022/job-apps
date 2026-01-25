@@ -92,18 +92,12 @@ def init_db():
         )
     ''')
 
-    # Create indexes
+    # Create basic indexes
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC)
     ''')
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_cvs_is_default ON cvs(is_default DESC)
-    ''')
-    cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_jobs_user_id ON jobs(user_id)
-    ''')
-    cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_cvs_user_id ON cvs(user_id)
     ''')
 
     # Migration: Add outcome tracking columns (for existing databases)
@@ -131,9 +125,15 @@ def init_db():
             # Column already exists, ignore
             pass
 
-    # Create index for outcome status filtering
+    # Create indexes for migrated columns (must come AFTER migration)
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_jobs_outcome_status ON jobs(outcome_status)
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_jobs_user_id ON jobs(user_id)
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_cvs_user_id ON cvs(user_id)
     ''')
 
     # Create default user if not exists and migrate orphaned data
