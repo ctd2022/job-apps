@@ -74,7 +74,9 @@ job_applications/
 │   │   ├── components/
 │   │   │   ├── Dashboard.tsx
 │   │   │   ├── NewApplication.tsx
-│   │   │   └── ApplicationHistory.tsx
+│   │   │   ├── ApplicationHistory.tsx
+│   │   │   ├── JobDetail.tsx        (Job detail view with file preview)
+│   │   │   └── FilePreview.tsx      (Markdown/text file preview)
 │   │   ├── api.ts           (API client)
 │   │   ├── types.ts         (TypeScript interfaces)
 │   │   └── App.tsx          (Main app with routing)
@@ -82,7 +84,9 @@ job_applications/
 │   └── vite.config.ts       (Dev server + API proxy)
 │
 ├── scripts/                 ← CLI entry points
-│   └── run_workflow.py
+│   ├── run_workflow.py      (Main CLI workflow)
+│   ├── ideas.py             (Ideas database CLI)
+│   └── ideas_html.py        (Generate interactive ideas HTML)
 │
 ├── inputs/                  ← User data
 │   ├── davidcv.txt
@@ -92,10 +96,13 @@ job_applications/
 │   └── [job-name]_[BACKEND]_[timestamp]/
 │
 └── docs/
-    └── journal/             ← Progress history
-        ├── PROJECT_DIARY_006.md  (Track 2 Week 2 - Frontend)
-        ├── PROJECT_DIARY_007.md  (Claude Code adoption)
-        └── PROJECT_DIARY_008.md  (Track 2 Week 3 - WebSocket)
+    ├── journal/             ← Progress history
+    │   ├── PROJECT_DIARY_006.md  (Track 2 Week 2 - Frontend)
+    │   ├── PROJECT_DIARY_007.md  (Claude Code adoption)
+    │   ├── PROJECT_DIARY_008.md  (Track 2 Week 3 - WebSocket)
+    │   └── PROJECT_DIARY_012.md  (Track 2.6 - Multi-user + UI enhancements)
+    └── raw/                 ← LLM conversation outputs for idea extraction
+        └── newideas.md      (Feature ideas from ChatGPT analysis)
 ```
 
 ---
@@ -221,6 +228,18 @@ python scripts/ideas.py show 21           # View details
 python scripts/ideas.py update 21 --status "In Progress"
 python scripts/ideas.py summary           # Stats
 ```
+
+**Ideas HTML View:**
+```powershell
+python scripts/ideas_html.py              # Generate ideas.html
+start ideas.html                          # Open in browser
+```
+Interactive page with filters for Status, Priority, Impact, Complexity, Category.
+
+**Extracting Ideas from LLM Conversations:**
+1. Save LLM conversation output to `docs/raw/`
+2. Ask Claude to review and extract features
+3. Add to `ideas.db` with appropriate priority/category
 
 ---
 

@@ -260,7 +260,8 @@ job_applications/
 │   │   ├── components/
 │   │   │   ├── Dashboard.tsx
 │   │   │   ├── NewApplication.tsx
-│   │   │   └── ApplicationHistory.tsx
+│   │   │   ├── ApplicationHistory.tsx
+│   │   │   └── JobDetail.tsx        (Job detail with file preview)
 │   │   ├── api.ts
 │   │   ├── types.ts
 │   │   └── App.tsx
@@ -358,6 +359,7 @@ npm run dev
 | Jan 2026 | SQLite + CV management + UI overhaul | 010 |
 | Jan 2026 | **Track 2.5 required** - Outcome tracking before validation | 011 |
 | Jan 2026 | **Track 2.6** - Multi-user support with profile selector | 012 |
+| Jan 2026 | Job detail view, model column, 41-idea backlog | 012 |
 
 ### **Pending Decisions:**
 - ~~SQLite vs in-memory for job history?~~ ✅ SQLite implemented (23 Jan)
@@ -414,24 +416,28 @@ npm run dev
 3. If validated: Begin Track 3 planning
 
 ### **Deferred Enhancements:**
-See `ideas.db` for full backlog (20 ideas). Top priorities after Track 2.5:
-- Multi-user support with isolated profiles
-- Llama.cpp model selection dropdown
-- LinkedIn job import
+See `ideas.db` for full backlog (**41 ideas**). Run `python scripts/ideas_html.py` for interactive view.
+
+Top priorities from backlog:
+- Pipeline Health Diagnosis (P5) - identify bottlenecks in job search
+- Mock AI Interviewer (P4) - practice with AI feedback
+- JD Red-flag Detector (P4) - flag problematic job descriptions
+- Cultural Fit Tone-shifting (P4) - adapt resume tone per company
+- Salary Benchmarking (P4) - market rate comparisons
 
 ---
 
 ## 🎯 **ONE-SENTENCE SUMMARY**
 
-**Track 2.5 complete: full outcome tracking (status workflow, dates, notes, funnel metrics) is now ready; next step is to validate with real job applications.**
+**Track 2.6 complete: multi-user support, job detail views, and 41-idea backlog ready; next step is validation with real job applications.**
 
 ---
 
-**Last Updated**: 24 January 2026
+**Last Updated**: 25 January 2026
 **Next Review**: After 10-20 real applications tracked
 **Development Tool**: Claude Code (see PROJECT_DIARY_007.md)
 
-**Status**: 🟢 **TRACK 2.5 COMPLETE** - Ready for validation phase
+**Status**: 🟢 **TRACK 2.6 COMPLETE** - Ready for validation phase
 
 ---
 

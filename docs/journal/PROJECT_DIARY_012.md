@@ -228,13 +228,77 @@ When adding full authentication:
 
 ---
 
+## Session 2: UI Enhancements & Ideas Backlog (25 Jan - Later)
+
+### Job Detail View
+
+Added `/job/:id` route with full job detail page:
+- **File**: `frontend/src/components/JobDetail.tsx`
+- Shows job metadata (backend, model, dates, ATS score)
+- File preview with download links
+- Outcome status selector (inline editing)
+- Navigation back to dashboard
+
+Made dashboard rows clickable:
+- Application table rows → navigate to job detail
+- Active job rows → navigate to job detail
+
+### Model Column in Dashboard
+
+Added Model column to applications table:
+- Shows which LLM model was used (e.g., "qwen2.5:14b")
+- Between Backend and ATS columns
+- Updated backend to return `model` field from metadata
+
+**Files modified:**
+- `backend/main.py` - Added model field to applications response
+- `frontend/src/components/Dashboard.tsx` - Added Model column
+- `frontend/src/types.ts` - Added model to Application type
+- `frontend/src/api.ts` - Added model to normalizeApplication
+
+### Ideas Backlog Expansion
+
+Created `docs/raw/` folder for capturing LLM conversation outputs.
+
+Extracted 19 new feature ideas from `docs/raw/newideas.md`:
+- ATS Confidence Score (P4)
+- Cultural Fit Tone-shifting (P4)
+- LinkedIn Optimizer (P4)
+- JD Red-flag Detector (P4)
+- Pipeline Health Diagnosis (P5)
+- Mock AI Interviewer (P4)
+- STAR Behavioral Coach (P4)
+- Salary Benchmarking (P4)
+- Offer Comparator (P4)
+- And 10 more...
+
+**Total ideas now: 41** (was 22)
+
+### Interactive Ideas HTML Page
+
+Improved `scripts/ideas_html.py` with full filtering:
+- Tag filters: Status, Priority, Impact, Complexity, Category
+- Sortable columns (click headers)
+- Text search
+- Clear All button
+- Color-coded badges
+
+Run with: `python scripts/ideas_html.py`
+
+### Commits
+
+1. `a66e318` - Add job detail view and model column to dashboard
+
+---
+
 ## Next Steps
 
-1. **Start validation phase** with 2 users
+1. **Start validation phase** with 2 users (David, Tomomi)
 2. Apply for real jobs using the web UI
 3. Track outcomes as applications progress
 4. Compare metrics between users
 5. After 10-20 tracked applications, evaluate Track 3
+6. Review ideas backlog periodically for next features
 
 ---
 
