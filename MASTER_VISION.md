@@ -1,8 +1,9 @@
 # MASTER VISION - Job Application Workflow
 
 **Last Updated**: 25 January 2026
-**Current Status**: Track 2.6 COMPLETE - Multi-User Support Added
-**Next Phase**: Validate with real job applications, track success metrics
+**Current Status**: Track 2.8 IN PROGRESS - Hybrid Semantic ATS Scoring
+**Branch**: `track2.8-semantic-ats`
+**Next Phase**: Implement hybrid scoring engine, then validate with real applications
 
 ---
 
@@ -93,6 +94,35 @@ All tasks completed 23 Jan:
 **Features Implemented (ideas #8, #42):**
 - [x] **Dark Mode** (#8): Class-based Tailwind dark mode with Sun/Moon toggle in header, localStorage persistence, system preference default
 - [x] **Paste Job Description** (#42): Upload/Paste toggle for job descriptions, converts pasted text to File on submission
+
+### **🔄 Track 2.8: Hybrid Semantic ATS Scoring** - IN PROGRESS (25 Jan 2026)
+
+**Why This Matters**: Current ATS scoring uses keyword matching. Modern systems use hybrid scoring combining lexical matches with semantic embeddings for meaning-based similarity.
+
+**Research**: See `docs/raw/GPT-SuperList-SemanticSearch.md` for full specification.
+
+**Core Architecture Change**:
+```
+Final Score = (Lexical × 0.55) + (Semantic × 0.35) + (Evidence × 0.10)
+              + Constraint penalties/caps (must-haves, years, certs)
+```
+
+**Implementation Phases**:
+
+| Phase | Component | Description | Status |
+|-------|-----------|-------------|--------|
+| 2.8.1 | Foundation | Section detection, entity extraction (NER) | Pending |
+| 2.8.2 | Embeddings | Local embedding model, cosine similarity | Pending |
+| 2.8.3 | Hybrid Scoring | Combine lexical + semantic + evidence | Pending |
+| 2.8.4 | Gap Analysis | Critical missing terms, semantic gaps | Pending |
+| 2.8.5 | UI Integration | Heatmap overlay, explainability panel | Pending |
+
+**Key Features**:
+- **Section-level matching**: JD Requirements ↔ CV Skills, JD Responsibilities ↔ CV Experience
+- **Evidence scoring**: Skills in context (achievements, metrics) score higher than skill lists
+- **Embedding safety rails**: Prevent semantic over-matching on vague text
+- **Must-have gating**: Critical requirements can cap/fail the score
+- **Explainability**: Show why the score is what it is (top matches, biggest penalties)
 
 ---
 
@@ -366,6 +396,7 @@ npm run dev
 | Jan 2026 | **Track 2.5 required** - Outcome tracking before validation | 011 |
 | Jan 2026 | **Track 2.6** - Multi-user support with profile selector | 012 |
 | Jan 2026 | Job detail view, model column, 41-idea backlog | 012 |
+| Jan 2026 | **Track 2.8: Hybrid Semantic ATS** - shift from keyword to embeddings | - |
 
 ### **Pending Decisions:**
 - ~~SQLite vs in-memory for job history?~~ ✅ SQLite implemented (23 Jan)
@@ -406,20 +437,20 @@ npm run dev
 1. ~~Complete Track 2 Week 3~~ ✅ DONE
 2. ~~Test with all three backends~~ ✅ DONE
 3. ~~Implement Track 2.5: Outcome Tracking~~ ✅ DONE (24 Jan 2026)
-4. **Start validation phase** ← CURRENT FOCUS
-   - Use web UI for real job applications
-   - Track outcomes as applications progress
-   - Monitor metrics dashboard
+4. **Track 2.8: Hybrid Semantic ATS** ← CURRENT FOCUS
+   - Phase 2.8.1: Section detection + entity extraction
+   - Phase 2.8.2: Local embedding model integration
+   - Phase 2.8.3: Hybrid scoring implementation
 
 ### **Short-term (Next 2-3 Weeks):**
-1. Use web UI for 10-20 real job applications
-2. Track outcomes (submitted → response → interview → offer)
-3. Validate workflow effectiveness with actual metrics
+1. Complete Track 2.8 core implementation
+2. Validate semantic scoring improves match quality
+3. Start using for real job applications with new scoring
 
 ### **Medium-term (1-3 Months):**
-1. Analyze tracked metrics (response rates, interview conversions)
-2. Decide: Continue local-only OR proceed to Track 3?
-3. If validated: Begin Track 3 planning
+1. Use web UI for 10-20 real job applications with semantic scoring
+2. Track outcomes and compare to baseline
+3. Decide: Continue local-only OR proceed to Track 3?
 
 ### **Deferred Enhancements:**
 See `ideas.db` for full backlog (**41 ideas**). Run `python scripts/ideas_html.py` for interactive view.
@@ -435,15 +466,15 @@ Top priorities from backlog:
 
 ## 🎯 **ONE-SENTENCE SUMMARY**
 
-**Track 2.6 complete: multi-user support, job detail views, and 41-idea backlog ready; next step is validation with real job applications.**
+**Track 2.8 in progress: upgrading ATS scoring from keyword matching to hybrid semantic scoring with embeddings, section-level matching, and evidence weighting.**
 
 ---
 
 **Last Updated**: 25 January 2026
-**Next Review**: After 10-20 real applications tracked
+**Next Review**: After Track 2.8 core implementation complete
 **Development Tool**: Claude Code (see PROJECT_DIARY_007.md)
 
-**Status**: 🟢 **TRACK 2.6 COMPLETE** - Ready for validation phase
+**Status**: 🔄 **TRACK 2.8 IN PROGRESS** - Hybrid Semantic ATS Scoring
 
 ---
 
