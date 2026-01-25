@@ -78,6 +78,19 @@ Implemented two UI improvements from the ideas backlog:
 
 ---
 
+## CLAUDE.md Optimization
+
+Restructured per Anthropic best practices (https://www.anthropic.com/engineering/claude-code-best-practices):
+
+- **Reduced from ~470 to ~110 lines** - concise and actionable
+- Added "IMPORTANT" / "YOU MUST" emphasis markers for critical rules
+- Moved API reference to `docs/API.md`
+- Moved architecture details to `docs/ARCHITECTURE.md`
+- Created `CLAUDE.local.md` for personal config (gitignored)
+- Kept essential: commands, workflows, code style, troubleshooting
+
+---
+
 ## Next Steps
 
 - Continue validation phase with real job applications
