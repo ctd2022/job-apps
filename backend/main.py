@@ -1051,6 +1051,7 @@ async def list_applications(
                     "job_name": folder.name.split("_")[0] if "_" in folder.name else folder.name,
                     "company_name": None,
                     "backend": "unknown",
+                    "model": None,
                     "timestamp": folder.stat().st_mtime,
                     "ats_score": None,
                     "status": "completed",
@@ -1070,6 +1071,7 @@ async def list_applications(
                             metadata = json.load(f)
                             app_info["company_name"] = metadata.get("company_name")
                             app_info["backend"] = metadata.get("backend", {}).get("type", "unknown")
+                            app_info["model"] = metadata.get("backend", {}).get("model")
                             app_info["ats_score"] = metadata.get("ats_score")
                             app_info["timestamp"] = metadata.get("timestamp", app_info["timestamp"])
 

@@ -120,6 +120,7 @@ function normalizeApplication(data: any): Application {
     job_id: data.job_id || '',
     job_name: data.job_name || '',
     backend: data.backend || 'unknown',
+    model: data.model || data.backend_model,
     timestamp: data.timestamp || '',
     ats_score: data.ats_score,
     company_name: data.company_name,

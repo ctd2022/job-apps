@@ -73,6 +73,7 @@ export interface Application {
   job_id: string;
   job_name: string;
   backend: string;
+  model?: string;
   timestamp: string;
   ats_score?: number;
   company_name?: string;

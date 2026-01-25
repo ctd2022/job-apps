@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   FileText,
   CheckCircle,
@@ -171,6 +171,7 @@ function Dashboard() {
                 <th className="text-left px-3 py-2 font-medium">Company</th>
                 <th className="text-left px-3 py-2 font-medium">Status</th>
                 <th className="text-left px-3 py-2 font-medium">Backend</th>
+                <th className="text-left px-3 py-2 font-medium">Model</th>
                 <th className="text-right px-3 py-2 font-medium">ATS</th>
                 <th className="text-right px-3 py-2 font-medium">Date</th>
               </tr>
@@ -255,8 +256,9 @@ function RateBox({ label, value }: { label: string; value: number }) {
 }
 
 function JobRow({ job }: { job: Job }) {
+  const navigate = useNavigate();
   return (
-    <div className="px-3 py-2">
+    <div className="px-3 py-2 cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/job/${job.id}`)}>
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center space-x-2">
           <span className={`text-xs px-1.5 py-0.5 ${
@@ -290,6 +292,7 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 };
 
 function ApplicationTableRow({ application }: { application: Application }) {
+  const navigate = useNavigate();
   const atsColor = application.ats_score
     ? application.ats_score >= 70 ? 'text-green-600' : application.ats_score >= 50 ? 'text-yellow-600' : 'text-red-600'
     : 'text-slate-400';
@@ -297,7 +300,10 @@ function ApplicationTableRow({ application }: { application: Application }) {
   const statusConfig = STATUS_CONFIG[application.outcome_status] || STATUS_CONFIG.draft;
 
   return (
-    <tr className="hover:bg-slate-50">
+    <tr
+      className="hover:bg-slate-50 cursor-pointer"
+      onClick={() => navigate(`/job/${application.job_id}`)}
+    >
       <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[200px]">{application.job_name}</td>
       <td className="px-3 py-2 text-slate-600">{application.company_name || '-'}</td>
       <td className="px-3 py-2">
@@ -305,6 +311,9 @@ function ApplicationTableRow({ application }: { application: Application }) {
       </td>
       <td className="px-3 py-2">
         <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-600">{application.backend}</span>
+      </td>
+      <td className="px-3 py-2 text-slate-600 text-xs truncate max-w-[120px]" title={application.model}>
+        {application.model || '-'}
       </td>
       <td className={`px-3 py-2 text-right font-mono ${atsColor}`}>
         {application.ats_score ? `${application.ats_score}%` : '-'}

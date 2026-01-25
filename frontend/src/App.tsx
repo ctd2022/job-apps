@@ -4,6 +4,7 @@ import { FileText, PlusCircle, History, User, UserPlus } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import NewApplication from './components/NewApplication';
 import ApplicationHistory from './components/ApplicationHistory';
+import JobDetail from './components/JobDetail';
 import ErrorBoundary from './components/ErrorBoundary';
 import { getUsers, createUser, setCurrentUser, getCurrentUser } from './api';
 import type { User as UserType } from './types';
@@ -114,6 +115,7 @@ function App() {
             <Route path="/" element={<Dashboard key={refreshKey} />} />
             <Route path="/new" element={<NewApplication key={refreshKey} />} />
             <Route path="/history" element={<ApplicationHistory key={refreshKey} />} />
+            <Route path="/job/:id" element={<JobDetail key={refreshKey} />} />
           </Routes>
         </ErrorBoundary>
       </main>
