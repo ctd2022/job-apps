@@ -119,7 +119,7 @@ conn.close()
 
 ## Files to NOT Commit
 
-`jobs.db`, `ideas.html`, `.env`, `.claude/settings.local.json`, `CLAUDE.local.md`
+`jobs.db`, `ideas.db`, `ideas.html`, `.env`, `.claude/settings.local.json`, `CLAUDE.local.md`
 
 ---
 
