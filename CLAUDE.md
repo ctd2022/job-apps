@@ -40,10 +40,43 @@ cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications/frontend" && npm run d
 
 **YOU MUST funnel ALL new features through `ideas.db` before implementing:**
 
-1. **Capture** → `python scripts/ideas.py add`
-2. **Plan** → Enter plan mode, explore codebase, design approach
-3. **Implement** → Follow the plan, update diary
-4. **Complete** → `python scripts/ideas.py update <id> --status Done`, update docs
+1. **Capture** → Add idea to database (see below)
+2. **Start Work** → Update status to "In Progress"
+3. **Plan** → Enter plan mode, explore codebase, design approach
+4. **Implement** → Follow the plan
+5. **Complete** → Update status to "Done", update docs, create diary entry
+
+### Updating Idea Status
+
+**ALWAYS update ideas.db when starting or completing work:**
+
+```python
+# Mark idea(s) as In Progress when starting
+python -c "
+import sqlite3
+from datetime import datetime
+conn = sqlite3.connect('ideas.db')
+cursor = conn.cursor()
+cursor.execute('UPDATE ideas SET status = ?, updated_at = ? WHERE id IN (ID1, ID2)', ('In Progress', datetime.now().isoformat()))
+conn.commit()
+print(f'Updated {cursor.rowcount} ideas')
+conn.close()
+"
+
+# Mark idea(s) as Done when complete
+python -c "
+import sqlite3
+from datetime import datetime
+conn = sqlite3.connect('ideas.db')
+cursor = conn.cursor()
+cursor.execute('UPDATE ideas SET status = ?, updated_at = ? WHERE id IN (ID1, ID2)', ('Done', datetime.now().isoformat()))
+conn.commit()
+print(f'Updated {cursor.rowcount} ideas')
+conn.close()
+"
+```
+
+**Status values**: Idea → In Progress → Done (or Rejected/Deferred)
 
 ### Capturing User Suggestions
 
@@ -88,6 +121,7 @@ conn.close()
 ### General
 - Keep changes minimal and focused
 - Test before committing
+- Update `ideas.db` status when starting/completing features
 - Update diary for significant changes
 
 ---
