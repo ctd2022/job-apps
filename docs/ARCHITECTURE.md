@@ -19,7 +19,10 @@ job_applications/
 ├── src/                     ← Core Python modules
 │   ├── job_application_workflow.py  (Main workflow)
 │   ├── docx_templates.py            (DOCX generation)
-│   ├── ats_optimizer.py             (ATS analysis)
+│   ├── ats_optimizer.py             (ATS + hybrid scoring)
+│   ├── semantic_scorer.py           (Semantic embeddings)
+│   ├── document_parser.py           (Section/entity extraction)
+│   ├── entity_taxonomy.py           (Skills/certs taxonomy)
 │   ├── llm_backend.py               (Multi-backend support)
 │   └── generate_output.py           (Output generation)
 │

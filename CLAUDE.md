@@ -2,7 +2,7 @@
 
 AI-powered tool that generates tailored CVs, cover letters, and ATS analysis.
 
-**Current Status**: Track 2.8 IN PROGRESS - Hybrid Semantic ATS | **Branch**: `track2.8-semantic-ats`
+**Current Status**: Track 2.8.2 COMPLETE - Semantic Embeddings | **Branch**: `track2.8-semantic-ats`
 
 ---
 
@@ -132,4 +132,4 @@ conn.close()
 
 ---
 
-**Last Updated**: 25 January 2026
+**Last Updated**: 26 January 2026

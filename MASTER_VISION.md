@@ -1,9 +1,9 @@
 # MASTER VISION - Job Application Workflow
 
-**Last Updated**: 25 January 2026
-**Current Status**: Track 2.8 IN PROGRESS - Hybrid Semantic ATS Scoring
+**Last Updated**: 26 January 2026
+**Current Status**: Track 2.8.2 COMPLETE - Semantic Embeddings
 **Branch**: `track2.8-semantic-ats`
-**Next Phase**: Implement hybrid scoring engine, then validate with real applications
+**Next Phase**: Optional constraint penalties (Track 2.8.3), then validate with real applications
 
 ---
 
@@ -95,7 +95,7 @@ All tasks completed 23 Jan:
 - [x] **Dark Mode** (#8): Class-based Tailwind dark mode with Sun/Moon toggle in header, localStorage persistence, system preference default
 - [x] **Paste Job Description** (#42): Upload/Paste toggle for job descriptions, converts pasted text to File on submission
 
-### **🔄 Track 2.8: Hybrid Semantic ATS Scoring** - IN PROGRESS (25 Jan 2026)
+### **🔄 Track 2.8: Hybrid Semantic ATS Scoring** - 2.8.2 COMPLETE (26 Jan 2026)
 
 **Why This Matters**: Current ATS scoring uses keyword matching. Modern systems use hybrid scoring combining lexical matches with semantic embeddings for meaning-based similarity.
 
@@ -112,22 +112,28 @@ Final Score = (Lexical × 0.55) + (Semantic × 0.35) + (Evidence × 0.10)
 | Phase | Component | Description | Status |
 |-------|-----------|-------------|--------|
 | 2.8.1 | Foundation | Section detection, entity extraction (NER) | **COMPLETE** |
-| 2.8.2 | Embeddings | Local embedding model, cosine similarity | Pending |
-| 2.8.3 | Hybrid Scoring | Combine lexical + semantic + evidence | Pending |
-| 2.8.4 | Gap Analysis | Critical missing terms, semantic gaps | Pending |
-| 2.8.5 | UI Integration | Heatmap overlay, explainability panel | Pending |
+| 2.8.2 | Embeddings | sentence-transformers, cosine similarity | **COMPLETE** |
+| 2.8.3 | Constraint Penalties | Must-haves, years, certifications caps | Optional |
+| 2.8.4 | Gap Analysis | Critical missing terms, semantic gaps | Future |
+| 2.8.5 | UI Integration | Heatmap overlay, explainability panel | Future |
 
 **Track 2.8.1 Completed** (25 Jan 2026):
 - `src/entity_taxonomy.py`: 250+ hard skills, 60+ soft skills, certifications, methodologies, domains
 - `src/document_parser.py`: Section detection, entity extraction, evidence strength scoring
 - ATS report now includes section-level analysis
 
+**Track 2.8.2 Completed** (26 Jan 2026):
+- `src/semantic_scorer.py`: all-MiniLM-L6-v2 embeddings, LRU cache, section matching, safety rails
+- Hybrid scoring formula: Lexical 55% + Semantic 35% + Evidence 10%
+- ATS report v3.0 with HYBRID SCORING BREAKDOWN and SEMANTIC MATCH ANALYSIS sections
+- Graceful degradation when sentence-transformers unavailable
+
 **Key Features**:
 - **Section-level matching**: JD Requirements ↔ CV Skills, JD Responsibilities ↔ CV Experience
+- **Semantic matching**: Meaning-based similarity (e.g., "cloud computing" matches "AWS")
 - **Evidence scoring**: Skills in context (achievements, metrics) score higher than skill lists
 - **Embedding safety rails**: Prevent semantic over-matching on vague text
-- **Must-have gating**: Critical requirements can cap/fail the score
-- **Explainability**: Show why the score is what it is (top matches, biggest penalties)
+- **Explainability**: Show why the score is what it is (top matches, section similarities)
 
 ---
 
