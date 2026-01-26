@@ -329,7 +329,9 @@ class SectionDetector:
             if self._is_header_line(line):
                 section_type = self._match_section_type(line, self._cv_compiled)
 
-                if section_type or (len(line.strip()) < 40 and line.strip()):
+                # Only start a new section if we match a known section type
+                # This prevents job titles and company names from fragmenting sections
+                if section_type:
                     # Save previous section
                     if current_section is not None or current_content:
                         sections.append(Section(
@@ -345,6 +347,7 @@ class SectionDetector:
                     current_content = []
                     current_start = i
                 else:
+                    # Header-like line but not a known section - keep as content
                     current_content.append(line)
             else:
                 current_content.append(line)
