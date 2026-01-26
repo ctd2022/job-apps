@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { getHealth, getJobs, getApplications, getMetrics } from '../api';
 import type { Job, Application, HealthStatus, Metrics } from '../types';
+import { getMatchTier } from '../utils/matchTier';
 
 function Dashboard() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -293,9 +294,7 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 
 function ApplicationTableRow({ application }: { application: Application }) {
   const navigate = useNavigate();
-  const atsColor = application.ats_score
-    ? application.ats_score >= 70 ? 'text-green-600 dark:text-green-400' : application.ats_score >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
-    : 'text-slate-400';
+  const tier = getMatchTier(application.ats_score);
 
   const statusConfig = STATUS_CONFIG[application.outcome_status] || STATUS_CONFIG.draft;
 
@@ -315,8 +314,17 @@ function ApplicationTableRow({ application }: { application: Application }) {
       <td className="px-3 py-2 text-slate-600 dark:text-slate-300 text-xs truncate max-w-[120px]" title={application.model}>
         {application.model || '-'}
       </td>
-      <td className={`px-3 py-2 text-right font-mono ${atsColor}`}>
-        {application.ats_score ? `${application.ats_score}%` : '-'}
+      <td className="px-3 py-2 text-right">
+        {tier ? (
+          <div className="flex flex-col items-end">
+            <span className={`text-xs px-1.5 py-0.5 ${tier.bgColor} ${tier.color} ${tier.darkBgColor} ${tier.darkTextColor}`}>
+              {tier.label}
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{application.ats_score}%</span>
+          </div>
+        ) : (
+          <span className="text-slate-400">-</span>
+        )}
       </td>
       <td className="px-3 py-2 text-right text-slate-500 dark:text-slate-400 text-xs font-mono">
         {formatTimestamp(application.timestamp)}

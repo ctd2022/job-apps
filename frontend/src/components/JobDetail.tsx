@@ -9,12 +9,14 @@ import {
   Sparkles,
   Clock,
   Server,
-  Building2,
-  Calendar
+  Calendar,
+  FileText,
+  X
 } from 'lucide-react';
-import { getJob, getJobFiles, updateJobOutcome } from '../api';
-import type { Job, OutputFile, OutcomeStatus } from '../types';
+import { getJob, getJobFiles, updateJobOutcome, getJobDescription } from '../api';
+import type { Job, OutputFile, OutcomeStatus, JobDescription } from '../types';
 import FilePreview from './FilePreview';
+import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600' },
@@ -38,6 +40,11 @@ function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+
+  // Job Description modal state
+  const [showJD, setShowJD] = useState(false);
+  const [jobDescription, setJobDescription] = useState<JobDescription | null>(null);
+  const [loadingJD, setLoadingJD] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -72,6 +79,21 @@ function JobDetail() {
       console.error('Failed to update outcome:', err);
     } finally {
       setUpdating(false);
+    }
+  }
+
+  async function handleViewJobDescription() {
+    if (!job) return;
+    setShowJD(true);
+    setLoadingJD(true);
+    try {
+      const jd = await getJobDescription(job.id);
+      setJobDescription(jd);
+    } catch (err) {
+      console.error('Failed to load job description:', err);
+      setJobDescription({ job_id: job.id, description: null, source: null, message: 'Failed to load job description' });
+    } finally {
+      setLoadingJD(false);
     }
   }
 
@@ -191,32 +213,45 @@ function JobDetail() {
           )}
         </div>
 
+        {/* View Original JD Button */}
+        <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-600">
+          <button
+            onClick={handleViewJobDescription}
+            className="flex items-center space-x-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+          >
+            <FileText className="w-4 h-4" />
+            <span>View Original Job Description</span>
+          </button>
+        </div>
+
         {/* ATS Score */}
-        {job.ats_score !== undefined && job.ats_score !== null && (
-          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600 dark:text-slate-400">ATS Match Score</span>
-              <div className="flex items-center space-x-2">
-                <span className={`text-2xl font-bold ${
-                  job.ats_score >= 80 ? 'text-green-600 dark:text-green-400' :
-                  job.ats_score >= 60 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
-                }`}>
-                  {job.ats_score}%
-                </span>
-                {job.ats_score >= 80 && <Sparkles className="w-5 h-5 text-green-500 dark:text-green-400" />}
+        {job.ats_score !== undefined && job.ats_score !== null && (() => {
+          const tier = getMatchTier(job.ats_score);
+          return (
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600 dark:text-slate-400">ATS Match Score</span>
+                <div className="flex items-center space-x-3">
+                  {tier && (
+                    <span className={`text-sm px-2 py-0.5 ${tier.bgColor} ${tier.color} ${tier.darkBgColor} ${tier.darkTextColor}`}>
+                      {tier.label}
+                    </span>
+                  )}
+                  <span className={`text-2xl font-bold ${tier?.color || 'text-slate-600'} ${tier?.darkTextColor || 'dark:text-slate-400'}`}>
+                    {job.ats_score}%
+                  </span>
+                  {job.ats_score >= 85 && <Sparkles className="w-5 h-5 text-green-500 dark:text-green-400" />}
+                </div>
+              </div>
+              <div className="mt-2 w-full bg-slate-200 dark:bg-slate-600 h-2">
+                <div
+                  className={`h-2 ${getScoreBarColor(job.ats_score)}`}
+                  style={{ width: `${job.ats_score}%` }}
+                />
               </div>
             </div>
-            <div className="mt-2 w-full bg-slate-200 dark:bg-slate-600 h-2">
-              <div
-                className={`h-2 ${
-                  job.ats_score >= 80 ? 'bg-green-500' :
-                  job.ats_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
-                style={{ width: `${job.ats_score}%` }}
-              />
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Error Message */}
         {job.status === 'failed' && job.error && (
@@ -271,6 +306,48 @@ function JobDetail() {
           </button>
         </div>
       </div>
+
+      {/* Job Description Modal */}
+      {showJD && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Original Job Description</h3>
+              <button
+                onClick={() => setShowJD(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              {loadingJD ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                </div>
+              ) : jobDescription?.description ? (
+                <pre className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300 font-mono">
+                  {jobDescription.description}
+                </pre>
+              ) : (
+                <div className="text-center text-slate-500 dark:text-slate-400 py-8">
+                  <FileText className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
+                  <p>{jobDescription?.message || 'Job description not available'}</p>
+                  <p className="text-xs mt-2">This may be a legacy job created before JD storage was enabled.</p>
+                </div>
+              )}
+            </div>
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+              <button
+                onClick={() => setShowJD(false)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -749,12 +749,21 @@ async def create_job(
             with open(cv_path, "w", encoding="utf-8") as f:
                 f.write(cv_content)
 
-        # Save job description file
+        # Save job description file and extract text
         job_desc_path = settings.UPLOADS_DIR / f"{job_id}_job{Path(job_desc_file.filename).suffix}"
+        job_desc_content = await job_desc_file.read()
         with open(job_desc_path, "wb") as f:
-            content = await job_desc_file.read()
-            f.write(content)
-        
+            f.write(job_desc_content)
+
+        # Decode JD text for storage (try utf-8, fallback to latin-1)
+        try:
+            job_description_text = job_desc_content.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                job_description_text = job_desc_content.decode("latin-1")
+            except Exception:
+                job_description_text = None
+
         # Build backend config
         backend_config = {}
         if backend_type == "ollama":
@@ -766,14 +775,15 @@ async def create_job(
             backend_config["model_name"] = backend_model or "gemini-2.0-flash"
             backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
         
-        # Update job with file paths
+        # Update job with file paths and JD text
         job_store.update_job(
             job_id,
             cv_path=str(cv_path),
             job_desc_path=str(job_desc_path),
             company_name=company_name,
             job_title=job_title,
-            backend_type=backend_type
+            backend_type=backend_type,
+            job_description_text=job_description_text
         )
         
         # Add background task
@@ -894,6 +904,36 @@ async def update_job_outcome(
         return job
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+
+@app.get("/api/jobs/{job_id}/description")
+async def get_job_description(job_id: str):
+    """
+    Get the original job description text for a job.
+
+    Returns the stored JD text, or reads from the file for legacy jobs.
+    """
+    job = job_store.get_job(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    # Try to get stored text first, fallback to file read for legacy jobs
+    description = job_store.get_job_description_text(job_id)
+
+    if description:
+        return {
+            "job_id": job_id,
+            "description": description,
+            "source": "database" if job.get("job_description_text") else "file"
+        }
+
+    return {
+        "job_id": job_id,
+        "description": None,
+        "source": None,
+        "message": "Job description not available"
+    }
 
 
 @app.get("/api/metrics", response_model=MetricsResponse)

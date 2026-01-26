@@ -109,6 +109,7 @@ def init_db():
         ("outcome_at", "TEXT"),
         ("notes", "TEXT"),
         ("job_title", "TEXT"),  # Track 2.8: Job title for human-readable display
+        ("job_description_text", "TEXT"),  # Track 2.9: Store full JD text for viewing
     ]
 
     for col_name, col_type in outcome_columns:
@@ -252,6 +253,7 @@ class JobStore:
             "response_at": None,
             "outcome_at": None,
             "notes": None,
+            "job_description_text": None,
         }
 
         cursor.execute('''
@@ -259,15 +261,15 @@ class JobStore:
                 job_id, user_id, status, progress, current_step, message,
                 created_at, updated_at, output_dir, ats_score, files,
                 error, cv_path, job_desc_path, company_name, job_title, backend_type,
-                outcome_status, submitted_at, response_at, outcome_at, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                outcome_status, submitted_at, response_at, outcome_at, notes, job_description_text
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             job["job_id"], job["user_id"], job["status"], job["progress"], job["current_step"],
             job["message"], job["created_at"], job["updated_at"], job["output_dir"],
             job["ats_score"], json.dumps(job["files"]), job["error"],
             job["cv_path"], job["job_desc_path"], job["company_name"], job["job_title"], job["backend_type"],
             job["outcome_status"], job["submitted_at"], job["response_at"],
-            job["outcome_at"], job["notes"]
+            job["outcome_at"], job["notes"], job["job_description_text"]
         ))
 
         conn.commit()
@@ -510,8 +512,44 @@ class JobStore:
 
         return self.get_job(job_id)
 
+    def get_job_description_text(self, job_id: str) -> Optional[str]:
+        """Get the stored job description text for a job."""
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT job_description_text, job_desc_path FROM jobs WHERE job_id = ?", (job_id,))
+        row = cursor.fetchone()
+
+        conn.close()
+
+        if not row:
+            return None
+
+        # Return stored text if available
+        if row["job_description_text"]:
+            return row["job_description_text"]
+
+        # Fallback: try to read from file path for legacy jobs
+        job_desc_path = row["job_desc_path"]
+        if job_desc_path:
+            try:
+                from pathlib import Path
+                path = Path(job_desc_path)
+                if path.exists():
+                    return path.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
+        return None
+
     def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
         """Convert a database row to a dictionary."""
+        # Handle job_description_text column which may not exist in older databases
+        try:
+            job_description_text = row["job_description_text"]
+        except (IndexError, KeyError):
+            job_description_text = None
+
         return {
             "job_id": row["job_id"],
             "user_id": row["user_id"] or "default",
@@ -536,6 +574,7 @@ class JobStore:
             "response_at": row["response_at"],
             "outcome_at": row["outcome_at"],
             "notes": row["notes"],
+            "job_description_text": job_description_text,
         }
 
 

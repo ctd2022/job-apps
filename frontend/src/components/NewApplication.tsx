@@ -18,6 +18,7 @@ import {
 import { getBackends, createJob, subscribeToJobWithFallback, getJobFiles, getCVs, createCV, deleteCV, setDefaultCV } from '../api';
 import type { Backend, Job, OutputFile, StoredCV } from '../types';
 import FilePreview from './FilePreview';
+import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
 
 function NewApplication() {
   const navigate = useNavigate();
@@ -283,31 +284,33 @@ function NewApplication() {
           </div>
 
           {/* ATS Score */}
-          {currentJob.ats_score && (
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-slate-400">ATS Match Score</span>
-                <div className="flex items-center space-x-2">
-                  <span className={`text-2xl font-bold ${
-                    currentJob.ats_score >= 80 ? 'text-green-600' :
-                    currentJob.ats_score >= 60 ? 'text-yellow-600' : 'text-red-600'
-                  }`}>
-                    {currentJob.ats_score}%
-                  </span>
-                  {currentJob.ats_score >= 80 && <Sparkles className="w-5 h-5 text-green-500" />}
+          {currentJob.ats_score && (() => {
+            const tier = getMatchTier(currentJob.ats_score);
+            return (
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600 dark:text-slate-400">ATS Match Score</span>
+                  <div className="flex items-center space-x-3">
+                    {tier && (
+                      <span className={`text-sm px-2 py-0.5 ${tier.bgColor} ${tier.color} ${tier.darkBgColor} ${tier.darkTextColor}`}>
+                        {tier.label}
+                      </span>
+                    )}
+                    <span className={`text-2xl font-bold ${tier?.color || 'text-slate-600'} ${tier?.darkTextColor || 'dark:text-slate-400'}`}>
+                      {currentJob.ats_score}%
+                    </span>
+                    {currentJob.ats_score >= 85 && <Sparkles className="w-5 h-5 text-green-500" />}
+                  </div>
+                </div>
+                <div className="mt-2 w-full bg-gray-200 dark:bg-slate-600 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${getScoreBarColor(currentJob.ats_score)}`}
+                    style={{ width: `${currentJob.ats_score}%` }}
+                  />
                 </div>
               </div>
-              <div className="mt-2 w-full bg-gray-200 dark:bg-slate-600 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full ${
-                    currentJob.ats_score >= 80 ? 'bg-green-500' :
-                    currentJob.ats_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${currentJob.ats_score}%` }}
-                />
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Output Files with Preview */}
           <div className="px-6 py-4">

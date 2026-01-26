@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, OutcomeUpdate, Metrics, OutcomeStatus, User } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription } from './types';
 
 const API_BASE = '/api';
 
@@ -223,6 +223,11 @@ export interface FileContent {
 
 export async function getJobFileContent(jobId: string, fileName: string): Promise<FileContent> {
   const response = await fetch(`${API_BASE}/jobs/${jobId}/files/${fileName}/content`);
+  return handleResponse(response);
+}
+
+export async function getJobDescription(jobId: string): Promise<JobDescription> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/description`);
   return handleResponse(response);
 }
 

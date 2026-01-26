@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { FileText, PlusCircle, History, User, UserPlus, Sun, Moon } from 'lucide-react';
+import { FileText, PlusCircle, History, User, UserPlus, Sun, Moon, Shield } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import NewApplication from './components/NewApplication';
 import ApplicationHistory from './components/ApplicationHistory';
@@ -146,8 +146,13 @@ function App() {
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-2">
-          <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-            100% Local • Your data never leaves your machine • {currentUserName}
+          <p className="text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center space-x-1">
+            <Shield className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+            <span>100% Local</span>
+            <span>•</span>
+            <span>Your CV never leaves this PC</span>
+            <span>•</span>
+            <span>{currentUserName}</span>
           </p>
         </div>
       </footer>

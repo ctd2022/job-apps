@@ -128,3 +128,10 @@ export interface User {
   name: string;
   created_at: string;
 }
+
+export interface JobDescription {
+  job_id: string;
+  description: string | null;
+  source: 'database' | 'file' | null;
+  message?: string;
+}
