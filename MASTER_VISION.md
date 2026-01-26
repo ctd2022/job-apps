@@ -1,9 +1,9 @@
 # MASTER VISION - Job Application Workflow
 
 **Last Updated**: 26 January 2026
-**Current Status**: Track 2.8.2 COMPLETE - Semantic Embeddings
+**Current Status**: Track 2.9.1 COMPLETE - Quick Wins
 **Branch**: `track2.8-semantic-ats`
-**Next Phase**: Optional constraint penalties (Track 2.8.3), then validate with real applications
+**Next Phase**: Track 2.9.2 Core UX - Match Explanation Cards
 
 ---
 
@@ -134,6 +134,51 @@ Final Score = (Lexical × 0.55) + (Semantic × 0.35) + (Evidence × 0.10)
 - **Evidence scoring**: Skills in context (achievements, metrics) score higher than skill lists
 - **Embedding safety rails**: Prevent semantic over-matching on vague text
 - **Explainability**: Show why the score is what it is (top matches, section similarities)
+
+### **✅ Track 2.9.1: Quick Wins** - COMPLETE (26 Jan 2026)
+
+**Features Implemented:**
+- [x] **#90 Match Score Tier Labels**: "Top Match" (85%+), "Good Fit" (60-84%), "Reach" (<60%) badges in all score displays
+- [x] **#94 Privacy-First Messaging**: Shield icon + "Your CV never leaves this PC" in footer
+- [x] **#92 JD Auto-Save**: Store full JD text in database, "View Original Job Description" button + modal in JobDetail
+
+### **🎯 Track 2.9.2: Core UX** ← NEXT
+
+**Why This Matters**: Track 2.8 built powerful backend intelligence (semantic scoring, gap analysis, section matching). Track 2.9 surfaces this to users in intuitive, actionable ways. Based on comprehensive competitor UX research (LinkedIn, Otta, Wellfound, Hired, etc.) - see `docs/raw/competitors-ux/`.
+
+**Core Insight from Research**: The shift from "Search & Filter" (user does work) to "Match & Explain" (AI does work, explains why).
+
+**Implementation Phases (Prioritized)**:
+
+| Phase | Idea | Title | Complexity | Impact | Status |
+|-------|------|-------|------------|--------|--------|
+| **Quick Wins** |
+| 2.9.1 | #90 | Match Score Tier Labels | Low | Medium | **DONE** |
+| 2.9.1 | #94 | Privacy-First UX Messaging | Low | Medium | **DONE** |
+| 2.9.1 | #92 | Job Description Auto-Save | Low | Medium | **DONE** |
+| **Core UX** |
+| 2.9.2 | #89 | Match Explanation Cards (Otta/Wellfound style) | Medium | High | Next |
+| 2.9.2 | #96 | Missing Keywords Alert with Frequency | Medium | High | |
+| 2.9.2 | #97 | CV Section Completeness Meter | Medium | Medium | |
+| **Evidence Enhancement** |
+| 2.9.3 | #93 | Guided Evidence Question (Otta pattern) | Medium | High | |
+| **Major Features** |
+| 2.9.4 | #91 | Kanban Application Tracker Dashboard | High | High | |
+| 2.9.4 | #95 | Parser + Verify Editable Fields (Indeed pattern) | High | High | |
+
+**Key UX Patterns to Adopt** (from research):
+- **From Otta**: Match explanation narratives, guided pitch questions, salary transparency
+- **From Wellfound**: One-click actions, equity/compensation display
+- **From LinkedIn**: Network signals, Easy Apply simplicity, skills assessments
+- **From Teal/Huntr**: Comprehensive tracking dashboards, browser extensions
+
+**Patterns to Avoid**:
+- Black hole applications with no status feedback
+- Opaque matching with no explanation
+- Frictionless apply that generates low-quality applications
+- Character limits without real-time feedback
+
+**Privacy Differentiator**: "Your CV never leaves this PC" - key advantage vs cloud platforms.
 
 ---
 
@@ -409,6 +454,8 @@ npm run dev
 | Jan 2026 | Job detail view, model column, 41-idea backlog | 012 |
 | Jan 2026 | **Track 2.8: Hybrid Semantic ATS** - shift from keyword to embeddings | - |
 | Jan 2026 | **Track 2.8.1 Complete** - Section detection, entity extraction, evidence scoring | 015 |
+| Jan 2026 | **Track 2.8.2 Complete** - Semantic embeddings, hybrid scoring (55/35/10) | 016 |
+| Jan 2026 | **Track 2.9.1 Complete** - Quick Wins: tier labels, privacy footer, JD auto-save | 017 |
 
 ### **Pending Decisions:**
 - ~~SQLite vs in-memory for job history?~~ ✅ SQLite implemented (23 Jan)
@@ -449,44 +496,62 @@ npm run dev
 1. ~~Complete Track 2 Week 3~~ ✅ DONE
 2. ~~Test with all three backends~~ ✅ DONE
 3. ~~Implement Track 2.5: Outcome Tracking~~ ✅ DONE (24 Jan 2026)
-4. **Track 2.8: Hybrid Semantic ATS** ← CURRENT FOCUS
-   - ~~Phase 2.8.1: Section detection + entity extraction~~ ✅ DONE (25 Jan 2026)
-   - Phase 2.8.2: Local embedding model integration ← NEXT
-   - Phase 2.8.3: Hybrid scoring implementation
+4. ~~**Track 2.8: Hybrid Semantic ATS**~~ ✅ Track 2.8.2 COMPLETE (26 Jan 2026)
+   - ~~Phase 2.8.1: Section detection + entity extraction~~ ✅ DONE
+   - ~~Phase 2.8.2: Semantic embeddings + hybrid scoring~~ ✅ DONE
+   - Phase 2.8.3: Constraint penalties (optional, deferred)
+5. ~~**Track 2.9.1: Quick Wins**~~ ✅ COMPLETE (26 Jan 2026)
+   - ~~#90 Match Score Tier Labels~~ ✅ DONE
+   - ~~#94 Privacy-First Messaging~~ ✅ DONE
+   - ~~#92 JD Auto-Save~~ ✅ DONE
+6. **Track 2.9.2: Core UX** ← NEXT FOCUS
+   - #89 Match Explanation Cards ← START HERE
+   - #96 Missing Keywords Alert
+   - #97 CV Completeness Meter
 
 ### **Short-term (Next 2-3 Weeks):**
-1. Complete Track 2.8 core implementation
-2. Validate semantic scoring improves match quality
-3. Start using for real job applications with new scoring
+1. Complete Track 2.9.1 Quick Wins (tier labels, privacy messaging, JD save)
+2. Implement Match Explanation Cards (#89) - flagship UX feature
+3. Start using for real job applications with new UX
 
 ### **Medium-term (1-3 Months):**
-1. Use web UI for 10-20 real job applications with semantic scoring
-2. Track outcomes and compare to baseline
-3. Decide: Continue local-only OR proceed to Track 3?
+1. Complete Track 2.9 UX features
+2. Use web UI for 10-20 real job applications
+3. Track outcomes and validate improvement
+4. Decide: Continue local-only OR proceed to Track 3?
 
 ### **Deferred Enhancements:**
-See `ideas.db` for full backlog (**41 ideas**). Run `python scripts/ideas_html.py` for interactive view.
+See `ideas.db` for full backlog (**50+ ideas**). Run `python scripts/ideas_html.py` for interactive view.
 
-Top priorities from backlog:
+**Track 2.9 UX Ideas** (from competitor research):
+- #89 Match Explanation Cards (P5) - "why you match" narrative
+- #90 Match Score Tier Labels (P4) - Top Match/Good Fit/Reach
+- #91 Kanban Application Tracker (P3) - visual pipeline
+- #92 JD Auto-Save (P4) - preserve job postings
+- #93 Guided Evidence Question (P4) - Otta-style contextual input
+- #94 Privacy-First Messaging (P3) - differentiator
+- #95 Parser + Verify Fields (P3) - Indeed pattern
+- #96 Missing Keywords Alert (P4) - actionable gaps
+- #97 CV Completeness Meter (P3) - quality indicators
+
+**Other High-Priority Ideas**:
 - Pipeline Health Diagnosis (P5) - identify bottlenecks in job search
 - Mock AI Interviewer (P4) - practice with AI feedback
 - JD Red-flag Detector (P4) - flag problematic job descriptions
-- Cultural Fit Tone-shifting (P4) - adapt resume tone per company
-- Salary Benchmarking (P4) - market rate comparisons
 
 ---
 
 ## 🎯 **ONE-SENTENCE SUMMARY**
 
-**Track 2.8.1 complete: section detection and entity extraction working. Next: embeddings for semantic matching (2.8.2).**
+**Track 2.9.1 complete (tier labels, privacy footer, JD viewer). Next: Track 2.9.2 Core UX - match explanation cards to show users WHY they match.**
 
 ---
 
-**Last Updated**: 25 January 2026
-**Next Review**: After Track 2.8 core implementation complete
+**Last Updated**: 26 January 2026
+**Next Review**: After Track 2.9.2 Core UX complete
 **Development Tool**: Claude Code (see PROJECT_DIARY_007.md)
 
-**Status**: 🔄 **TRACK 2.8 IN PROGRESS** - Hybrid Semantic ATS Scoring
+**Status**: ✅ **TRACK 2.9.1 COMPLETE** - Quick Wins | 🎯 **TRACK 2.9.2 NEXT** - Core UX
 
 ---
 
