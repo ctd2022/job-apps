@@ -412,19 +412,13 @@ class ATSOptimizer:
     def identify_key_requirements(self, job_description: str) -> str:
         """Use LLM to identify critical requirements and keywords"""
 
-        system_message = """You are an expert at analyzing job descriptions for ATS optimization. Extract keywords and requirements in a structured format.
+        system_message = """You extract keywords from job descriptions. Output ONLY the structured format requested. DO NOT add any preamble, explanation, or commentary. Start your response directly with "HARD SKILLS:" - no other text before it."""
 
-RULES:
-- Output ONLY the structured format below, nothing else
-- No explanations, no reasoning, no "Here is..." or "I found..." preamble
-- Use exact terminology from the job description
-- Distinguish REQUIRED (must-have) from PREFERRED (nice-to-have)"""
-
-        prompt = f"""Extract from this job description:
+        prompt = f"""Extract keywords from this job description into the exact format below.
 
 {job_description}
 
-Output exactly this format (no other text):
+---
 HARD SKILLS: keyword1, keyword2, keyword3
 SOFT SKILLS: keyword1, keyword2, keyword3
 QUALIFICATIONS: requirement1, requirement2
