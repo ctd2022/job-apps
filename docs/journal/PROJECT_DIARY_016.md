@@ -122,10 +122,29 @@ SEMANTIC MATCH ANALYSIS (Track 2.8.2)
 
 ---
 
-## Branch & Commit
+## Additional Bug Fixes (Same Session)
+
+**#85 - Document parser section fragmentation** (FIXED)
+- **Problem**: CV experience section detected at line 41 but content (1972 chars) ended up in "unknown" sections
+- **Cause**: Line 332 had `if section_type or (len(line.strip()) < 40 and line.strip())` - any short header-like line triggered new sections
+- **Fix**: Changed to `if section_type:` - only start new sections on known section types
+- **Result**: 30 sections → 9 sections, experience now has full content
+
+**#86 - LLM output consistency** (IMPROVED)
+- **Problem**: LLM added preamble ("Here is the analysis...") despite prompt instructions
+- **Fix**: Shorter, more direct system message with explicit "Start with HARD SKILLS:"
+- **Safety net**: `_clean_llm_output()` remains as backup cleanup
+
+---
+
+## Branch & Commits
 
 - **Branch**: `track2.8-semantic-ats`
-- **Commit**: `c1b04c9` - "Add Track 2.8.2: Semantic embeddings for ATS scoring"
+- **Commits**:
+  - `c1b04c9` - Add Track 2.8.2: Semantic embeddings for ATS scoring
+  - `5f5ab05` - Update docs for Track 2.8.2 completion
+  - `99d0b64` - Fix document parser section fragmentation (idea #85)
+  - `04f8003` - Improve LLM prompt for cleaner structured output (idea #86)
 - **Pushed**: Yes
 
 ---
@@ -153,5 +172,6 @@ The embedding model (~90MB) downloads automatically on first use and is cached l
 
 ---
 
-**Session Duration**: ~1.5 hours
-**Lines of Code**: ~350 added
+**Session Duration**: ~2 hours
+**Lines of Code**: ~360 added
+**Ideas Completed**: #75, #76, #77, #85, #86
