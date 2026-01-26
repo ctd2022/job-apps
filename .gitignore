@@ -45,5 +45,6 @@ frontend/dist/
 # Local/generated files
 CLAUDE.local.md
 jobs.db
+ideas.db
 ideas.html
 nul
