@@ -3,7 +3,8 @@
 ATS Optimization Module (Enhanced)
 Analyzes job descriptions and optimizes CVs for Applicant Tracking Systems
 Features: N-gram extraction, synonym matching, weighted scoring, LLM integration,
-          Section-level matching, Evidence-weighted scoring (Track 2.8)
+          Section-level matching, Evidence-weighted scoring (Track 2.8),
+          Semantic similarity scoring (Track 2.8.2)
 """
 
 import re
@@ -13,6 +14,7 @@ from document_parser import (
     DocumentParser, ParsedCV, ParsedJD,
     CVSectionType, JDSectionType, EntityType, Entity
 )
+from semantic_scorer import SemanticScorer, SemanticScoreResult
 
 
 class ATSOptimizer:
@@ -212,6 +214,9 @@ class ATSOptimizer:
         # Initialize document parser for section-level analysis (Track 2.8)
         self.document_parser = DocumentParser()
 
+        # Initialize semantic scorer for semantic similarity (Track 2.8.2)
+        self.semantic_scorer = SemanticScorer()
+
     def _add_company_variations(self, company_name: str):
         """Add company name variations to stopwords"""
         # Add lowercase company name
@@ -407,39 +412,67 @@ class ATSOptimizer:
     def identify_key_requirements(self, job_description: str) -> str:
         """Use LLM to identify critical requirements and keywords"""
 
-        system_message = """You are an expert at analyzing job descriptions and identifying what ATS (Applicant Tracking Systems) look for. Extract the most important keywords and requirements.
+        system_message = """You are an expert at analyzing job descriptions for ATS optimization. Extract keywords and requirements in a structured format.
 
-IMPORTANT: Distinguish between REQUIRED skills (must-have, required, essential) and PREFERRED skills (nice-to-have, preferred, bonus)."""
+RULES:
+- Output ONLY the structured format below, nothing else
+- No explanations, no reasoning, no "Here is..." or "I found..." preamble
+- Use exact terminology from the job description
+- Distinguish REQUIRED (must-have) from PREFERRED (nice-to-have)"""
 
-        prompt = f"""Analyze this job description and identify:
+        prompt = f"""Extract from this job description:
 
-Job Description:
 {job_description}
 
-Provide:
-1. HARD SKILLS (technical skills, tools, certifications) - list as comma-separated keywords
-2. SOFT SKILLS (leadership, communication, etc.) - list as comma-separated keywords
-3. REQUIRED QUALIFICATIONS (education, years of experience, must-haves)
-4. CRITICAL KEYWORDS that an ATS would scan for
-5. REQUIRED (must-have skills explicitly stated as required)
-6. PREFERRED (nice-to-have skills, bonus qualifications)
-
-Format your response exactly like this:
+Output exactly this format (no other text):
 HARD SKILLS: keyword1, keyword2, keyword3
 SOFT SKILLS: keyword1, keyword2, keyword3
 QUALIFICATIONS: requirement1, requirement2
 CRITICAL KEYWORDS: keyword1, keyword2, keyword3
 REQUIRED: skill1, skill2, skill3
-PREFERRED: skill1, skill2, skill3
-
-Be specific and use the exact terminology from the job description. Include multi-word terms like "machine learning" or "project management"."""
+PREFERRED: skill1, skill2, skill3"""
 
         messages = [
             {'role': 'system', 'content': system_message},
             {'role': 'user', 'content': prompt}
         ]
 
-        return self.backend.chat(messages, temperature=0.3, max_tokens=1024)
+        response = self.backend.chat(messages, temperature=0.3, max_tokens=1024)
+
+        # Clean up any preamble/thinking the LLM might have added
+        return self._clean_llm_output(response)
+
+    def _clean_llm_output(self, text: str) -> str:
+        """Remove LLM preamble and keep only the structured output."""
+        lines = text.strip().split('\n')
+        cleaned_lines = []
+        started = False
+
+        valid_headers = ['HARD SKILLS:', 'SOFT SKILLS:', 'QUALIFICATIONS:',
+                        'CRITICAL KEYWORDS:', 'REQUIRED:', 'PREFERRED:']
+
+        for line in lines:
+            line_stripped = line.strip()
+            line_upper = line_stripped.upper()
+
+            # Start capturing when we see a valid section header
+            if any(line_upper.startswith(header) for header in valid_headers):
+                started = True
+
+            # Only capture lines after we've started (skip preamble)
+            if started:
+                # Stop if we hit thinking/explanation text mid-output
+                line_lower = line_stripped.lower()
+                if any(phrase in line_lower for phrase in
+                       ['however,', 'upon re-reading', 'i realized', 'i found',
+                        'let me', 'note that', 'additionally,', 'note:',
+                        'here is the', 'i have', 'based on']):
+                    # Only break if this line doesn't contain a valid header
+                    if not any(line_upper.startswith(header) for header in valid_headers):
+                        break
+                cleaned_lines.append(line)
+
+        return '\n'.join(cleaned_lines) if cleaned_lines else text
 
     def _calculate_section_match(self, parsed_cv: ParsedCV, parsed_jd: ParsedJD) -> dict:
         """
@@ -545,6 +578,62 @@ Be specific and use the exact terminology from the job description. Include mult
 
         return evidence_results
 
+    def calculate_hybrid_score(
+        self,
+        lexical_score: float,
+        semantic_result: SemanticScoreResult,
+        evidence_strength: float
+    ) -> dict:
+        """
+        Calculate hybrid score combining lexical, semantic, and evidence components.
+
+        Weights (Track 2.8.2):
+        - Lexical: 55% (keyword matching)
+        - Semantic: 35% (meaning-based similarity)
+        - Evidence: 10% (demonstrated skills with metrics)
+
+        Falls back to Lexical 90% + Evidence 10% if semantic unavailable.
+        """
+        if semantic_result.available:
+            # Full hybrid scoring
+            lexical_weight = 0.55
+            semantic_weight = 0.35
+            evidence_weight = 0.10
+
+            semantic_score = semantic_result.score
+        else:
+            # Fallback: redistribute semantic weight to lexical
+            lexical_weight = 0.90
+            semantic_weight = 0.0
+            evidence_weight = 0.10
+
+            semantic_score = 0.0
+
+        # Normalize evidence strength to 0-100 scale
+        # Evidence strength is typically 0.8-2.0, map to 0-100
+        evidence_score = min(100, max(0, (evidence_strength - 0.5) / 1.5 * 100))
+
+        # Calculate weighted final score
+        final_score = (
+            lexical_score * lexical_weight +
+            semantic_score * semantic_weight +
+            evidence_score * evidence_weight
+        )
+
+        return {
+            'final_score': round(final_score, 1),
+            'lexical_score': round(lexical_score, 1),
+            'lexical_weight': lexical_weight,
+            'lexical_contribution': round(lexical_score * lexical_weight, 1),
+            'semantic_score': round(semantic_score, 1),
+            'semantic_weight': semantic_weight,
+            'semantic_contribution': round(semantic_score * semantic_weight, 1),
+            'evidence_score': round(evidence_score, 1),
+            'evidence_weight': evidence_weight,
+            'evidence_contribution': round(evidence_score * evidence_weight, 1),
+            'semantic_available': semantic_result.available,
+        }
+
     def calculate_ats_score(self, cv_text: str, job_description: str, key_requirements: str) -> dict:
         """
         Calculate how well the CV matches the job description.
@@ -569,6 +658,9 @@ Be specific and use the exact terminology from the job description. Include mult
 
         # Calculate evidence-weighted scores
         evidence_scores = self._calculate_evidence_scores(parsed_cv, parsed_jd)
+
+        # Calculate semantic similarity score (Track 2.8.2)
+        semantic_result = self.semantic_scorer.calculate_semantic_score(parsed_cv, parsed_jd)
 
         # Extract keywords from both documents
         job_keywords = self.extract_keywords(job_description)
@@ -657,7 +749,15 @@ Be specific and use the exact terminology from the job description. Include mult
                 weighted_score += category_score * data['weight'] * total_items
                 total_weight += data['weight'] * total_items
 
-        final_score = (weighted_score / total_weight * 100) if total_weight > 0 else 0
+        lexical_score = (weighted_score / total_weight * 100) if total_weight > 0 else 0
+
+        # Calculate hybrid score (Track 2.8.2)
+        hybrid_scoring = self.calculate_hybrid_score(
+            lexical_score,
+            semantic_result,
+            evidence_scores['average_strength']
+        )
+        final_score = hybrid_scoring['final_score']
 
         # Compile results
         all_matched = []
@@ -716,6 +816,26 @@ Be specific and use the exact terminology from the job description. Include mult
                 'jd_preferred_skills': list(parsed_jd.get_preferred_skills())[:10],
                 'cv_years_experience': parsed_cv.years_experience,
                 'jd_years_required': parsed_jd.years_required,
+            },
+            # Track 2.8.2: Hybrid scoring breakdown
+            'hybrid_scoring': hybrid_scoring,
+            # Track 2.8.2: Semantic analysis
+            'semantic_analysis': {
+                'available': semantic_result.available,
+                'score': semantic_result.score,
+                'section_similarities': semantic_result.section_similarities,
+                'top_matches': [
+                    {
+                        'jd_section': m.jd_section,
+                        'cv_section': m.cv_section,
+                        'similarity': m.similarity,
+                        'is_high_value': m.is_high_value
+                    }
+                    for m in semantic_result.top_matches
+                ],
+                'gaps': semantic_result.gaps,
+                'entity_support_ratio': semantic_result.entity_support_ratio,
+                'high_value_match_count': semantic_result.high_value_match_count,
             }
         }
 
@@ -806,17 +926,65 @@ Generate the complete CV now:"""
             'frequency_keywords': 'Other Keywords'
         }
 
+        # Get hybrid and semantic data
+        hybrid_data = ats_score.get('hybrid_scoring', {})
+        semantic_data = ats_score.get('semantic_analysis', {})
+
         # Format report with tables
         report = f"""
 ================================================================================
-              ATS OPTIMIZATION REPORT v2.0 (Enhanced)
+              ATS OPTIMIZATION REPORT v3.0 (Hybrid Scoring)
 ================================================================================
 
-  OVERALL SCORE: {ats_score['score']}%    |    Keywords Matched: {ats_score['matched']} / {ats_score['total']}
+  FINAL SCORE: {ats_score['score']}%    |    Keywords Matched: {ats_score['matched']} / {ats_score['total']}
 """
 
         if self.company_name:
             report += f"  Company excluded: {self.company_name}\n"
+
+        # Hybrid Scoring Breakdown (Track 2.8.2)
+        if hybrid_data:
+            report += """
+--------------------------------------------------------------------------------
+                   HYBRID SCORING BREAKDOWN (Track 2.8.2)
+--------------------------------------------------------------------------------
+"""
+            report += f"  Final Score: {hybrid_data.get('final_score', 0)}%\n\n"
+            report += "  Components:\n"
+            report += f"    Lexical:   {hybrid_data.get('lexical_score', 0):>5.1f}% x {int(hybrid_data.get('lexical_weight', 0)*100):>2}% = {hybrid_data.get('lexical_contribution', 0):>5.1f}\n"
+
+            if hybrid_data.get('semantic_available', False):
+                report += f"    Semantic:  {hybrid_data.get('semantic_score', 0):>5.1f}% x {int(hybrid_data.get('semantic_weight', 0)*100):>2}% = {hybrid_data.get('semantic_contribution', 0):>5.1f}\n"
+            else:
+                report += "    Semantic:  (unavailable - install sentence-transformers)\n"
+
+            report += f"    Evidence:  {hybrid_data.get('evidence_score', 0):>5.1f}% x {int(hybrid_data.get('evidence_weight', 0)*100):>2}% = {hybrid_data.get('evidence_contribution', 0):>5.1f}\n"
+
+        # Semantic Match Analysis (Track 2.8.2)
+        if semantic_data and semantic_data.get('available', False):
+            report += """
+--------------------------------------------------------------------------------
+                   SEMANTIC MATCH ANALYSIS (Track 2.8.2)
+--------------------------------------------------------------------------------
+"""
+            top_matches = semantic_data.get('top_matches', [])
+            if top_matches:
+                report += "  Top Semantic Matches:\n"
+                for i, match in enumerate(top_matches[:5], 1):
+                    hv_tag = " [HIGH-VALUE]" if match.get('is_high_value') else ""
+                    report += f"    {i}. {match.get('jd_section', '?')} <-> {match.get('cv_section', '?')}: {match.get('similarity', 0):.0f}%{hv_tag}\n"
+
+            gaps = semantic_data.get('gaps', [])
+            if gaps:
+                report += "\n  Semantic Gaps:\n"
+                for gap in gaps[:3]:
+                    report += f"    - {gap}\n"
+
+            section_sims = semantic_data.get('section_similarities', {})
+            if section_sims:
+                report += "\n  Section Similarity Scores:\n"
+                for section, sim in section_sims.items():
+                    report += f"    - {section}: {sim:.0f}%\n"
 
         # Category score table
         report += """
