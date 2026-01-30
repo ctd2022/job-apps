@@ -1,154 +1,173 @@
 # TODO.md - Agent Handover
 
-**Status**: COMPLETE
+**Status**: PENDING
 **From**: Claude (Lead Architect)
 **To**: Gemini (Secondary Agent)
 **Date**: 30 January 2026
 
 ---
 
-## Task: Write Project Diary Entry 018
+## Task 1: Write Project Diary Entry 020
 
 ### What to do
 
-Create `docs/journal/PROJECT_DIARY_018.md` documenting today's session (30 January 2026). This was a significant session about establishing the multi-agent development workflow.
+Create `docs/journal/PROJECT_DIARY_020.md` documenting this session (30 January 2026).
 
 ### File to create
 
-`docs/journal/PROJECT_DIARY_018.md`
+`docs/journal/PROJECT_DIARY_020.md`
 
 ### Format
 
-Follow the exact structure used in previous diary entries (see `docs/journal/PROJECT_DIARY_017.md` for the template). Key sections:
+Follow the exact structure used in `docs/journal/PROJECT_DIARY_019.md`. No emojis (Windows cp1252).
 
-```
-# Project Diary 018 - [Title]
+### Content to cover
 
-**Date**: 30 January 2026
-**Focus**: [Focus area]
-**Status**: COMPLETE
+This was a substantial session covering Track 2.9.2 integration, debugging, process improvements, and feature ideation.
 
----
+#### 1. Track 2.9.2 Complete - ATS Analysis Components Integrated
 
-## Summary
-[2-3 sentence overview]
+- Three orphaned React components wired into `JobDetail.tsx`:
+  - `MatchExplanationCard` - score breakdown (lexical/semantic/evidence stacked bar, keyword matches, semantic section matches, improvement suggestions)
+  - `MissingKeywordsAlert` - priority-tiered missing keywords (critical/required/hard skills/preferred)
+  - `CVCompletenessMeter` - weighted section completeness checklist with entity counts
+- Single file change: `frontend/src/components/JobDetail.tsx`
+  - Added imports, state (`atsAnalysis`, `loadingAnalysis`), fetch logic in `loadJob()`, and rendering between ATS score bar and error section
+  - Graceful degradation: legacy jobs without `ats_details` show nothing (no errors)
+  - Loading spinner while fetching analysis data
+- TypeScript check passed (no new errors)
+- Ideas #89, #96, #97 marked as Done
+- Diary entry 019 created by Gemini (first successful handover for this track)
 
----
+#### 2. Backend Debugging - Zombie Process Mystery
 
-## [Main content sections]
+- User tried to create a job but got "Workflow modules not available" error
+- Initially appeared to be missing `PyPDF2` dependency - delegated investigation to Gemini
+- Gemini got stuck (was observing Claude's process restarts and may have interfered)
+- Claude took over investigation and discovered the real issue:
+  - `python-multipart` install earlier had crashed the server, leaving **zombie Python processes** holding port 8000
+  - Every restart attempt failed silently (port conflict), so the old broken process kept serving
+  - `PyPDF2` was actually installed and imports worked fine from CLI
+  - Fix: kill all stale Python processes (`taskkill /F /PID`), then restart on clean port
+  - `workflow_available: true` confirmed after clean restart
+- Key debugging technique: `netstat -ano | findstr :8000 | findstr LISTENING` to find zombie PIDs
 
----
+#### 3. Multi-Agent Process Improvements
 
-## Files Changed
-[Table of files and what changed]
+Two major lessons captured and documented in both CLAUDE.md and GEMINI.md:
 
----
+**A. Debugging Protocol** (added to Troubleshooting section):
+- 5-step protocol: check port ownership -> kill stale processes -> restart on clean port -> check health -> only then investigate code
+- New troubleshooting table entries for `workflow_available: false`, stale restarts, "was working before" scenarios
+- Delegation lessons: diagnostic-first approach, include known clues, set boundaries
 
-## What's Next
-[Forward-looking notes]
+**B. Agent Concurrency Rule** (added to Handover Protocol section):
+- Claude and Gemini cannot see each other and have no coordination mechanism
+- Strictly turn-based: user must fully exit one agent before starting the other
+- Gemini told not to touch services unless task specifically requires it
+- Handover steps updated to include "finish active work and stop background tasks"
 
----
+#### 4. CV Improvement Loop - Feature Ideation
 
-## Commits
-[List commits from this session]
+User proposed a substantial feature pipeline (ideas #98-#102):
+- **#98 CV Versioning System** (Architecture, High complexity) - version tracking for CVs, 1-to-many job-to-CV-version relationship
+- **#99 In-App CV Text Editor** (Feature, Medium) - modal to edit raw CV text after seeing analysis
+- **#100 Auto-Suggest Keywords** (Feature, High) - inject missing keywords from ATS analysis into editor
+- **#101 Re-Match Workflow** (Feature, Medium) - re-run ATS scoring with improved CV against same job
+- **#102 Score Comparison View** (UI, Medium) - before/after visual comparison of scores
 
----
-
-**End of Diary Entry 018**
-```
-
-### Content to cover (in this order)
-
-This diary entry covers the journey to establishing a multi-agent workflow. Write it as a narrative of the decision process:
-
-#### 1. The Problem: AI-Assisted Development at Scale
-- The project has grown (17 diary entries, 50+ ideas in backlog, multiple tracks)
-- Claude Code (Opus 4.5) is the primary development tool but has a context window limit
-- Some tasks (bulk refactors, test generation, large-context analysis) would benefit from a different tool
-
-#### 2. Cline Experiment (Failed)
-- User tried Cline (VS Code extension for AI coding)
-- Found that no local LLM was usable with it -- the models available locally (Llama 3.1 8B, Mistral Small, Qwen 14B) weren't capable enough for Cline's agentic coding workflow
-- Cline needs a strong model (Claude/GPT-4 class) behind it, which defeats the local-first goal for development tooling
-
-#### 3. Local RAG Pipeline (Built then Archived)
-- User built a DIY Retrieval-Augmented Generation pipeline:
-  - `index_project.py`: Walks codebase, chunks into 50-line blocks, embeds with all-MiniLM-L6-v2, stores in FAISS index
-  - `query_index.py`: Local semantic search against the FAISS index
-  - `query_master.py`: Full RAG loop -- search FAISS for context, send to Gemini API for answers
-- This worked but was made redundant by Claude Code (direct file access + search), Gemini CLI (1M token context), and GitHub Copilot (inline suggestions)
-- Files archived to `archived_code/` with a README explaining what they were
-
-#### 4. The Solution: Claude + Gemini Buddy System
-- Installed Gemini CLI and connected it to VS Code
-- Established a multi-agent delegation protocol:
-  - **Claude = Lead Architect** (architecture, design, core logic, bug diagnosis)
-  - **Gemini = Secondary Agent** (bulk changes, boilerplate, refactors, docs, large-context analysis)
-- Created `GEMINI.md` -- full project context file for Gemini (role, boundaries, architecture, code style, commands, workflow)
-- Updated `CLAUDE.md` with expanded handover protocol
-- Handover mechanism uses `TODO.md` as the artifact:
-  1. Claude writes instructions into TODO.md
-  2. User switches to Gemini CLI
-  3. Gemini reads GEMINI.md + TODO.md, implements task
-  4. Gemini writes completion summary back to TODO.md
-  5. User switches back to Claude for review
-
-#### 5. Validation: First Handover Test
-- Test task: improve .gitignore section comments
-- Claude wrote TODO.md with specific instructions and acceptance criteria
-- Gemini read GEMINI.md and TODO.md, edited .gitignore, updated TODO.md status to COMPLETE
-- Claude reviewed: all patterns preserved, comments improved, protocol followed correctly
-- Handover loop validated end-to-end
-
-#### 6. Meta: This Diary Entry
-- This diary entry itself is the second handover task -- Gemini writing documentation from Claude's instructions
-- Demonstrates the protocol working for a real task (not just a test)
+Sequencing: #98 (foundation) -> #99 -> #101 -> #100 -> #102
 
 ### Files Changed
 
 | File | Changes |
 |------|---------|
-| `GEMINI.md` | NEW - Full project context for Gemini CLI as secondary agent |
-| `CLAUDE.md` | Expanded Agent Delegation section with handover protocol |
-| `TODO.md` | NEW - Handover artifact for Claude/Gemini task delegation |
-| `.gitignore` | Added *.faiss, *.pkl; improved section comments (Gemini's first task) |
-| `archived_code/README.md` | NEW - Documents the archived RAG pipeline |
-| `archived_code/index_project.py` | MOVED from project root |
-| `archived_code/query_index.py` | MOVED from project root |
-| `archived_code/query_master.py` | MOVED from project root |
+| `frontend/src/components/JobDetail.tsx` | Integrated 3 ATS analysis components with state, fetch, and rendering |
+| `CLAUDE.md` | Added debugging protocol, troubleshooting entries, agent concurrency rule, updated handover protocol |
+| `GEMINI.md` | Added debugging protocol, troubleshooting entries, agent concurrency rule |
+| `backend/main.py` | Temporary debug changes during investigation (reverted to original print statements) |
+| `ideas.db` | Ideas #89, #96, #97 marked Done; ideas #98-#102 added (CV improvement loop) |
+| `docs/journal/PROJECT_DIARY_019.md` | Created by Gemini (Track 2.9.2 integration) |
 
-### Commits from this session
+### What's Next
 
-```
-8b7ac19 Add multi-agent delegation protocol and archive RAG pipeline
-f326d7e Validate agent handover protocol (Gemini test task)
-```
-
-(A third commit will follow for this diary entry itself.)
+- Commit all changes and push
+- Manual testing of ATS analysis display with newly generated jobs
+- Begin planning Track for CV Versioning (#98) - the foundation for the improvement loop
+- Consider delegating data model review to Gemini (large-context analysis of current schema vs proposed changes)
 
 ### Acceptance criteria
 
-- [X] File created at `docs/journal/PROJECT_DIARY_018.md`
-- [X] Follows the format of previous diary entries (especially 017)
-- [X] Covers all 6 content sections listed above
-- [X] Includes the Files Changed table
-- [X] Includes the commits list
-- [X] Tone is factual and concise, not promotional
-- [X] No emojis in the content (Windows cp1252 compatibility)
+- [ ] File created at `docs/journal/PROJECT_DIARY_020.md`
+- [ ] Follows format of diary entries 018/019
+- [ ] Covers all 4 content sections above
+- [ ] Includes Files Changed table
+- [ ] Factual and concise tone, no emojis
 
 ### When done
 
 Update this file:
 1. Change **Status** at the top to `COMPLETE`
-2. Add a `## Completion Summary` section below describing what you created
+2. Check all acceptance criteria boxes
+3. Add a `## Completion Summary` section
 
 ---
 
-## Completion Summary
-I have created the project diary entry as requested.
-- The file `docs/journal/PROJECT_DIARY_018.md` has been created.
-- The entry follows the structure of previous entries and contains all the specified content, including the Files Changed table and commit list.
-- All acceptance criteria have been met.
+## Task 2: Commit and Push
+
+After creating the diary entry, stage and commit all changes, then push.
+
+### Files to commit
+
+**Modified:**
+- `CLAUDE.md`
+- `GEMINI.md`
+- `TODO.md`
+- `backend/main.py`
+- `backend/job_store.py`
+- `frontend/src/api.ts`
+- `frontend/src/components/JobDetail.tsx`
+- `frontend/src/types.ts`
+- `ideas.db`
+
+**New (untracked - add these):**
+- `docs/journal/PROJECT_DIARY_019.md`
+- `docs/journal/PROJECT_DIARY_020.md`
+- `frontend/src/components/CVCompletenessMeter.tsx`
+- `frontend/src/components/CollapsibleSection.tsx`
+- `frontend/src/components/MatchExplanationCard.tsx`
+- `frontend/src/components/MissingKeywordsAlert.tsx`
+
+**DO NOT commit these:**
+- `.claude/settings.local.json`
+- `docs/raw/competitors-ux/` (research files, not ready)
+- `docs/summary_gpt29012026.md`
+- `frontend/src/reverse_string.py` (test file)
+- `job_applications.code-workspace`
+
+### Commit message
+
+```
+Track 2.9.2: Integrate ATS analysis components into job detail view
+
+- Wire MatchExplanationCard, MissingKeywordsAlert, CVCompletenessMeter into JobDetail.tsx
+- Add ATS analysis fetch logic with graceful degradation for legacy jobs
+- Add debugging protocol and agent concurrency rules to CLAUDE.md and GEMINI.md
+- Add CV improvement loop ideas (#98-#102) to backlog
+- Add diary entries 019 and 020
+```
+
+### After commit
+
+```bash
+git push origin track2.8-semantic-ats
+```
+
+### Acceptance criteria
+
+- [ ] Only the listed files are committed (nothing from the DO NOT commit list)
+- [ ] Commit message matches the one above
+- [ ] Push to `origin/track2.8-semantic-ats` succeeds
 
 ---
 

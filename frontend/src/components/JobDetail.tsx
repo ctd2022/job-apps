@@ -13,10 +13,13 @@ import {
   FileText,
   X
 } from 'lucide-react';
-import { getJob, getJobFiles, updateJobOutcome, getJobDescription } from '../api';
-import type { Job, OutputFile, OutcomeStatus, JobDescription } from '../types';
+import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis } from '../api';
+import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData } from '../types';
 import FilePreview from './FilePreview';
 import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
+import MatchExplanationCard from './MatchExplanationCard';
+import MissingKeywordsAlert from './MissingKeywordsAlert';
+import CVCompletenessMeter from './CVCompletenessMeter';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600' },
@@ -41,6 +44,10 @@ function JobDetail() {
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
+  // ATS Analysis state
+  const [atsAnalysis, setAtsAnalysis] = useState<ATSAnalysisData | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+
   // Job Description modal state
   const [showJD, setShowJD] = useState(false);
   const [jobDescription, setJobDescription] = useState<JobDescription | null>(null);
@@ -61,6 +68,19 @@ function JobDetail() {
       setJob(jobData);
       setFiles(filesData);
       setError(null);
+
+      // Fetch ATS analysis for completed jobs
+      if (jobData.status === 'completed' && jobData.enable_ats) {
+        setLoadingAnalysis(true);
+        try {
+          const result = await getATSAnalysis(id!);
+          setAtsAnalysis(result.analysis);
+        } catch {
+          // ATS analysis is optional - don't fail the page
+        } finally {
+          setLoadingAnalysis(false);
+        }
+      }
     } catch (err: any) {
       console.error('Failed to load job:', err);
       setError(err?.message || 'Failed to load job');
@@ -252,6 +272,23 @@ function JobDetail() {
             </div>
           );
         })()}
+
+        {/* ATS Analysis Details */}
+        {job.status === 'completed' && atsAnalysis && (
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600 space-y-3">
+            <MatchExplanationCard analysis={atsAnalysis} />
+            <MissingKeywordsAlert analysis={atsAnalysis} />
+            <CVCompletenessMeter analysis={atsAnalysis} />
+          </div>
+        )}
+
+        {/* Loading ATS Analysis */}
+        {loadingAnalysis && (
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600 flex items-center space-x-2 text-sm text-slate-500 dark:text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Loading ATS analysis...</span>
+          </div>
+        )}
 
         {/* Error Message */}
         {job.status === 'failed' && job.error && (

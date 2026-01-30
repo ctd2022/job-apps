@@ -110,6 +110,7 @@ def init_db():
         ("notes", "TEXT"),
         ("job_title", "TEXT"),  # Track 2.8: Job title for human-readable display
         ("job_description_text", "TEXT"),  # Track 2.9: Store full JD text for viewing
+        ("ats_details", "TEXT"),  # Track 2.9.2: Full ATS analysis JSON
     ]
 
     for col_name, col_type in outcome_columns:
@@ -544,11 +545,16 @@ class JobStore:
 
     def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
         """Convert a database row to a dictionary."""
-        # Handle job_description_text column which may not exist in older databases
+        # Handle columns which may not exist in older databases
         try:
             job_description_text = row["job_description_text"]
         except (IndexError, KeyError):
             job_description_text = None
+
+        try:
+            ats_details = row["ats_details"]
+        except (IndexError, KeyError):
+            ats_details = None
 
         return {
             "job_id": row["job_id"],
@@ -575,6 +581,8 @@ class JobStore:
             "outcome_at": row["outcome_at"],
             "notes": row["notes"],
             "job_description_text": job_description_text,
+            # Track 2.9.2: ATS analysis details
+            "ats_details": ats_details,
         }
 
 

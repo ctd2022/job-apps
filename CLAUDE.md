@@ -148,6 +148,27 @@ conn.close()
 | Ollama not responding | Run `ollama list`, then `ollama serve` |
 | Unicode/emoji errors | Use text labels `[OK]` not emojis (Windows cp1252) |
 | Job stuck at % | LLM generating - check llama-server console |
+| `workflow_available: false` | **First** check for stale processes: `netstat -ano \| findstr :8000` then kill zombie PIDs with `taskkill /F /PID <pid>`. Only investigate imports after confirming a fresh process is serving. |
+| Backend restart seems to have no effect | Uvicorn child processes survive parent kill on Windows. Always verify port is free before restarting. |
+| "Was working before, now broken" | Suspect stale processes or port conflicts before assuming missing dependencies. Run `tasklist \| findstr python` to find zombies. |
+
+### Debugging Protocol (for agents)
+
+When investigating backend errors, **always follow this order**:
+
+1. **Check port ownership first**: `netstat -ano | findstr :8000 | findstr LISTENING`
+2. **Kill stale processes**: `taskkill /F /PID <pid>` for any zombies
+3. **Restart on clean port**: Verify port is free, then start server
+4. **Check health**: `curl http://localhost:8000/api/health`
+5. **Only then** investigate code/dependency issues if health still fails
+
+### Delegation Lessons
+
+When delegating bug investigation to Gemini via TODO.md:
+- **Diagnostic-first**: Ask Gemini to "investigate and report findings" before "fix it"
+- **Include known clues**: Share server logs, error messages, and what you've already ruled out
+- **Set clear boundaries**: Specify what NOT to change (e.g., "do not modify source code")
+- **Stale process warning**: Always mention that Windows zombie processes are a common root cause
 
 ---
 
@@ -185,11 +206,19 @@ conn.close()
 - **Feature design**: Planning new features from scratch (Claude plans, Gemini implements)
 - **Bug diagnosis**: Debugging complex issues that require understanding intent
 
+### CRITICAL: Never run both agents simultaneously
+- Claude and Gemini **cannot see each other** and have **no coordination mechanism**
+- If both are active, they will conflict: killing each other's processes, fighting over ports, editing the same files
+- The handover is strictly **turn-based**: one agent works, finishes, then the other starts
+- **User responsibility**: Fully stop one agent (Ctrl+C / exit) before switching to the other
+- If you (Claude) have background tasks running (servers, builds), note them in TODO.md so Gemini doesn't interfere
+
 ### Handover protocol:
-1. **Claude writes instructions** into `TODO.md` with specific file paths, patterns to follow, and acceptance criteria
-2. **User switches to Gemini CLI** - Gemini reads `GEMINI.md` (its context file) and `TODO.md`
-3. **Gemini implements** and writes a summary of changes back into `TODO.md`
-4. **User switches back to Claude** - Claude reviews the changes via `TODO.md` and git diff
+1. **Claude finishes all active work** and stops any background tasks that Gemini might conflict with
+2. **Claude writes instructions** into `TODO.md` with specific file paths, patterns to follow, and acceptance criteria
+3. **User fully exits Claude**, then switches to Gemini CLI - Gemini reads `GEMINI.md` and `TODO.md`
+4. **Gemini implements** and writes a summary of changes back into `TODO.md`
+5. **User fully exits Gemini**, then switches back to Claude - Claude reviews via `TODO.md` and git diff
 
 ### Key files:
 - `GEMINI.md` - Gemini's project context (mirrors CLAUDE.md but scoped for secondary role)

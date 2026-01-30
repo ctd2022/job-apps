@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription, ATSAnalysisResponse } from './types';
 
 const API_BASE = '/api';
 
@@ -228,6 +228,12 @@ export async function getJobFileContent(jobId: string, fileName: string): Promis
 
 export async function getJobDescription(jobId: string): Promise<JobDescription> {
   const response = await fetch(`${API_BASE}/jobs/${jobId}/description`);
+  return handleResponse(response);
+}
+
+// ATS Analysis (Track 2.9.2)
+export async function getATSAnalysis(jobId: string): Promise<ATSAnalysisResponse> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/ats-analysis`);
   return handleResponse(response);
 }
 

@@ -135,3 +135,97 @@ export interface JobDescription {
   source: 'database' | 'file' | null;
   message?: string;
 }
+
+// ============================================================================
+// ATS Analysis Types (Track 2.9.2)
+// ============================================================================
+
+export interface ATSCategoryScore {
+  matched: number;
+  missing: number;
+  items_matched: string[];
+  items_missing: string[];
+}
+
+export interface HybridScoring {
+  final_score: number;
+  lexical_score: number;
+  lexical_weight: number;
+  lexical_contribution: number;
+  semantic_score: number;
+  semantic_weight: number;
+  semantic_contribution: number;
+  evidence_score: number;
+  evidence_weight: number;
+  evidence_contribution: number;
+  semantic_available: boolean;
+}
+
+export interface SemanticMatch {
+  jd_section: string;
+  cv_section: string;
+  similarity: number;
+  is_high_value: boolean;
+}
+
+export interface SemanticAnalysis {
+  available: boolean;
+  score: number;
+  section_similarities: Record<string, number>;
+  top_matches: SemanticMatch[];
+  gaps: string[];
+  entity_support_ratio: number;
+  high_value_match_count: number;
+}
+
+export interface EvidenceAnalysis {
+  strong_evidence_count: number;
+  moderate_evidence_count: number;
+  weak_evidence_count: number;
+  average_strength: number;
+  strong_skills: string[];
+  weak_skills: string[];
+}
+
+export interface ParsedEntities {
+  cv_hard_skills: string[];
+  cv_soft_skills: string[];
+  jd_required_skills: string[];
+  jd_preferred_skills: string[];
+  cv_years_experience: number | null;
+  jd_years_required: number | null;
+}
+
+export interface SectionAnalysis {
+  experience_matches: string[];
+  skills_matches: string[];
+  projects_matches: string[];
+  not_found_in_cv: string[];
+  cv_sections_detected: number;
+  jd_sections_detected: number;
+}
+
+export interface ATSAnalysisData {
+  score: number;
+  matched: number;
+  total: number;
+  missing_keywords: string[];
+  matched_keywords: string[];
+  top_job_keywords: string[];
+  scores_by_category: Record<string, ATSCategoryScore>;
+  matched_phrases: string[];
+  missing_phrases: string[];
+  section_analysis: SectionAnalysis;
+  evidence_analysis: EvidenceAnalysis;
+  parsed_entities: ParsedEntities;
+  hybrid_scoring: HybridScoring;
+  semantic_analysis: SemanticAnalysis;
+}
+
+export interface ATSAnalysisResponse {
+  job_id: string;
+  ats_score: number | null;
+  analysis: ATSAnalysisData | null;
+  source: 'database' | null;
+  message?: string;
+}

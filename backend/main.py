@@ -399,13 +399,17 @@ async def process_job_application(
             ats_report, key_requirements, ats_score = ats_optimizer.generate_ats_report(
                 base_cv, job_description
             )
-            
+
+            # Track 2.9.2: Store full ATS analysis details
+            ats_details_json = json.dumps(ats_score) if ats_score else None
+
             await update_job_and_broadcast(
                 job_id,
                 progress=40,
                 current_step="Generating ATS-optimized CV",
                 message=f"ATS Score: {ats_score['score']}% - Generating optimized CV...",
-                ats_score=ats_score['score']
+                ats_score=ats_score['score'],
+                ats_details=ats_details_json
             )
             await asyncio.sleep(0.1)
             
@@ -933,6 +937,50 @@ async def get_job_description(job_id: str):
         "description": None,
         "source": None,
         "message": "Job description not available"
+    }
+
+
+@app.get("/api/jobs/{job_id}/ats-analysis")
+async def get_ats_analysis(job_id: str):
+    """
+    Get detailed ATS analysis for a completed job (Track 2.9.2).
+
+    Returns the full ATS analysis data including:
+    - Hybrid scoring breakdown (lexical, semantic, evidence)
+    - Category scores (critical keywords, hard skills, etc.)
+    - Section-level analysis
+    - Semantic matching details
+    - Parsed entities from CV and JD
+    """
+    job = job_store.get_job(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if job["status"] != "completed":
+        raise HTTPException(status_code=400, detail="ATS analysis only available for completed jobs")
+
+    # Try to get stored ATS details
+    ats_details = job.get("ats_details")
+
+    if ats_details:
+        try:
+            return {
+                "job_id": job_id,
+                "ats_score": job.get("ats_score"),
+                "analysis": json.loads(ats_details),
+                "source": "database"
+            }
+        except json.JSONDecodeError:
+            pass
+
+    # No stored details available
+    return {
+        "job_id": job_id,
+        "ats_score": job.get("ats_score"),
+        "analysis": None,
+        "source": None,
+        "message": "Detailed ATS analysis not available for this job (created before Track 2.9.2)"
     }
 
 
