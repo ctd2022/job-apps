@@ -6,6 +6,19 @@
 
 ---
 
+## Quick Resume
+
+> **Read this first when returning to the project after a break.**
+
+- **Branch**: `track2.8-semantic-ats`
+- **Track**: 2.9.2 COMPLETE (ATS analysis components integrated into UI)
+- **Last session**: Wired 3 orphaned React components into JobDetail.tsx, debugged zombie process issue, added agent concurrency rules, captured 5 CV improvement loop ideas (#98-#102)
+- **Next steps**: Manual testing with a newly generated job; begin planning CV Versioning (#98) as foundation for the improvement loop
+- **Blocked/broken**: Nothing -- backend and frontend working, `workflow_available: true`
+- **Ideas backlog**: 5 new high-priority ideas (#98-#102) for iterative CV improvement pipeline
+
+---
+
 ## Summary
 
 This session involved significant progress on Track 2.9.2 Core UX, deep debugging of backend "zombie" processes, and major improvements to the multi-agent development workflow. A substantial set of new feature ideas for CV improvement was also added to the backlog.

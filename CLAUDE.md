@@ -44,7 +44,7 @@ cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications/frontend" && npm run d
 2. **Start Work** → Update status to "In Progress"
 3. **Plan** → Enter plan mode, explore codebase, design approach
 4. **Implement** → Follow the plan
-5. **Complete** → Update status to "Done", update docs, create diary entry
+5. **Complete** → Update status to "Done", update docs, create diary entry with Quick Resume section
 
 ### Updating Idea Status
 
@@ -123,6 +123,25 @@ conn.close()
 - Test before committing
 - Update `ideas.db` status when starting/completing features
 - Update diary for significant changes
+
+### Diary Entry Quick Resume Section
+
+**Every diary entry MUST start with a "Quick Resume" section** right after the header. This allows agents to quickly regain context when returning after a break, instead of reading git logs, ideas.db, and multiple files.
+
+```markdown
+## Quick Resume
+
+> **Read this first when returning to the project after a break.**
+
+- **Branch**: current git branch
+- **Track**: current track and status
+- **Last session**: 1-2 sentence summary of what was accomplished
+- **Next steps**: what to pick up next
+- **Blocked/broken**: any known issues, or "Nothing"
+- **Ideas backlog**: notable new/high-priority ideas if any
+```
+
+When starting a new session, read the **latest diary entry's Quick Resume** first.
 
 ---
 
