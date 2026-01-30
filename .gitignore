@@ -48,3 +48,7 @@ jobs.db
 ideas.db
 ideas.html
 nul
+
+# Binary artifacts (archived RAG pipeline)
+*.faiss
+*.pkl

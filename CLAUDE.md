@@ -163,7 +163,36 @@ conn.close()
 - `docs/ARCHITECTURE.md` - Directory structure, system overview
 - `docs/API.md` - Endpoints, routes, database schema
 - `docs/journal/PROJECT_DIARY_*.md` - Progress history
+- `GEMINI.md` - Gemini CLI agent context (secondary agent instructions)
+- `TODO.md` - Agent handover instructions (Claude <-> Gemini)
 
 ---
 
-**Last Updated**: 26 January 2026
+## Agent Delegation: Gemini CLI
+
+**You (Claude) are the Lead Architect.** Gemini is a secondary agent that follows your patterns.
+
+### When to delegate to Gemini:
+- **Bulk file changes**: Task touches 5+ files with repetitive patterns
+- **Boilerplate/scaffolding**: Unit tests, type stubs, repetitive component creation
+- **Repo-wide refactors**: Renaming variables, updating imports across many files
+- **Large context analysis**: Cross-cutting concerns that benefit from Gemini's 1M token window
+- **Documentation generation**: API docs, test plans, type documentation
+
+### Keep in Claude (do NOT delegate):
+- **Architectural decisions**: New patterns, schema changes, scoring formula changes
+- **Core business logic**: ATS scoring, workflow pipeline, LLM integration
+- **Feature design**: Planning new features from scratch (Claude plans, Gemini implements)
+- **Bug diagnosis**: Debugging complex issues that require understanding intent
+
+### Handover protocol:
+1. **Claude writes instructions** into `TODO.md` with specific file paths, patterns to follow, and acceptance criteria
+2. **User switches to Gemini CLI** - Gemini reads `GEMINI.md` (its context file) and `TODO.md`
+3. **Gemini implements** and writes a summary of changes back into `TODO.md`
+4. **User switches back to Claude** - Claude reviews the changes via `TODO.md` and git diff
+
+### Key files:
+- `GEMINI.md` - Gemini's project context (mirrors CLAUDE.md but scoped for secondary role)
+- `TODO.md` - Handover instructions and completion summaries between agents
+
+**Last Updated**: 30 January 2026
