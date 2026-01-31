@@ -92,12 +92,29 @@ def init_db():
         )
     ''')
 
+    # CV versions table - track content snapshots (Track 2.9.3)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS cv_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cv_id INTEGER NOT NULL,
+            version_number INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            content TEXT NOT NULL,
+            change_summary TEXT,
+            created_at TEXT NOT NULL,
+            UNIQUE(cv_id, version_number)
+        )
+    ''')
+
     # Create basic indexes
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC)
     ''')
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_cvs_is_default ON cvs(is_default DESC)
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_cv_versions_cv_id ON cv_versions(cv_id)
     ''')
 
     # Migration: Add outcome tracking columns (for existing databases)
@@ -111,6 +128,7 @@ def init_db():
         ("job_title", "TEXT"),  # Track 2.8: Job title for human-readable display
         ("job_description_text", "TEXT"),  # Track 2.9: Store full JD text for viewing
         ("ats_details", "TEXT"),  # Track 2.9.2: Full ATS analysis JSON
+        ("cv_version_id", "INTEGER"),  # Track 2.9.3: Link to specific CV version used
     ]
 
     for col_name, col_type in outcome_columns:
@@ -119,6 +137,12 @@ def init_db():
         except sqlite3.OperationalError:
             # Column already exists, ignore
             pass
+
+    # Migration: Add current_version_id to cvs table (Track 2.9.3)
+    try:
+        cursor.execute("ALTER TABLE cvs ADD COLUMN current_version_id INTEGER")
+    except sqlite3.OperationalError:
+        pass
 
     # Migration: Add user_id columns (for existing databases)
     for table in ["jobs", "cvs"]:
@@ -151,6 +175,23 @@ def init_db():
         cursor.execute("UPDATE jobs SET user_id = 'default' WHERE user_id IS NULL")
         cursor.execute("UPDATE cvs SET user_id = 'default' WHERE user_id IS NULL")
         print("[OK] Created default user and migrated existing data")
+
+    # Migration: Populate cv_versions from existing cvs data (Track 2.9.3)
+    # Only runs once: if cvs has rows with content but cv_versions is empty
+    cursor.execute("SELECT COUNT(*) FROM cv_versions")
+    versions_count = cursor.fetchone()[0]
+    if versions_count == 0:
+        cursor.execute("SELECT id, filename, content, created_at FROM cvs WHERE content IS NOT NULL AND content != ''")
+        cvs_to_migrate = cursor.fetchall()
+        if cvs_to_migrate:
+            for cv_row in cvs_to_migrate:
+                cursor.execute('''
+                    INSERT INTO cv_versions (cv_id, version_number, filename, content, change_summary, created_at)
+                    VALUES (?, 1, ?, ?, 'Initial version (migrated)', ?)
+                ''', (cv_row["id"], cv_row["filename"], cv_row["content"], cv_row["created_at"]))
+                version_id = cursor.lastrowid
+                cursor.execute("UPDATE cvs SET current_version_id = ? WHERE id = ?", (version_id, cv_row["id"]))
+            print(f"[OK] Migrated {len(cvs_to_migrate)} CVs to cv_versions table")
 
     conn.commit()
     conn.close()
@@ -556,6 +597,11 @@ class JobStore:
         except (IndexError, KeyError):
             ats_details = None
 
+        try:
+            cv_version_id = row["cv_version_id"]
+        except (IndexError, KeyError):
+            cv_version_id = None
+
         return {
             "job_id": row["job_id"],
             "user_id": row["user_id"] or "default",
@@ -583,17 +629,19 @@ class JobStore:
             "job_description_text": job_description_text,
             # Track 2.9.2: ATS analysis details
             "ats_details": ats_details,
+            # Track 2.9.3: CV version used for this job
+            "cv_version_id": cv_version_id,
         }
 
 
 class CVStore:
-    """SQLite-backed store for user CVs."""
+    """SQLite-backed store for user CVs with version tracking."""
 
     def __init__(self):
         init_db()
 
     def create_cv(self, name: str, filename: str, content: str, user_id: str = "default", is_default: bool = False) -> Dict[str, Any]:
-        """Create a new CV entry."""
+        """Create a new CV with its first version."""
         conn = get_connection()
         cursor = conn.cursor()
 
@@ -603,45 +651,93 @@ class CVStore:
         if is_default:
             cursor.execute("UPDATE cvs SET is_default = 0 WHERE user_id = ?", (user_id,))
 
+        # Insert CV parent record (content/filename kept for backward compat)
         cursor.execute('''
             INSERT INTO cvs (name, filename, content, user_id, is_default, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (name, filename, content, user_id, 1 if is_default else 0, now, now))
-
         cv_id = cursor.lastrowid
+
+        # Create version 1
+        cursor.execute('''
+            INSERT INTO cv_versions (cv_id, version_number, filename, content, change_summary, created_at)
+            VALUES (?, 1, ?, ?, 'Initial version', ?)
+        ''', (cv_id, filename, content, now))
+        version_id = cursor.lastrowid
+
+        # Link CV to its current version
+        cursor.execute("UPDATE cvs SET current_version_id = ? WHERE id = ?", (version_id, cv_id))
+
         conn.commit()
         conn.close()
 
         return self.get_cv(cv_id)
 
     def get_cv(self, cv_id: int, user_id: str = None) -> Optional[Dict[str, Any]]:
-        """Get CV by ID. If user_id provided, verifies ownership."""
+        """Get CV by ID with current version content. If user_id provided, verifies ownership."""
         conn = get_connection()
         cursor = conn.cursor()
 
         if user_id:
-            cursor.execute("SELECT * FROM cvs WHERE id = ? AND user_id = ?", (cv_id, user_id))
+            cursor.execute('''
+                SELECT c.id, c.user_id, c.name, c.is_default, c.created_at, c.updated_at,
+                       c.current_version_id,
+                       v.filename, v.content, v.version_number
+                FROM cvs c
+                LEFT JOIN cv_versions v ON c.current_version_id = v.id
+                WHERE c.id = ? AND c.user_id = ?
+            ''', (cv_id, user_id))
         else:
-            cursor.execute("SELECT * FROM cvs WHERE id = ?", (cv_id,))
+            cursor.execute('''
+                SELECT c.id, c.user_id, c.name, c.is_default, c.created_at, c.updated_at,
+                       c.current_version_id,
+                       v.filename, v.content, v.version_number
+                FROM cvs c
+                LEFT JOIN cv_versions v ON c.current_version_id = v.id
+                WHERE c.id = ?
+            ''', (cv_id,))
         row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            return None
+
+        # Get version count
+        cursor.execute("SELECT COUNT(*) FROM cv_versions WHERE cv_id = ?", (cv_id,))
+        version_count = cursor.fetchone()[0]
 
         conn.close()
 
-        if not row:
-            return None
-
-        return self._row_to_dict(row)
+        return self._row_to_dict(row, version_count=version_count)
 
     def get_cv_content(self, cv_id: int, user_id: str = None) -> Optional[str]:
-        """Get just the CV content by ID (for processing). If user_id provided, verifies ownership."""
+        """Get the current version's content for processing. If user_id provided, verifies ownership."""
         conn = get_connection()
         cursor = conn.cursor()
 
         if user_id:
-            cursor.execute("SELECT content FROM cvs WHERE id = ? AND user_id = ?", (cv_id, user_id))
+            cursor.execute('''
+                SELECT v.content
+                FROM cvs c
+                JOIN cv_versions v ON c.current_version_id = v.id
+                WHERE c.id = ? AND c.user_id = ?
+            ''', (cv_id, user_id))
         else:
-            cursor.execute("SELECT content FROM cvs WHERE id = ?", (cv_id,))
+            cursor.execute('''
+                SELECT v.content
+                FROM cvs c
+                JOIN cv_versions v ON c.current_version_id = v.id
+                WHERE c.id = ?
+            ''', (cv_id,))
         row = cursor.fetchone()
+
+        if not row:
+            # Fallback: read from legacy content column (pre-migration)
+            if user_id:
+                cursor.execute("SELECT content FROM cvs WHERE id = ? AND user_id = ?", (cv_id, user_id))
+            else:
+                cursor.execute("SELECT content FROM cvs WHERE id = ?", (cv_id,))
+            row = cursor.fetchone()
 
         conn.close()
 
@@ -651,19 +747,29 @@ class CVStore:
         return row["content"]
 
     def list_cvs(self, user_id: str = None) -> List[Dict[str, Any]]:
-        """List CVs (without content for efficiency). If user_id provided, filters by user."""
+        """List CVs (without content) with current version info."""
         conn = get_connection()
         cursor = conn.cursor()
 
         if user_id:
             cursor.execute('''
-                SELECT id, user_id, name, filename, is_default, created_at, updated_at
-                FROM cvs WHERE user_id = ? ORDER BY is_default DESC, updated_at DESC
+                SELECT c.id, c.user_id, c.name, c.is_default, c.created_at, c.updated_at,
+                       c.current_version_id,
+                       COALESCE(v.filename, c.filename) as filename,
+                       COALESCE(v.version_number, 1) as version_number
+                FROM cvs c
+                LEFT JOIN cv_versions v ON c.current_version_id = v.id
+                WHERE c.user_id = ? ORDER BY c.is_default DESC, c.updated_at DESC
             ''', (user_id,))
         else:
             cursor.execute('''
-                SELECT id, user_id, name, filename, is_default, created_at, updated_at
-                FROM cvs ORDER BY is_default DESC, updated_at DESC
+                SELECT c.id, c.user_id, c.name, c.is_default, c.created_at, c.updated_at,
+                       c.current_version_id,
+                       COALESCE(v.filename, c.filename) as filename,
+                       COALESCE(v.version_number, 1) as version_number
+                FROM cvs c
+                LEFT JOIN cv_versions v ON c.current_version_id = v.id
+                ORDER BY c.is_default DESC, c.updated_at DESC
             ''')
         rows = cursor.fetchall()
 
@@ -677,10 +783,11 @@ class CVStore:
             "is_default": bool(row["is_default"]),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
+            "version_number": row["version_number"],
         } for row in rows]
 
     def delete_cv(self, cv_id: int, user_id: str = None) -> bool:
-        """Delete a CV. If user_id provided, verifies ownership."""
+        """Delete a CV and all its versions. If user_id provided, verifies ownership."""
         conn = get_connection()
         cursor = conn.cursor()
 
@@ -689,6 +796,9 @@ class CVStore:
         else:
             cursor.execute("DELETE FROM cvs WHERE id = ?", (cv_id,))
         deleted = cursor.rowcount > 0
+
+        if deleted:
+            cursor.execute("DELETE FROM cv_versions WHERE cv_id = ?", (cv_id,))
 
         conn.commit()
         conn.close()
@@ -729,9 +839,27 @@ class CVStore:
         cursor = conn.cursor()
 
         if user_id:
-            cursor.execute("SELECT * FROM cvs WHERE is_default = 1 AND user_id = ? LIMIT 1", (user_id,))
+            cursor.execute('''
+                SELECT c.id, c.user_id, c.name, c.is_default, c.created_at, c.updated_at,
+                       c.current_version_id,
+                       COALESCE(v.filename, c.filename) as filename,
+                       COALESCE(v.content, c.content) as content,
+                       COALESCE(v.version_number, 1) as version_number
+                FROM cvs c
+                LEFT JOIN cv_versions v ON c.current_version_id = v.id
+                WHERE c.is_default = 1 AND c.user_id = ? LIMIT 1
+            ''', (user_id,))
         else:
-            cursor.execute("SELECT * FROM cvs WHERE is_default = 1 LIMIT 1")
+            cursor.execute('''
+                SELECT c.id, c.user_id, c.name, c.is_default, c.created_at, c.updated_at,
+                       c.current_version_id,
+                       COALESCE(v.filename, c.filename) as filename,
+                       COALESCE(v.content, c.content) as content,
+                       COALESCE(v.version_number, 1) as version_number
+                FROM cvs c
+                LEFT JOIN cv_versions v ON c.current_version_id = v.id
+                WHERE c.is_default = 1 LIMIT 1
+            ''')
         row = cursor.fetchone()
 
         conn.close()
@@ -741,38 +869,152 @@ class CVStore:
 
         return self._row_to_dict(row)
 
-    def update_cv(self, cv_id: int, user_id: str = None, name: str = None, content: str = None) -> Optional[Dict[str, Any]]:
-        """Update a CV's name or content. If user_id provided, verifies ownership."""
+    def update_cv(self, cv_id: int, user_id: str = None, name: str = None,
+                  content: str = None, filename: str = None,
+                  change_summary: str = None) -> Optional[Dict[str, Any]]:
+        """Update a CV. Content changes create a new version; name-only changes don't."""
         conn = get_connection()
         cursor = conn.cursor()
+        now = datetime.now().isoformat()
 
-        updates = ["updated_at = ?"]
-        params = [datetime.now().isoformat()]
-
-        if name is not None:
-            updates.append("name = ?")
-            params.append(name)
-
-        if content is not None:
-            updates.append("content = ?")
-            params.append(content)
-
-        params.append(cv_id)
+        # Verify CV exists (and ownership)
         if user_id:
-            params.append(user_id)
-            query = f"UPDATE cvs SET {', '.join(updates)} WHERE id = ? AND user_id = ?"
+            cursor.execute("SELECT id, current_version_id FROM cvs WHERE id = ? AND user_id = ?", (cv_id, user_id))
         else:
-            query = f"UPDATE cvs SET {', '.join(updates)} WHERE id = ?"
-        cursor.execute(query, params)
+            cursor.execute("SELECT id, current_version_id FROM cvs WHERE id = ?", (cv_id,))
+        cv_row = cursor.fetchone()
+        if not cv_row:
+            conn.close()
+            return None
+
+        # Update name if provided
+        if name is not None:
+            cursor.execute("UPDATE cvs SET name = ?, updated_at = ? WHERE id = ?", (name, now, cv_id))
+
+        # Content change: create a new version
+        if content is not None:
+            # Get current max version number
+            cursor.execute("SELECT MAX(version_number) FROM cv_versions WHERE cv_id = ?", (cv_id,))
+            max_version = cursor.fetchone()[0] or 0
+            new_version = max_version + 1
+
+            # Get filename from current version if not explicitly provided
+            if filename is None:
+                current_vid = cv_row["current_version_id"]
+                if current_vid:
+                    cursor.execute("SELECT filename FROM cv_versions WHERE id = ?", (current_vid,))
+                    vrow = cursor.fetchone()
+                    filename = vrow["filename"] if vrow else "cv.txt"
+                else:
+                    filename = "cv.txt"
+
+            # Insert new version
+            cursor.execute('''
+                INSERT INTO cv_versions (cv_id, version_number, filename, content, change_summary, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (cv_id, new_version, filename, content, change_summary, now))
+            version_id = cursor.lastrowid
+
+            # Update current_version_id and legacy content column
+            cursor.execute(
+                "UPDATE cvs SET current_version_id = ?, content = ?, updated_at = ? WHERE id = ?",
+                (version_id, content, now, cv_id)
+            )
 
         conn.commit()
         conn.close()
 
         return self.get_cv(cv_id)
 
-    def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
-        """Convert a database row to a dictionary."""
+    # -- Version-specific methods --
+
+    def list_cv_versions(self, cv_id: int, user_id: str = None) -> Optional[List[Dict[str, Any]]]:
+        """List all versions of a CV (metadata only, no content)."""
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Verify CV exists and user has access
+        if user_id:
+            cursor.execute("SELECT id FROM cvs WHERE id = ? AND user_id = ?", (cv_id, user_id))
+        else:
+            cursor.execute("SELECT id FROM cvs WHERE id = ?", (cv_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return None
+
+        cursor.execute('''
+            SELECT id, cv_id, version_number, filename, change_summary, created_at
+            FROM cv_versions WHERE cv_id = ?
+            ORDER BY version_number DESC
+        ''', (cv_id,))
+        rows = cursor.fetchall()
+
+        conn.close()
+
+        return [{
+            "id": row["id"],
+            "cv_id": row["cv_id"],
+            "version_number": row["version_number"],
+            "filename": row["filename"],
+            "change_summary": row["change_summary"],
+            "created_at": row["created_at"],
+        } for row in rows]
+
+    def get_cv_version(self, version_id: int) -> Optional[Dict[str, Any]]:
+        """Get a specific CV version with full content."""
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, cv_id, version_number, filename, content, change_summary, created_at
+            FROM cv_versions WHERE id = ?
+        ''', (version_id,))
+        row = cursor.fetchone()
+
+        conn.close()
+
+        if not row:
+            return None
+
         return {
+            "id": row["id"],
+            "cv_id": row["cv_id"],
+            "version_number": row["version_number"],
+            "filename": row["filename"],
+            "content": row["content"],
+            "change_summary": row["change_summary"],
+            "created_at": row["created_at"],
+        }
+
+    def get_cv_version_content(self, version_id: int) -> Optional[str]:
+        """Get only the content of a specific CV version (for job processing)."""
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT content FROM cv_versions WHERE id = ?", (version_id,))
+        row = cursor.fetchone()
+
+        conn.close()
+
+        if not row:
+            return None
+
+        return row["content"]
+
+    def _row_to_dict(self, row: sqlite3.Row, version_count: int = None) -> Dict[str, Any]:
+        """Convert a joined cvs+cv_versions row to a dictionary."""
+        # Handle version_number - may come from JOIN or fallback to 1
+        try:
+            version_number = row["version_number"]
+        except (IndexError, KeyError):
+            version_number = 1
+
+        try:
+            current_version_id = row["current_version_id"]
+        except (IndexError, KeyError):
+            current_version_id = None
+
+        result = {
             "id": row["id"],
             "user_id": row["user_id"] or "default",
             "name": row["name"],
@@ -781,4 +1023,11 @@ class CVStore:
             "is_default": bool(row["is_default"]),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
+            "version_number": version_number,
+            "current_version_id": current_version_id,
         }
+
+        if version_count is not None:
+            result["version_count"] = version_count
+
+        return result

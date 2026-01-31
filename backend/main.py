@@ -737,6 +737,8 @@ async def create_job(
     job_store.create_job(job_id, user_id=user_id)
 
     try:
+        cv_version_id = None  # Track which CV version is used (stored CVs only)
+
         # Handle CV - either from upload or from stored CV
         if cv_file:
             # Use uploaded file
@@ -746,9 +748,11 @@ async def create_job(
                 f.write(content)
         else:
             # Use stored CV (verify user ownership)
-            cv_content = cv_store.get_cv_content(cv_id, user_id=user_id)
-            if not cv_content:
+            cv_data = cv_store.get_cv(cv_id, user_id=user_id)
+            if not cv_data:
                 raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+            cv_content = cv_data.get("content", "")
+            cv_version_id = cv_data.get("current_version_id")
             cv_path = settings.UPLOADS_DIR / f"{job_id}_cv.txt"
             with open(cv_path, "w", encoding="utf-8") as f:
                 f.write(cv_content)
@@ -779,16 +783,19 @@ async def create_job(
             backend_config["model_name"] = backend_model or "gemini-2.0-flash"
             backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
         
-        # Update job with file paths and JD text
-        job_store.update_job(
-            job_id,
+        # Update job with file paths, JD text, and CV version link
+        update_kwargs: dict = dict(
             cv_path=str(cv_path),
             job_desc_path=str(job_desc_path),
             company_name=company_name,
             job_title=job_title,
             backend_type=backend_type,
-            job_description_text=job_description_text
+            job_description_text=job_description_text,
         )
+        # Track which CV version was used (only for stored CVs)
+        if cv_id and cv_version_id:
+            update_kwargs["cv_version_id"] = cv_version_id
+        job_store.update_job(job_id, **update_kwargs)
         
         # Add background task
         background_tasks.add_task(
@@ -1245,6 +1252,7 @@ async def create_cv(
             "filename": cv["filename"],
             "is_default": cv["is_default"],
             "created_at": cv["created_at"],
+            "version_number": cv.get("version_number", 1),
         }
 
     except Exception as e:
@@ -1296,7 +1304,37 @@ async def get_default_cv(user_id: str = Header(None, alias="X-User-ID")):
         "filename": cv["filename"],
         "is_default": cv["is_default"],
         "created_at": cv["created_at"],
+        "version_number": cv.get("version_number", 1),
     }
+
+
+# ============================================================================
+# CV Version Endpoints (Track 2.9.3)
+# ============================================================================
+
+@app.get("/api/cvs/{cv_id}/versions")
+async def list_cv_versions(cv_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """List all versions of a CV (metadata only, no content)."""
+    user_id = user_id or "default"
+    versions = cv_store.list_cv_versions(cv_id, user_id=user_id)
+    if versions is None:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return {"cv_id": cv_id, "versions": versions, "total": len(versions)}
+
+
+@app.get("/api/cvs/{cv_id}/versions/{version_id}")
+async def get_cv_version(cv_id: int, version_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """Get a specific CV version with full content."""
+    user_id = user_id or "default"
+    # Verify CV ownership first
+    versions = cv_store.list_cv_versions(cv_id, user_id=user_id)
+    if versions is None:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+
+    version = cv_store.get_cv_version(version_id)
+    if not version or version["cv_id"] != cv_id:
+        raise HTTPException(status_code=404, detail=f"Version {version_id} not found for CV {cv_id}")
+    return version
 
 
 # ============================================================================

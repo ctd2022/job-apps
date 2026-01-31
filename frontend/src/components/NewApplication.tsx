@@ -411,6 +411,11 @@ function NewApplication() {
                           className="w-3 h-3 text-slate-600 border-slate-300 dark:border-slate-500"
                         />
                         <span className="text-sm text-slate-800 dark:text-slate-200 truncate">{cv.name}</span>
+                        {cv.version_number && cv.version_number > 1 && (
+                          <span className="text-xs px-1 py-0.5 bg-slate-200 dark:bg-slate-500 text-slate-600 dark:text-slate-200 rounded">
+                            v{cv.version_number}
+                          </span>
+                        )}
                         {cv.is_default && <span className="text-xs text-slate-400">(default)</span>}
                       </div>
                       <div className="flex items-center">

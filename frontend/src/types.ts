@@ -39,6 +39,19 @@ export interface StoredCV {
   created_at: string;
   updated_at?: string;
   content?: string;  // Only included when fetching single CV
+  version_number?: number;  // Current version number
+  current_version_id?: number;
+  version_count?: number;
+}
+
+export interface CVVersion {
+  id: number;
+  cv_id: number;
+  version_number: number;
+  filename: string;
+  content?: string;  // Only when fetching single version
+  change_summary?: string;
+  created_at: string;
 }
 
 export interface Job {
@@ -62,6 +75,8 @@ export interface Job {
   response_at?: string;
   outcome_at?: string;
   notes?: string;
+  // CV version tracking
+  cv_version_id?: number;
 }
 
 export interface OutputFile {

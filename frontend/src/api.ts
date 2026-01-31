@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription, ATSAnalysisResponse } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription, ATSAnalysisResponse } from './types';
 
 const API_BASE = '/api';
 
@@ -111,6 +111,8 @@ function normalizeJob(data: any): Job {
     response_at: data.response_at,
     outcome_at: data.outcome_at,
     notes: data.notes,
+    // CV version tracking
+    cv_version_id: data.cv_version_id,
   };
 }
 
@@ -466,6 +468,23 @@ export async function setDefaultCV(id: number): Promise<void> {
   if (!response.ok) {
     throw new ApiError('Failed to set default CV', response.status);
   }
+}
+
+// CV Version endpoints (Track 2.9.3)
+
+export async function getCVVersions(cvId: number): Promise<CVVersion[]> {
+  const response = await fetch(`${API_BASE}/cvs/${cvId}/versions`, {
+    headers: getUserHeaders(),
+  });
+  const data = await handleResponse<any>(response);
+  return data?.versions || [];
+}
+
+export async function getCVVersion(cvId: number, versionId: number): Promise<CVVersion> {
+  const response = await fetch(`${API_BASE}/cvs/${cvId}/versions/${versionId}`, {
+    headers: getUserHeaders(),
+  });
+  return handleResponse(response);
 }
 
 export { ApiError };

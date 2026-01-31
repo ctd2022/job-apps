@@ -231,6 +231,12 @@ function JobDetail() {
               <span className="text-slate-500 dark:text-slate-400">ATS Analysis Enabled</span>
             </div>
           )}
+          {job.cv_version_id && (
+            <div className="flex items-center space-x-2">
+              <FileText className="w-4 h-4 text-slate-400" />
+              <span className="text-slate-500 dark:text-slate-400">CV version tracked</span>
+            </div>
+          )}
         </div>
 
         {/* View Original JD Button */}
