@@ -1,42 +1,31 @@
-# TODO.md - Agent Handover
+# Project Diary 022 - In-App CV Editor and Testing Strategy
 
-**Status**: PENDING
-**From**: Claude (Lead Architect)
-**To**: Gemini (Secondary Agent)
 **Date**: 31 January 2026
+**Focus**: In-App CV Text Editor (Idea #99), Per-Component Testing Strategy (Idea #104)
+**Status**: COMPLETE
 
 ---
 
-## Task 1: Write Project Diary Entry 022
+## Quick Resume
 
-### What to do
+> **Read this first when returning to the project after a break.**
 
-Create `docs/journal/PROJECT_DIARY_022.md` documenting this session (31 January 2026).
-
-### File to create
-
-`docs/journal/PROJECT_DIARY_022.md`
-
-### Format
-
-Follow the exact structure used in `docs/journal/PROJECT_DIARY_021.md`. No emojis (Windows cp1252).
-
-### Content to cover
-
-This session implemented idea #99 (In-App CV Text Editor) and introduced idea #104 (Per-Component Testing Strategy).
-
-#### Quick Resume section
-
-```
 - **Branch**: `track2.8-semantic-ats`
 - **Track**: 2.9.3 -- CV Improvement Pipeline in progress
 - **Last session**: Implemented idea #99 (In-App CV Text Editor). Added modal editor in JobDetail for editing CVs after ATS analysis. Saving creates a new CV version via existing versioning system. Also added idea #104 (Per-Component Testing Strategy) to the backlog.
 - **Next steps**: User testing of the CV text editor end-to-end. Then continue pipeline: #101 (Re-Match Against Same Job), #100 (Auto-Suggest Keywords), #102 (Score Comparison View). Consider #104 (Per-Component Testing) as a process improvement to adopt going forward.
 - **Blocked/broken**: Nothing -- backend and frontend compile clean, all pre-existing TS warnings only
 - **Ideas backlog**: #99 Done. #104 added (Per-Component Testing Strategy). Pipeline remaining: #100, #101, #102.
-```
 
-#### 1. Feature: In-App CV Text Editor (Idea #99) -- COMPLETE
+---
+
+## Summary
+
+This session implemented the In-App CV Text Editor (idea #99), the first interactive step in the CV improvement pipeline. Users can now directly edit their CV content from within the application after reviewing ATS results, creating a new version of their CV with each save. A new idea for a Per-Component Testing Strategy (#104) was also introduced to improve codebase quality going forward.
+
+---
+
+## 1. Feature: In-App CV Text Editor (Idea #99) -- COMPLETE
 
 This is step 1 of the "improve and re-score" loop. After viewing ATS results for a completed job, the user can now click "Edit CV" to open a modal text editor, edit the CV content, and save it as a new version.
 
@@ -68,11 +57,11 @@ This is step 1 of the "improve and re-score" loop. After viewing ATS results for
 
 **Commit:** `7e89cbd` -- `feat: Add in-app CV text editor (idea #99)`
 
-#### 2. New Idea: Per-Component Testing Strategy (Idea #104)
+## 2. New Idea: Per-Component Testing Strategy (Idea #104)
 
 Added to ideas.db. The concept: introduce a testing discipline where each completed feature/component gets a test suite before moving on. Include frontend component tests (vitest + testing-library), backend endpoint tests (pytest + httpx), and integration tests. This prevents regression as the codebase grows.
 
-#### 3. Action Items for User Testing
+## 3. Action Items for User Testing
 
 The CV text editor needs end-to-end user testing before building the next pipeline step (#101 Re-Match). Testing checklist:
 
@@ -88,6 +77,8 @@ The CV text editor needs end-to-end user testing before building the next pipeli
 10. Verify new version via: `curl http://localhost:8000/api/cvs/{cv_id}/versions` (should show v2+)
 11. Test edge cases: close without saving, empty content, very long content
 
+---
+
 ### Files Changed
 
 | File | Changes |
@@ -97,78 +88,3 @@ The CV text editor needs end-to-end user testing before building the next pipeli
 | `frontend/src/components/CVTextEditor.tsx` | **NEW** -- Modal CV text editor component |
 | `frontend/src/components/JobDetail.tsx` | Added Edit CV button, CVTextEditor modal integration |
 | `ideas.db` | #99 marked Done, #104 added (Per-Component Testing Strategy) |
-
-### What's Next
-
-- User testing of CV text editor (checklist above)
-- Begin adopting per-component testing (#104) -- write first tests for CVTextEditor and the new backend endpoints
-- Continue CV improvement pipeline: #101 (Re-Match), then #100 (Auto-Suggest), then #102 (Score Comparison)
-
-### Acceptance criteria
-
-- [ ] File created at `docs/journal/PROJECT_DIARY_022.md`
-- [ ] Follows format of diary 021 exactly (Quick Resume, Summary, sections, Files Changed table)
-- [ ] Covers all 3 content sections above
-- [ ] Includes user testing checklist as an action items section
-- [ ] Factual and concise tone, no emojis
-
----
-
-## Task 2: Commit and Push
-
-After creating the diary entry, stage and commit, then push.
-
-### Files to commit
-
-**Modified:**
-- `TODO.md`
-- `ideas.db`
-
-**New (untracked - add these):**
-- `docs/journal/PROJECT_DIARY_022.md`
-
-**DO NOT commit these:**
-- `.claude/settings.local.json`
-- `docs/raw/competitors-ux/`
-- `docs/summary_gpt29012026.md`
-- `frontend/src/reverse_string.py`
-- `job_applications.code-workspace`
-- `MIGRATION_REPORT.md`
-- `MIGRATION_REVIEW.md`
-- `gemini.md`
-- `requirements.txt`
-- `src/job_application_workflow.py`
-
-### Commit message
-
-```
-docs: Add diary entry 022 - CV text editor and testing strategy
-
-- Document idea #99 implementation (in-app CV text editor)
-- Add user testing checklist for end-to-end verification
-- Record idea #104 (per-component testing strategy)
-- Update ideas.db: #99 Done, #104 added
-```
-
-### After commit
-
-```bash
-git push origin track2.8-semantic-ats
-```
-
-### Acceptance criteria
-
-- [ ] Only the listed files are committed (nothing from the DO NOT commit list)
-- [ ] Commit message matches the one above
-- [ ] Push to `origin/track2.8-semantic-ats` succeeds
-
-### When done
-
-Update this file:
-1. Change **Status** at the top to `COMPLETE`
-2. Check all acceptance criteria boxes
-3. Add a `## Completion Summary` section
-
----
-
-**End of handover instructions**
