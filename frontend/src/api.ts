@@ -487,6 +487,25 @@ export async function getCVVersion(cvId: number, versionId: number): Promise<CVV
   return handleResponse(response);
 }
 
+export async function getCVVersionById(versionId: number): Promise<CVVersion> {
+  const response = await fetch(`${API_BASE}/cv-versions/${versionId}`, {
+    headers: getUserHeaders(),
+  });
+  return handleResponse(response);
+}
+
+export async function updateCVContent(
+  cvId: number,
+  update: { content: string; change_summary?: string }
+): Promise<StoredCV> {
+  const response = await fetch(`${API_BASE}/cvs/${cvId}/content`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(update),
+  });
+  return handleResponse(response);
+}
+
 export { ApiError };
 
 // ============================================================================

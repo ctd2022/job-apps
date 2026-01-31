@@ -187,6 +187,12 @@ class OutcomeUpdateRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class CVContentUpdateRequest(BaseModel):
+    """Request to update CV content (creates new version)"""
+    content: str
+    change_summary: Optional[str] = None
+
+
 class MetricsResponse(BaseModel):
     """Application funnel metrics"""
     total: int
@@ -1335,6 +1341,48 @@ async def get_cv_version(cv_id: int, version_id: int, user_id: str = Header(None
     if not version or version["cv_id"] != cv_id:
         raise HTTPException(status_code=404, detail=f"Version {version_id} not found for CV {cv_id}")
     return version
+
+
+@app.get("/api/cv-versions/{version_id}")
+async def get_cv_version_by_id(version_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """Get a CV version by version ID alone (without needing cv_id).
+
+    Jobs store only version_id, not cv_id, so this endpoint lets the
+    frontend fetch the version content directly.
+    """
+    user_id = user_id or "default"
+    version = cv_store.get_cv_version(version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail=f"CV version {version_id} not found")
+
+    # Verify user ownership via the parent CV
+    cv = cv_store.get_cv(version["cv_id"], user_id=user_id)
+    if not cv:
+        raise HTTPException(status_code=404, detail=f"CV version {version_id} not found")
+
+    return version
+
+
+@app.put("/api/cvs/{cv_id}/content")
+async def update_cv_content(
+    cv_id: int,
+    request: CVContentUpdateRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Update CV content, creating a new version.
+
+    Used by the in-app CV text editor after ATS analysis review.
+    """
+    user_id = user_id or "default"
+    updated = cv_store.update_cv(
+        cv_id,
+        user_id=user_id,
+        content=request.content,
+        change_summary=request.change_summary,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return updated
 
 
 # ============================================================================

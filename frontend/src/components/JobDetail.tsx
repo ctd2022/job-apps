@@ -11,11 +11,13 @@ import {
   Server,
   Calendar,
   FileText,
+  Edit3,
   X
 } from 'lucide-react';
 import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis } from '../api';
 import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData } from '../types';
 import FilePreview from './FilePreview';
+import CVTextEditor from './CVTextEditor';
 import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
 import MatchExplanationCard from './MatchExplanationCard';
 import MissingKeywordsAlert from './MissingKeywordsAlert';
@@ -47,6 +49,9 @@ function JobDetail() {
   // ATS Analysis state
   const [atsAnalysis, setAtsAnalysis] = useState<ATSAnalysisData | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+
+  // CV Editor modal state
+  const [showCVEditor, setShowCVEditor] = useState(false);
 
   // Job Description modal state
   const [showJD, setShowJD] = useState(false);
@@ -239,15 +244,24 @@ function JobDetail() {
           )}
         </div>
 
-        {/* View Original JD Button */}
-        <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-600">
+        {/* View Original JD / Edit CV Buttons */}
+        <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-600 flex items-center space-x-4">
           <button
             onClick={handleViewJobDescription}
             className="flex items-center space-x-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
           >
             <FileText className="w-4 h-4" />
-            <span>View Original Job Description</span>
+            <span>View Original JD</span>
           </button>
+          {job.status === 'completed' && job.cv_version_id && (
+            <button
+              onClick={() => setShowCVEditor(true)}
+              className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>Edit CV</span>
+            </button>
+          )}
         </div>
 
         {/* ATS Score */}
@@ -349,6 +363,15 @@ function JobDetail() {
           </button>
         </div>
       </div>
+
+      {/* CV Text Editor Modal */}
+      {showCVEditor && job.cv_version_id && (
+        <CVTextEditor
+          cvVersionId={job.cv_version_id}
+          onClose={() => setShowCVEditor(false)}
+          onSaved={() => loadJob()}
+        />
+      )}
 
       {/* Job Description Modal */}
       {showJD && (
