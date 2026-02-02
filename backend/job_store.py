@@ -106,6 +106,21 @@ def init_db():
         )
     ''')
 
+    # Match history table - track ATS score iterations per job (Idea #121)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS match_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT NOT NULL,
+            cv_version_id INTEGER,
+            score REAL NOT NULL,
+            matched INTEGER,
+            total INTEGER,
+            missing_count INTEGER,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (job_id) REFERENCES jobs(job_id)
+        )
+    ''')
+
     # Create basic indexes
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC)
@@ -115,6 +130,9 @@ def init_db():
     ''')
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_cv_versions_cv_id ON cv_versions(cv_id)
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_match_history_job ON match_history(job_id, created_at)
     ''')
 
     # Migration: Add outcome tracking columns (for existing databases)
@@ -192,6 +210,35 @@ def init_db():
                 version_id = cursor.lastrowid
                 cursor.execute("UPDATE cvs SET current_version_id = ? WHERE id = ?", (version_id, cv_row["id"]))
             print(f"[OK] Migrated {len(cvs_to_migrate)} CVs to cv_versions table")
+
+    # Migration: Backfill match_history from existing jobs with ATS scores (Idea #121)
+    cursor.execute("SELECT COUNT(*) FROM match_history")
+    history_count = cursor.fetchone()[0]
+    if history_count == 0:
+        cursor.execute("""
+            SELECT job_id, ats_score, cv_version_id, ats_details, created_at
+            FROM jobs WHERE ats_score IS NOT NULL
+        """)
+        jobs_to_migrate = cursor.fetchall()
+        for job_row in jobs_to_migrate:
+            matched = None
+            total = None
+            missing_count = None
+            if job_row["ats_details"]:
+                try:
+                    details = json.loads(job_row["ats_details"])
+                    matched = details.get("matched")
+                    total = details.get("total")
+                    missing_count = len(details.get("missing_keywords", []))
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            cursor.execute('''
+                INSERT INTO match_history (job_id, cv_version_id, score, matched, total, missing_count, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (job_row["job_id"], job_row["cv_version_id"], job_row["ats_score"],
+                  matched, total, missing_count, job_row["created_at"]))
+        if jobs_to_migrate:
+            print(f"[OK] Backfilled match_history for {len(jobs_to_migrate)} existing jobs")
 
     conn.commit()
     conn.close()
@@ -1030,4 +1077,68 @@ class CVStore:
         if version_count is not None:
             result["version_count"] = version_count
 
+        return result
+
+
+class MatchHistoryStore:
+    """SQLite-backed store for ATS match history per job (Idea #121)."""
+
+    def __init__(self) -> None:
+        init_db()
+
+    def add_entry(
+        self,
+        job_id: str,
+        score: float,
+        cv_version_id: Optional[int] = None,
+        matched: Optional[int] = None,
+        total: Optional[int] = None,
+        missing_count: Optional[int] = None,
+    ) -> int:
+        """Insert a match history entry. Returns the new row ID."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        cursor.execute('''
+            INSERT INTO match_history (job_id, cv_version_id, score, matched, total, missing_count, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (job_id, cv_version_id, score, matched, total, missing_count, now))
+        row_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return row_id
+
+    def get_history(self, job_id: str) -> List[Dict[str, Any]]:
+        """Get all match history entries for a job, ordered by creation time."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT mh.id, mh.job_id, mh.cv_version_id, mh.score, mh.matched,
+                   mh.total, mh.missing_count, mh.created_at,
+                   cv.version_number, cv.change_summary
+            FROM match_history mh
+            LEFT JOIN cv_versions cv ON mh.cv_version_id = cv.id
+            WHERE mh.job_id = ?
+            ORDER BY mh.created_at ASC
+        ''', (job_id,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        result: List[Dict[str, Any]] = []
+        for i, row in enumerate(rows):
+            entry: Dict[str, Any] = {
+                "id": row["id"],
+                "job_id": row["job_id"],
+                "cv_version_id": row["cv_version_id"],
+                "score": row["score"],
+                "matched": row["matched"],
+                "total": row["total"],
+                "missing_count": row["missing_count"],
+                "created_at": row["created_at"],
+                "version_number": row["version_number"],
+                "change_summary": row["change_summary"],
+                "iteration": i + 1,
+                "delta": round(row["score"] - rows[i - 1]["score"], 1) if i > 0 else None,
+            }
+            result.append(entry)
         return result

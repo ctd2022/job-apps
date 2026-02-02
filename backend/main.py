@@ -99,9 +99,9 @@ class BackendType(str, Enum):
 # Import from job_store module
 # Handle both direct run and uvicorn import contexts
 try:
-    from job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore
+    from job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore, MatchHistoryStore
 except ImportError:
-    from backend.job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore
+    from backend.job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore, MatchHistoryStore
 
 
 class BackendConfig(BaseModel):
@@ -240,6 +240,7 @@ def get_current_user_id(x_user_id: Optional[str] = Header(None)) -> str:
 job_store = JobStore()
 cv_store = CVStore()
 user_store = UserStore()
+match_history_store = MatchHistoryStore()
 
 
 # ============================================================================
@@ -423,8 +424,20 @@ async def process_job_application(
                 ats_score=ats_score['score'],
                 ats_details=ats_details_json
             )
+
+            # Record initial match history entry (Idea #121)
+            job_data = job_store.get_job(job_id)
+            match_history_store.add_entry(
+                job_id=job_id,
+                score=ats_score['score'],
+                cv_version_id=job_data.get("cv_version_id") if job_data else None,
+                matched=ats_score.get('matched'),
+                total=ats_score.get('total'),
+                missing_count=len(ats_score.get('missing_keywords', [])),
+            )
+
             await asyncio.sleep(0.1)
-            
+
             tailored_cv = ats_optimizer.generate_ats_optimized_cv(
                 base_cv, job_description, key_requirements
             )
@@ -1081,6 +1094,16 @@ async def rematch_ats(
         cv_version_id=request.cv_version_id,
     )
 
+    # Record re-match in history (Idea #121)
+    match_history_store.add_entry(
+        job_id=job_id,
+        score=new_score,
+        cv_version_id=request.cv_version_id,
+        matched=ats_score_dict.get('matched'),
+        total=ats_score_dict.get('total'),
+        missing_count=len(ats_score_dict.get('missing_keywords', [])),
+    )
+
     return {
         "job_id": job_id,
         "old_score": old_score,
@@ -1089,6 +1112,20 @@ async def rematch_ats(
         "ats_details": ats_score_dict,
         "cv_version_id": request.cv_version_id,
     }
+
+
+@app.get("/api/jobs/{job_id}/match-history")
+async def get_match_history(
+    job_id: str,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Get ATS match iteration history for a job (Idea #121)."""
+    user_id = user_id or "default"
+    job = job_store.get_job(job_id, user_id=user_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    history = match_history_store.get_history(job_id)
+    return {"job_id": job_id, "history": history}
 
 
 @app.get("/api/metrics", response_model=MetricsResponse)

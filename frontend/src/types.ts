@@ -274,3 +274,24 @@ export interface ATSComparisonData {
   keywordsAddressed: string[];
   keywordsStillMissing: string[];
 }
+
+// Match History (Idea #121)
+export interface MatchHistoryEntry {
+  id: number;
+  job_id: string;
+  cv_version_id: number | null;
+  score: number;
+  matched: number | null;
+  total: number | null;
+  missing_count: number | null;
+  created_at: string;
+  version_number: number | null;
+  change_summary: string | null;
+  iteration: number;
+  delta: number | null;
+}
+
+export interface MatchHistoryResponse {
+  job_id: string;
+  history: MatchHistoryEntry[];
+}

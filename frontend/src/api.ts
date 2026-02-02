@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse } from './types';
 
 const API_BASE = '/api';
 
@@ -247,6 +247,14 @@ export async function rematchATS(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
     body: JSON.stringify({ cv_version_id: cvVersionId }),
+  });
+  return handleResponse(response);
+}
+
+// Match History (Idea #121)
+export async function getMatchHistory(jobId: string): Promise<MatchHistoryResponse> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/match-history`, {
+    headers: getUserHeaders(),
   });
   return handleResponse(response);
 }

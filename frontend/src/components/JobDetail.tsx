@@ -14,12 +14,13 @@ import {
   Edit3,
   X
 } from 'lucide-react';
-import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis } from '../api';
-import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData } from '../types';
+import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory } from '../api';
+import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry } from '../types';
 import FilePreview from './FilePreview';
 import CVTextEditor from './CVTextEditor';
 import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
 import MatchExplanationCard from './MatchExplanationCard';
+import MatchHistoryTable from './MatchHistoryTable';
 import MissingKeywordsAlert from './MissingKeywordsAlert';
 import CVCompletenessMeter from './CVCompletenessMeter';
 
@@ -49,6 +50,7 @@ function JobDetail() {
   // ATS Analysis state
   const [atsAnalysis, setAtsAnalysis] = useState<ATSAnalysisData | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([]);
 
   // CV Editor modal state
   const [showCVEditor, setShowCVEditor] = useState(false);
@@ -74,12 +76,16 @@ function JobDetail() {
       setFiles(filesData);
       setError(null);
 
-      // Fetch ATS analysis for completed jobs
+      // Fetch ATS analysis and match history for completed jobs
       if (jobData.status === 'completed' && jobData.enable_ats) {
         setLoadingAnalysis(true);
         try {
-          const result = await getATSAnalysis(id!);
-          setAtsAnalysis(result.analysis);
+          const [atsResult, historyResult] = await Promise.all([
+            getATSAnalysis(id!),
+            getMatchHistory(id!).catch(() => ({ job_id: id!, history: [] })),
+          ]);
+          setAtsAnalysis(atsResult.analysis);
+          setMatchHistory(historyResult.history);
         } catch {
           // ATS analysis is optional - don't fail the page
         } finally {
@@ -292,6 +298,13 @@ function JobDetail() {
             </div>
           );
         })()}
+
+        {/* Match History (Idea #121) */}
+        {matchHistory.length > 1 && (
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
+            <MatchHistoryTable history={matchHistory} />
+          </div>
+        )}
 
         {/* ATS Analysis Details */}
         {job.status === 'completed' && atsAnalysis && (
