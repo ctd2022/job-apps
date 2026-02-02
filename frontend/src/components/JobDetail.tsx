@@ -368,8 +368,9 @@ function JobDetail() {
       {showCVEditor && job.cv_version_id && (
         <CVTextEditor
           cvVersionId={job.cv_version_id}
-          onClose={() => setShowCVEditor(false)}
+          onClose={() => { setShowCVEditor(false); loadJob(); }}
           onSaved={() => loadJob()}
+          jobId={job.id}
         />
       )}
 

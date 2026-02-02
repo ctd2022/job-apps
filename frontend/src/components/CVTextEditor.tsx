@@ -1,15 +1,74 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Save, X, CheckCircle, AlertCircle } from 'lucide-react';
-import { getCVVersionById, updateCVContent } from '../api';
-import type { CVVersion } from '../types';
+import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis } from '../api';
+import type { CVVersion, RematchResponse, ATSAnalysisData, ATSComparisonData, CategoryComparison } from '../types';
+import MissingKeywordsAlert from './MissingKeywordsAlert';
+import MatchExplanationCard from './MatchExplanationCard';
+import CVCompletenessMeter from './CVCompletenessMeter';
+import ScoreComparisonPanel from './ScoreComparisonPanel';
 
 interface CVTextEditorProps {
   cvVersionId: number;
   onClose: () => void;
   onSaved: () => void;
+  jobId?: string;
 }
 
-function CVTextEditor({ cvVersionId, onClose, onSaved }: CVTextEditorProps) {
+function computeComparison(
+  oldAnalysis: ATSAnalysisData,
+  newAnalysis: ATSAnalysisData,
+  oldScore: number | null,
+  newScore: number,
+  delta: number,
+): ATSComparisonData {
+  const allCategories = new Set([
+    ...Object.keys(oldAnalysis.scores_by_category),
+    ...Object.keys(newAnalysis.scores_by_category),
+  ]);
+
+  const categories: CategoryComparison[] = [];
+  const allAddressed: string[] = [];
+  const allStillMissing: string[] = [];
+
+  for (const cat of allCategories) {
+    const oldCat = oldAnalysis.scores_by_category[cat];
+    const newCat = newAnalysis.scores_by_category[cat];
+    if (!oldCat || !newCat) continue;
+
+    const newMatchedSet = new Set(newCat.items_matched);
+    const newMissingSet = new Set(newCat.items_missing);
+
+    const nowMatched = oldCat.items_missing.filter(k => newMatchedSet.has(k));
+    const stillMissing = newCat.items_missing;
+    const newlyMissing = oldCat.items_matched.filter(k => newMissingSet.has(k));
+
+    categories.push({
+      category: cat,
+      oldMatched: oldCat.matched,
+      oldMissing: oldCat.missing,
+      newMatched: newCat.matched,
+      newMissing: newCat.missing,
+      delta: newCat.matched - oldCat.matched,
+      keywordsNowMatched: nowMatched,
+      keywordsStillMissing: stillMissing,
+      keywordsNewlyMissing: newlyMissing,
+    });
+
+    allAddressed.push(...nowMatched);
+    allStillMissing.push(...stillMissing);
+  }
+
+  return {
+    oldScore,
+    newScore,
+    delta,
+    categories,
+    keywordsAddressed: [...new Set(allAddressed)],
+    keywordsStillMissing: [...new Set(allStillMissing)],
+  };
+}
+
+function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProps) {
   const [version, setVersion] = useState<CVVersion | null>(null);
   const [content, setContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
@@ -18,12 +77,31 @@ function CVTextEditor({ cvVersionId, onClose, onSaved }: CVTextEditorProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedVersionNumber, setSavedVersionNumber] = useState<number | null>(null);
+  const [savedNewVersionId, setSavedNewVersionId] = useState<number | null>(null);
+
+  // Re-match state
+  const [rematching, setRematching] = useState(false);
+  const [rematchResult, setRematchResult] = useState<RematchResponse | null>(null);
+  const [rematchError, setRematchError] = useState<string | null>(null);
+
+  // ATS Feedback state (#120)
+  const [atsAnalysis, setAtsAnalysis] = useState<ATSAnalysisData | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+
+  // Comparison state (#102)
+  const [comparison, setComparison] = useState<ATSComparisonData | null>(null);
 
   const isDirty = content !== originalContent;
 
   useEffect(() => {
     loadVersion();
   }, [cvVersionId]);
+
+  useEffect(() => {
+    if (jobId) {
+      loadATSAnalysis();
+    }
+  }, [jobId]);
 
   async function loadVersion() {
     try {
@@ -40,18 +118,36 @@ function CVTextEditor({ cvVersionId, onClose, onSaved }: CVTextEditorProps) {
     }
   }
 
+  async function loadATSAnalysis() {
+    if (!jobId) return;
+    try {
+      setLoadingAnalysis(true);
+      const result = await getATSAnalysis(jobId);
+      if (result.analysis) {
+        setAtsAnalysis(result.analysis);
+      }
+    } catch {
+      // Non-critical: right pane just stays empty
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  }
+
   async function handleSave() {
     if (!version || !isDirty || saving) return;
     try {
       setSaving(true);
       setError(null);
+      setRematchResult(null);
+      setRematchError(null);
+      setComparison(null);
       const updated = await updateCVContent(version.cv_id, {
         content,
         change_summary: changeSummary || undefined,
       });
       setSavedVersionNumber(updated.version_number ?? null);
+      setSavedNewVersionId(updated.current_version_id ?? null);
       setOriginalContent(content);
-      onSaved();
     } catch (err: any) {
       setError(err?.message || 'Failed to save CV');
     } finally {
@@ -59,9 +155,48 @@ function CVTextEditor({ cvVersionId, onClose, onSaved }: CVTextEditorProps) {
     }
   }
 
+  async function handleRematch() {
+    if (!jobId || !savedNewVersionId || rematching) return;
+    try {
+      setRematching(true);
+      setRematchError(null);
+      setComparison(null);
+
+      // Snapshot current analysis for comparison
+      const snapshotAnalysis = atsAnalysis;
+
+      const result = await rematchATS(jobId, savedNewVersionId);
+      setRematchResult(result);
+
+      // Update right pane with new analysis
+      const newAnalysis = result.ats_details;
+      setAtsAnalysis(newAnalysis);
+
+      // Compute comparison if we had previous data
+      if (snapshotAnalysis) {
+        const comp = computeComparison(
+          snapshotAnalysis,
+          newAnalysis,
+          result.old_score,
+          result.new_score,
+          result.delta,
+        );
+        setComparison(comp);
+      }
+
+      onSaved();
+    } catch (err: any) {
+      setRematchError(err?.message || 'Failed to re-match');
+    } finally {
+      setRematching(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full ${
+        jobId ? 'max-w-7xl' : 'max-w-4xl'
+      } max-h-[90vh] flex flex-col`}>
         {/* Header */}
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <div>
@@ -82,57 +217,162 @@ function CVTextEditor({ cvVersionId, onClose, onSaved }: CVTextEditorProps) {
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-auto p-4 space-y-3">
-          {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-            </div>
-          ) : error && !version ? (
-            <div className="flex items-center space-x-2 text-red-600 dark:text-red-400">
-              <AlertCircle className="w-5 h-5" />
-              <span className="text-sm">{error}</span>
-            </div>
-          ) : (
-            <>
-              {/* Success banner */}
-              {savedVersionNumber !== null && (
-                <div className="flex items-center space-x-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-2 rounded text-sm text-green-700 dark:text-green-300">
-                  <CheckCircle className="w-4 h-4" />
-                  <span>Saved as version {savedVersionNumber}</span>
-                </div>
-              )}
-
-              {/* Save error */}
-              {error && (
-                <div className="flex items-center space-x-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-2 rounded text-sm text-red-700 dark:text-red-300">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {/* Textarea */}
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="w-full h-96 font-mono text-sm p-3 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
-                spellCheck={false}
-              />
-
-              {/* Change summary */}
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                  Change summary (optional)
-                </label>
-                <input
-                  type="text"
-                  value={changeSummary}
-                  onChange={(e) => setChangeSummary(e.target.value)}
-                  placeholder="e.g. Added missing Python keyword, rewrote summary"
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+        {/* Body - split pane */}
+        <div className="flex-1 overflow-hidden flex">
+          {/* Left Pane: Editor */}
+          <div className="flex-1 min-w-0 overflow-auto p-4 space-y-3">
+            {loading ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
               </div>
-            </>
+            ) : error && !version ? (
+              <div className="flex items-center space-x-2 text-red-600 dark:text-red-400">
+                <AlertCircle className="w-5 h-5" />
+                <span className="text-sm">{error}</span>
+              </div>
+            ) : (
+              <>
+                {/* Success banner */}
+                {savedVersionNumber !== null && (
+                  <div className="flex items-center space-x-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-2 rounded text-sm text-green-700 dark:text-green-300">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Saved as version {savedVersionNumber}</span>
+                  </div>
+                )}
+
+                {/* Re-match prompt */}
+                {savedVersionNumber !== null && jobId && !rematchResult && !rematching && (
+                  <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded">
+                    <span className="text-sm text-blue-700 dark:text-blue-300">
+                      Re-run ATS analysis with your updated CV?
+                    </span>
+                    <button
+                      onClick={handleRematch}
+                      className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      <span>Re-match</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Re-match in progress */}
+                {rematching && (
+                  <div className="flex items-center space-x-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded text-sm text-blue-700 dark:text-blue-300">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Running ATS analysis... This may take 15-60 seconds.</span>
+                  </div>
+                )}
+
+                {/* Re-match result (compact - details in right pane) */}
+                {rematchResult && (
+                  <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-2 rounded text-sm">
+                    <div className="flex items-center space-x-2 text-green-700 dark:text-green-300">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>ATS Re-Match Complete</span>
+                    </div>
+                    <div className="flex items-center space-x-2 font-mono text-sm">
+                      <span className="text-slate-500 dark:text-slate-400">
+                        {rematchResult.old_score != null ? `${rematchResult.old_score}%` : 'N/A'}
+                      </span>
+                      <span className="text-slate-400">-&gt;</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100">
+                        {rematchResult.new_score}%
+                      </span>
+                      <span className={`font-bold ${
+                        rematchResult.delta > 0
+                          ? 'text-green-600 dark:text-green-400'
+                          : rematchResult.delta < 0
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-slate-500'
+                      }`}>
+                        ({rematchResult.delta > 0 ? '+' : ''}{rematchResult.delta})
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Re-match error */}
+                {rematchError && (
+                  <div className="flex items-center space-x-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-2 rounded text-sm text-red-700 dark:text-red-300">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{rematchError}</span>
+                  </div>
+                )}
+
+                {/* Save error */}
+                {error && (
+                  <div className="flex items-center space-x-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-2 rounded text-sm text-red-700 dark:text-red-300">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {/* Textarea */}
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="w-full min-h-[300px] h-96 font-mono text-sm p-3 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  spellCheck={false}
+                />
+
+                {/* Change summary */}
+                <div>
+                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+                    Change summary (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={changeSummary}
+                    onChange={(e) => setChangeSummary(e.target.value)}
+                    placeholder="e.g. Added missing Python keyword, rewrote summary"
+                    className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Divider */}
+          {jobId && (
+            <div className="w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
+          )}
+
+          {/* Right Pane: ATS Feedback */}
+          {jobId && (
+            <div className="w-[400px] flex-shrink-0 overflow-y-auto p-4 space-y-3 bg-slate-50 dark:bg-slate-800/50">
+              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                ATS Feedback
+              </h4>
+
+              {/* Score comparison after re-match */}
+              {comparison && (
+                <ScoreComparisonPanel comparison={comparison} />
+              )}
+
+              {/* Loading analysis */}
+              {loadingAnalysis && (
+                <div className="flex items-center space-x-2 text-sm text-slate-500 dark:text-slate-400 py-4">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading ATS analysis...</span>
+                </div>
+              )}
+
+              {/* ATS Analysis components */}
+              {atsAnalysis && !loadingAnalysis && (
+                <>
+                  <MissingKeywordsAlert analysis={atsAnalysis} />
+                  <MatchExplanationCard analysis={atsAnalysis} />
+                  <CVCompletenessMeter analysis={atsAnalysis} />
+                </>
+              )}
+
+              {!atsAnalysis && !loadingAnalysis && (
+                <div className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">
+                  No ATS analysis available for this job.
+                </div>
+              )}
+            </div>
           )}
         </div>
 

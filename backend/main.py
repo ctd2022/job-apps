@@ -145,6 +145,7 @@ class JobStatusResponse(BaseModel):
     ats_score: Optional[float] = None
     files: Optional[List[str]] = None
     error: Optional[str] = None
+    cv_version_id: Optional[int] = None
 
 
 class HealthResponse(BaseModel):
@@ -191,6 +192,11 @@ class CVContentUpdateRequest(BaseModel):
     """Request to update CV content (creates new version)"""
     content: str
     change_summary: Optional[str] = None
+
+
+class RematchRequest(BaseModel):
+    """Request to re-run ATS analysis with a different CV version."""
+    cv_version_id: int
 
 
 class MetricsResponse(BaseModel):
@@ -849,7 +855,8 @@ async def get_job_status(job_id: str):
         output_dir=job["output_dir"],
         ats_score=job["ats_score"],
         files=job["files"],
-        error=job["error"]
+        error=job["error"],
+        cv_version_id=job.get("cv_version_id"),
     )
 
 
@@ -994,6 +1001,93 @@ async def get_ats_analysis(job_id: str):
         "analysis": None,
         "source": None,
         "message": "Detailed ATS analysis not available for this job (created before Track 2.9.2)"
+    }
+
+
+@app.post("/api/jobs/{job_id}/rematch")
+async def rematch_ats(
+    job_id: str,
+    request: RematchRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Re-run ATS analysis for an existing job using a new CV version.
+
+    Runs only the ATS scoring pipeline (no CV generation, cover letter, or Q&A).
+    Updates the job record with the new score, details, and CV version ID.
+    """
+    user_id = user_id or "default"
+
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Workflow modules not available. Check server logs.",
+        )
+
+    job = job_store.get_job(job_id, user_id=user_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if job["status"] != "completed":
+        raise HTTPException(
+            status_code=400, detail="Can only re-match completed jobs"
+        )
+
+    cv_content = cv_store.get_cv_version_content(request.cv_version_id)
+    if not cv_content:
+        raise HTTPException(
+            status_code=404,
+            detail=f"CV version {request.cv_version_id} not found",
+        )
+
+    job_description = job_store.get_job_description_text(job_id)
+    if not job_description:
+        raise HTTPException(
+            status_code=400,
+            detail="Job description text not available for this job",
+        )
+
+    # Reconstruct LLM backend from job's stored backend_type
+    backend_type = job.get("backend_type", "ollama")
+    backend_config: Dict[str, Any] = {}
+    if backend_type == "ollama":
+        backend_config["model_name"] = "llama3.1:8b"
+    elif backend_type == "llamacpp":
+        backend_config["model_name"] = "gemma-3-27B"
+        backend_config["base_url"] = "http://localhost:8080"
+    elif backend_type == "gemini":
+        backend_config["model_name"] = "gemini-2.0-flash"
+        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+
+    backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
+    ats_optimizer = ATSOptimizer(
+        backend=backend, company_name=job.get("company_name")
+    )
+
+    old_score = job.get("ats_score")
+
+    loop = asyncio.get_event_loop()
+    _report, _key_req, ats_score_dict = await loop.run_in_executor(
+        None, ats_optimizer.generate_ats_report, cv_content, job_description
+    )
+
+    new_score = ats_score_dict["score"]
+    delta = round(new_score - (old_score or 0), 1)
+    ats_details_json = json.dumps(ats_score_dict)
+
+    job_store.update_job(
+        job_id,
+        ats_score=new_score,
+        ats_details=ats_details_json,
+        cv_version_id=request.cv_version_id,
+    )
+
+    return {
+        "job_id": job_id,
+        "old_score": old_score,
+        "new_score": new_score,
+        "delta": delta,
+        "ats_details": ats_score_dict,
+        "cv_version_id": request.cv_version_id,
     }
 
 

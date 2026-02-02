@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription, ATSAnalysisResponse } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse } from './types';
 
 const API_BASE = '/api';
 
@@ -236,6 +236,18 @@ export async function getJobDescription(jobId: string): Promise<JobDescription> 
 // ATS Analysis (Track 2.9.2)
 export async function getATSAnalysis(jobId: string): Promise<ATSAnalysisResponse> {
   const response = await fetch(`${API_BASE}/jobs/${jobId}/ats-analysis`);
+  return handleResponse(response);
+}
+
+export async function rematchATS(
+  jobId: string,
+  cvVersionId: number,
+): Promise<RematchResponse> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/rematch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ cv_version_id: cvVersionId }),
+  });
   return handleResponse(response);
 }
 

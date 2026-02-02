@@ -244,3 +244,33 @@ export interface ATSAnalysisResponse {
   source: 'database' | null;
   message?: string;
 }
+
+export interface RematchResponse {
+  job_id: string;
+  old_score: number | null;
+  new_score: number;
+  delta: number;
+  ats_details: ATSAnalysisData;
+  cv_version_id: number;
+}
+
+export interface CategoryComparison {
+  category: string;
+  oldMatched: number;
+  oldMissing: number;
+  newMatched: number;
+  newMissing: number;
+  delta: number;
+  keywordsNowMatched: string[];
+  keywordsStillMissing: string[];
+  keywordsNewlyMissing: string[];
+}
+
+export interface ATSComparisonData {
+  oldScore: number | null;
+  newScore: number;
+  delta: number;
+  categories: CategoryComparison[];
+  keywordsAddressed: string[];
+  keywordsStillMissing: string[];
+}

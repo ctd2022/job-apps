@@ -9,11 +9,12 @@
 ## YOUR ROLE AND BOUNDARIES
 
 ### You MUST:
+- **Read the latest `docs/journal/PROJECT_DIARY_*.md` Quick Resume section first** to orient yourself on current state
 - Follow all code style conventions defined below (established by Claude)
 - Read `MASTER_VISION.md` before starting any work to understand project status
 - Check `ideas.db` before implementing features: `python scripts/ideas.py list`
 - Update `ideas.db` status when starting/completing work (see workflow below)
-- Create a diary entry in `docs/journal/` for significant changes
+- Create a diary entry in `docs/journal/` for significant changes (must include Quick Resume section -- see template below)
 - Run `cd frontend && npx tsc --noEmit` after any TypeScript changes
 - Test changes manually before marking work complete
 
@@ -169,7 +170,24 @@ curl http://localhost:8000/api/health
    conn.commit(); conn.close()
    "
    ```
-6. **Write diary entry** in `docs/journal/PROJECT_DIARY_NNN.md`
+6. **Write diary entry** in `docs/journal/PROJECT_DIARY_NNN.md` (must include Quick Resume)
+
+### Diary Entry Quick Resume Template
+
+**Every diary entry MUST start with a Quick Resume section** right after the header. This lets agents quickly regain context when returning after a break.
+
+```markdown
+## Quick Resume
+
+> **Read this first when returning to the project after a break.**
+
+- **Branch**: current git branch
+- **Track**: current track and status
+- **Last session**: 1-2 sentence summary of what was accomplished
+- **Next steps**: what to pick up next
+- **Blocked/broken**: any known issues, or "Nothing"
+- **Ideas backlog**: notable new/high-priority ideas if any
+```
 
 ---
 
@@ -189,6 +207,13 @@ The user will switch you (Gemini) in when a task matches your strengths. Here is
 - You encounter an **ambiguity** in how something should work
 - The change would affect **core business logic** (ATS scoring, workflow pipeline, LLM integration)
 - You need to **design a new feature** from scratch (Claude plans, you implement)
+
+### CRITICAL: Never run alongside Claude
+- You and Claude **cannot see each other** and have **no coordination mechanism**
+- If both agents are active simultaneously, you will conflict: killing each other's processes, fighting over ports, editing the same files
+- The handover is strictly **turn-based**: the user must fully exit Claude before starting you, and fully exit you before returning to Claude
+- **Do not** start/stop/kill backend or frontend services unless your TODO.md task specifically requires it -- Claude may have left them running intentionally
+- If you need to restart a service, first check for stale processes: `netstat -ano | findstr :8000`
 
 ### Handover artifacts:
 - Check `TODO.md` in the project root for instructions from Claude
@@ -225,6 +250,19 @@ The user will switch you (Gemini) in when a task matches your strengths. Here is
 | Unicode/emoji errors | Use text labels `[OK]` not emojis (Windows cp1252 encoding) |
 | TypeScript errors | Run `cd frontend && npx tsc --noEmit` to see full error list |
 | Import errors in Python | Ensure venv is activated: `.\venv\Scripts\Activate.ps1` |
+| `workflow_available: false` | Check for stale processes first: `netstat -ano \| findstr :8000` then kill zombie PIDs with `taskkill /F /PID <pid>`. Only investigate imports after confirming a fresh process is serving. |
+| Backend restart has no effect | Uvicorn child processes survive parent kill on Windows. Verify port is free before restarting. |
+| "Was working before, now broken" | Suspect stale processes or port conflicts before assuming missing dependencies. Run `tasklist \| findstr python` to find zombies. |
+
+### Debugging Protocol
+
+When investigating backend errors, **always follow this order**:
+
+1. **Check port ownership first**: `netstat -ano | findstr :8000 | findstr LISTENING`
+2. **Kill stale processes**: `taskkill /F /PID <pid>` for any zombies
+3. **Restart on clean port**: Verify port is free, then start server
+4. **Check health**: `curl http://localhost:8000/api/health`
+5. **Only then** investigate code/dependency issues if health still fails on a fresh process
 
 ---
 

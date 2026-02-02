@@ -9,6 +9,8 @@ Usage:
     python scripts/ideas.py add                     # Add new idea (interactive)
     python scripts/ideas.py show 1                  # Show idea details
     python scripts/ideas.py update 1 --status "In Progress"
+    python scripts/ideas.py update 1 --set-sprint "Q3-Features"
+    python scripts/ideas.py update 1 --add-prereq 2
 """
 
 import sqlite3
@@ -20,7 +22,11 @@ DB_PATH = Path(__file__).parent.parent / "ideas.db"
 
 
 def get_connection():
-    return sqlite3.connect(DB_PATH)
+    # isolation_level=None for autocommit on DDL
+    conn = sqlite3.connect(DB_PATH, isolation_level=None)
+    # Enable foreign key support
+    conn.execute("PRAGMA foreign_keys = 1")
+    return conn
 
 
 def list_ideas(status=None, category=None, sort_by="priority", limit=50):
@@ -29,7 +35,11 @@ def list_ideas(status=None, category=None, sort_by="priority", limit=50):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    query = "SELECT id, title, category, complexity, impact, priority, status FROM ideas WHERE 1=1"
+    # Get all dependencies to check for blocked ideas
+    cursor.execute("SELECT DISTINCT idea_id FROM idea_dependencies")
+    blocked_ids = {row['idea_id'] for row in cursor.fetchall()}
+
+    query = "SELECT id, title, category, complexity, impact, priority, status, sprint_group FROM ideas WHERE 1=1"
     params = []
 
     if status:
@@ -39,7 +49,13 @@ def list_ideas(status=None, category=None, sort_by="priority", limit=50):
         query += " AND category = ?"
         params.append(category)
 
-    query += f" ORDER BY {sort_by} DESC, id LIMIT ?"
+    # Allow sorting by sprint group
+    if sort_by == "sprint":
+        query += " ORDER BY sprint_group, priority DESC, id"
+    else:
+        query += f" ORDER BY {sort_by} DESC, id"
+
+    query += " LIMIT ?"
     params.append(limit)
 
     cursor.execute(query, params)
@@ -50,12 +66,17 @@ def list_ideas(status=None, category=None, sort_by="priority", limit=50):
         return
 
     # Print header
-    print(f"\n{'ID':<4} {'Title':<35} {'Category':<12} {'Cplx':<6} {'Impact':<6} {'Pri':<4} {'Status':<12}")
-    print("-" * 95)
+    print(f"\n{'ID':<4} {'Title':<35} {'Category':<12} {'Cplx':<6} {'Impact':<6} {'Pri':<4} {'Status':<14} {'Sprint Group':<20}")
+    print("-" * 115)
 
     for row in rows:
         title = row['title'][:33] + '..' if len(row['title']) > 35 else row['title']
-        print(f"{row['id']:<4} {title:<35} {row['category']:<12} {row['complexity']:<6} {row['impact']:<6} {row['priority']:<4} {row['status']:<12}")
+        status = row['status']
+        if row['id'] in blocked_ids:
+            status = f"{status} [B]" # Blocked indicator
+
+        sprint_group = row['sprint_group'] or ''
+        print(f"{row['id']:<4} {title:<35} {row['category']:<12} {row['complexity']:<6} {row['impact']:<6} {row['priority']:<4} {status:<14} {sprint_group:<20}")
 
     print(f"\nTotal: {len(rows)} ideas")
     conn.close()
@@ -77,6 +98,7 @@ def show_idea(idea_id):
     print(f"\n{'='*60}")
     print(f"ID: {row['id']}")
     print(f"Title: {row['title']}")
+    print(f"Sprint Group: {row['sprint_group'] or 'None'}")
     print(f"{'='*60}")
     print(f"Category: {row['category']}")
     print(f"Complexity: {row['complexity']}")
@@ -90,8 +112,34 @@ def show_idea(idea_id):
     print(f"\nDescription:\n{row['description']}")
     if row['notes']:
         print(f"\nNotes:\n{row['notes']}")
-    print()
 
+    # Show prerequisites
+    cursor.execute("""
+        SELECT i.id, i.title, i.status
+        FROM ideas i
+        JOIN idea_dependencies d ON i.id = d.dependency_id
+        WHERE d.idea_id = ?
+    """, (idea_id,))
+    prereqs = cursor.fetchall()
+    if prereqs:
+        print("\nPrerequisites (must be completed first):")
+        for p in prereqs:
+            print(f"  - #{p['id']} [{p['status']}] {p['title']}")
+
+    # Show ideas this one blocks
+    cursor.execute("""
+        SELECT i.id, i.title, i.status
+        FROM ideas i
+        JOIN idea_dependencies d ON i.id = d.idea_id
+        WHERE d.dependency_id = ?
+    """, (idea_id,))
+    blocking = cursor.fetchall()
+    if blocking:
+        print("\nBlocks the following ideas:")
+        for b in blocking:
+            print(f"  - #{b['id']} [{b['status']}] {b['title']}")
+
+    print()
     conn.close()
 
 
@@ -105,6 +153,7 @@ def add_idea():
         return
 
     description = input("Description: ").strip()
+    sprint_group = input("Sprint Group (optional): ").strip() or None
 
     print("\nCategories: UI, Backend, Feature, Integration, Track 3, Other")
     category = input("Category [Feature]: ").strip() or "Feature"
@@ -125,9 +174,9 @@ def add_idea():
     cursor = conn.cursor()
 
     cursor.execute('''
-        INSERT INTO ideas (title, description, category, complexity, impact, priority, source, source_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (title, description, category, complexity, impact, priority, source, source_url))
+        INSERT INTO ideas (title, description, category, complexity, impact, priority, source, source_url, sprint_group)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (title, description, category, complexity, impact, priority, source, source_url, sprint_group))
 
     conn.commit()
     idea_id = cursor.lastrowid
@@ -136,23 +185,37 @@ def add_idea():
     print(f"\n[OK] Added idea #{idea_id}: {title}")
 
 
-def update_idea(idea_id, **kwargs):
-    """Update an idea's fields."""
+def update_idea(idea_id, add_prereq=None, remove_prereq=None, **kwargs):
+    """Update an idea's fields and its dependencies."""
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Build update query
-    updates = []
-    params = []
-    for key, value in kwargs.items():
-        if value is not None:
-            updates.append(f"{key} = ?")
-            params.append(value)
+    # Handle dependencies first
+    if add_prereq:
+        try:
+            cursor.execute("INSERT INTO idea_dependencies (idea_id, dependency_id) VALUES (?, ?)", (idea_id, add_prereq))
+            print(f"[OK] Added dependency: idea #{idea_id} now depends on #{add_prereq}")
+        except sqlite3.IntegrityError:
+            print(f"[WARN] Dependency from #{idea_id} to #{add_prereq} may already exist or IDs are invalid.")
+    
+    if remove_prereq:
+        cursor.execute("DELETE FROM idea_dependencies WHERE idea_id = ? AND dependency_id = ?", (idea_id, remove_prereq))
+        if cursor.rowcount > 0:
+            print(f"[OK] Removed dependency: idea #{idea_id} no longer depends on #{remove_prereq}")
+        else:
+            print(f"[WARN] Dependency from #{idea_id} to #{remove_prereq} not found.")
 
-    if not updates:
-        print("No updates specified.")
+    # Filter out None values from kwargs to avoid updating them
+    update_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+    
+    if not update_kwargs:
+        conn.close()
         return
 
+    # Build update query for other fields
+    updates = [f"{key} = ?" for key in update_kwargs.keys()]
+    params = list(update_kwargs.values())
+    
     updates.append("updated_at = ?")
     params.append(datetime.now().isoformat())
     params.append(idea_id)
@@ -160,10 +223,12 @@ def update_idea(idea_id, **kwargs):
     query = f"UPDATE ideas SET {', '.join(updates)} WHERE id = ?"
     cursor.execute(query, params)
 
-    if cursor.rowcount == 0:
-        print(f"Idea {idea_id} not found.")
-    else:
+    if cursor.rowcount > 0:
         print(f"[OK] Updated idea #{idea_id}")
+    else:
+        # This can be noisy if we only updated dependencies
+        if not (add_prereq or remove_prereq):
+             print(f"Idea {idea_id} not found.")
 
     conn.commit()
     conn.close()
@@ -187,6 +252,12 @@ def summary():
     print("\nBy Category:")
     for row in cursor.fetchall():
         print(f"  {row[0]}: {row[1]}")
+    
+    # By sprint group
+    cursor.execute("SELECT sprint_group, COUNT(*) FROM ideas WHERE sprint_group IS NOT NULL GROUP BY sprint_group ORDER BY sprint_group")
+    print("\nBy Sprint Group:")
+    for row in cursor.fetchall():
+        print(f"  {row[0]}: {row[1]}")
 
     # High impact
     cursor.execute("SELECT COUNT(*) FROM ideas WHERE impact = 'High' AND status != 'Done'")
@@ -207,7 +278,7 @@ def main():
     list_parser = subparsers.add_parser("list", help="List ideas")
     list_parser.add_argument("--status", help="Filter by status")
     list_parser.add_argument("--category", help="Filter by category")
-    list_parser.add_argument("--sort", default="priority", help="Sort by field")
+    list_parser.add_argument("--sort", default="priority", help="Sort by field (e.g., priority, sprint)")
     list_parser.add_argument("--limit", type=int, default=50, help="Max results")
 
     # Show command
@@ -224,6 +295,9 @@ def main():
     update_parser.add_argument("--priority", type=int, help="New priority")
     update_parser.add_argument("--category", help="New category")
     update_parser.add_argument("--notes", help="Add notes")
+    update_parser.add_argument("--set-sprint", dest="sprint_group", help="Assign to a sprint group")
+    update_parser.add_argument("--add-prereq", type=int, help="Add a prerequisite dependency by ID")
+    update_parser.add_argument("--remove-prereq", type=int, help="Remove a prerequisite dependency by ID")
 
     # Summary command
     subparsers.add_parser("summary", help="Show summary")
@@ -238,7 +312,8 @@ def main():
         add_idea()
     elif args.command == "update":
         update_idea(args.id, status=args.status, priority=args.priority,
-                   category=args.category, notes=args.notes)
+                   category=args.category, notes=args.notes, sprint_group=args.sprint_group,
+                   add_prereq=args.add_prereq, remove_prereq=args.remove_prereq)
     elif args.command == "summary":
         summary()
     else:
