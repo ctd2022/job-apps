@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
-import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis } from '../api';
+import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw, Wand2 } from 'lucide-react';
+import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis, applySuggestions } from '../api';
 import type { CVVersion, RematchResponse, ATSAnalysisData, ATSComparisonData, CategoryComparison } from '../types';
 import MissingKeywordsAlert from './MissingKeywordsAlert';
+import SuggestionChecklist from './SuggestionChecklist';
 import MatchExplanationCard from './MatchExplanationCard';
 import CVCompletenessMeter from './CVCompletenessMeter';
 import ScoreComparisonPanel from './ScoreComparisonPanel';
@@ -90,6 +91,10 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
 
   // Comparison state (#102)
   const [comparison, setComparison] = useState<ATSComparisonData | null>(null);
+
+  // Apply suggestions state (#122)
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
 
   const isDirty = content !== originalContent;
 
@@ -189,6 +194,31 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
       setRematchError(err?.message || 'Failed to re-match');
     } finally {
       setRematching(false);
+    }
+  }
+
+  async function handleApplySuggestions(keywords: string[], weakSkills: string[]) {
+    if (!jobId || applying) return;
+    const versionId = savedNewVersionId || cvVersionId;
+    try {
+      setApplying(true);
+      setApplyError(null);
+      const result = await applySuggestions(jobId, versionId, keywords, weakSkills);
+      setContent(result.revised_cv);
+      if (result.changelog) {
+        setChangeSummary(`LLM (${result.model_name}):\n${result.changelog}`);
+      } else {
+        const kwCount = result.applied_count;
+        const weakCount = weakSkills.length;
+        const parts: string[] = [];
+        if (kwCount > 0) parts.push(`${kwCount} keyword${kwCount > 1 ? 's' : ''}`);
+        if (weakCount > 0) parts.push(`${weakCount} weak skill${weakCount > 1 ? 's' : ''} strengthened`);
+        setChangeSummary(`LLM (${result.model_name}): ${parts.join(', ')}`);
+      }
+    } catch (err: any) {
+      setApplyError(err?.message || 'Failed to apply suggestions');
+    } finally {
+      setApplying(false);
     }
   }
 
@@ -300,6 +330,23 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
                   </div>
                 )}
 
+                {/* Apply suggestions in progress */}
+                {applying && (
+                  <div className="flex items-center space-x-2 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 px-3 py-2 rounded text-sm text-purple-700 dark:text-purple-300">
+                    <Wand2 className="w-4 h-4" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Incorporating keywords... This may take 15-60 seconds.</span>
+                  </div>
+                )}
+
+                {/* Apply suggestions error */}
+                {applyError && (
+                  <div className="flex items-center space-x-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-2 rounded text-sm text-red-700 dark:text-red-300">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{applyError}</span>
+                  </div>
+                )}
+
                 {/* Save error */}
                 {error && (
                   <div className="flex items-center space-x-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-2 rounded text-sm text-red-700 dark:text-red-300">
@@ -361,7 +408,12 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
               {/* ATS Analysis components */}
               {atsAnalysis && !loadingAnalysis && (
                 <>
-                  <MissingKeywordsAlert analysis={atsAnalysis} />
+                  <SuggestionChecklist
+                    analysis={atsAnalysis}
+                    onApply={handleApplySuggestions}
+                    applying={applying}
+                  />
+                  <MissingKeywordsAlert analysis={atsAnalysis} defaultCollapsed />
                   <MatchExplanationCard analysis={atsAnalysis} />
                   <CVCompletenessMeter analysis={atsAnalysis} />
                 </>

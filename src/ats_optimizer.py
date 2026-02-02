@@ -901,6 +901,69 @@ Generate the complete CV now:"""
 
         return self.backend.chat(messages, temperature=0.7, max_tokens=8192)
 
+    def incorporate_keywords(
+        self,
+        cv_text: str,
+        job_description: str,
+        selected_keywords: list[str],
+        weak_skills: list[str] | None = None,
+    ) -> str:
+        """Incorporate selected missing keywords into CV text via LLM.
+
+        Uses a conservative prompt (temperature 0.3) that forbids fabricating
+        experience and instructs the model to skip keywords it cannot place
+        naturally. Returns the complete updated CV text.
+        """
+        keywords_list = "\n".join(f"- {kw}" for kw in selected_keywords)
+
+        weak_section = ""
+        if weak_skills:
+            weak_list = "\n".join(f"- {s}" for s in weak_skills)
+            weak_section = (
+                f"\n\nWEAK EVIDENCE SKILLS (strengthen existing mentions, "
+                f"add metrics/specifics):\n{weak_list}"
+            )
+
+        system_message = (
+            "You are an expert CV editor. Your task is to incorporate missing "
+            "keywords into an existing CV so it scores higher in ATS systems.\n\n"
+            "RULES:\n"
+            "- Preserve ALL existing content, structure, and formatting\n"
+            "- Insert keywords naturally into the most relevant section\n"
+            "- Do NOT fabricate experience, qualifications, or achievements\n"
+            "- Do NOT remove or rewrite existing bullet points\n"
+            "- If a keyword cannot be placed naturally, SKIP it\n"
+            "- For weak-evidence skills, strengthen existing mentions with "
+            "metrics or specifics rather than adding new claims\n"
+            "- Use the exact keyword phrasing provided\n\n"
+            "OUTPUT FORMAT (you MUST follow this exactly):\n"
+            "1. Output the COMPLETE updated CV text (no preamble, no commentary)\n"
+            "2. Then output a line containing ONLY: ===CHANGELOG===\n"
+            "3. Then list each change you made, one per line, e.g.:\n"
+            "   - Added \"Kubernetes\" to DevOps bullet in TechCorp role\n"
+            "   - Strengthened \"leadership\" mention in Personal Statement "
+            "with team size metric\n"
+            "   - Skipped \"SAP\" — no natural placement\n\n"
+            "Do NOT include ANY text before the CV. Start directly with "
+            "the first line of the CV."
+        )
+
+        prompt = (
+            f"CURRENT CV:\n{cv_text}\n\n"
+            f"JOB DESCRIPTION:\n{job_description}\n\n"
+            f"KEYWORDS TO INCORPORATE:\n{keywords_list}"
+            f"{weak_section}\n\n"
+            "Output the updated CV followed by ===CHANGELOG=== and the list "
+            "of changes. No preamble."
+        )
+
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": prompt},
+        ]
+
+        return self.backend.chat(messages, temperature=0.3, max_tokens=8192)
+
     def generate_ats_report(self, cv_text: str, job_description: str) -> tuple:
         """Generate a comprehensive ATS analysis report"""
 

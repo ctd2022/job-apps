@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse } from './types';
 
 const API_BASE = '/api';
 
@@ -247,6 +247,28 @@ export async function rematchATS(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
     body: JSON.stringify({ cv_version_id: cvVersionId }),
+  });
+  return handleResponse(response);
+}
+
+// Apply Suggestions (Idea #122) — LLM incorporates keywords into CV
+export async function applySuggestions(
+  jobId: string,
+  cvVersionId: number,
+  selectedKeywords: string[],
+  weakSkills?: string[],
+): Promise<ApplySuggestionsResponse> {
+  const body: Record<string, unknown> = {
+    cv_version_id: cvVersionId,
+    selected_keywords: selectedKeywords,
+  };
+  if (weakSkills?.length) {
+    body.weak_skills = weakSkills;
+  }
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/apply-suggestions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(body),
   });
   return handleResponse(response);
 }

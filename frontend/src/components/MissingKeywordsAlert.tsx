@@ -4,10 +4,11 @@ import CollapsibleSection from './CollapsibleSection';
 
 interface MissingKeywordsAlertProps {
   analysis: ATSAnalysisData;
+  defaultCollapsed?: boolean;
 }
 
-function MissingKeywordsAlert({ analysis }: MissingKeywordsAlertProps) {
-  const { scores_by_category, missing_keywords } = analysis;
+function MissingKeywordsAlert({ analysis, defaultCollapsed }: MissingKeywordsAlertProps) {
+  const { scores_by_category } = analysis;
 
   // Categorize missing keywords by priority
   const criticalMissing = scores_by_category.critical_keywords?.items_missing || [];
@@ -47,7 +48,7 @@ function MissingKeywordsAlert({ analysis }: MissingKeywordsAlertProps) {
       icon={AlertTriangle}
       badge={totalMissing}
       badgeColor={badgeColor}
-      defaultExpanded={criticalMissing.length > 0}
+      defaultExpanded={defaultCollapsed ? false : criticalMissing.length > 0}
     >
       <div className="space-y-4">
         {/* Critical Missing */}

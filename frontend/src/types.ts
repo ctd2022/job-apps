@@ -254,6 +254,16 @@ export interface RematchResponse {
   cv_version_id: number;
 }
 
+export interface ApplySuggestionsResponse {
+  job_id: string;
+  revised_cv: string;
+  applied_count: number;
+  cv_version_id: number;
+  backend_type: string;
+  model_name: string;
+  changelog: string;
+}
+
 export interface CategoryComparison {
   category: string;
   oldMatched: number;
