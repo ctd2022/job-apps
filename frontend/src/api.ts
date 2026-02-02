@@ -257,6 +257,8 @@ export async function applySuggestions(
   cvVersionId: number,
   selectedKeywords: string[],
   weakSkills?: string[],
+  backendType?: string,
+  modelName?: string,
 ): Promise<ApplySuggestionsResponse> {
   const body: Record<string, unknown> = {
     cv_version_id: cvVersionId,
@@ -264,6 +266,12 @@ export async function applySuggestions(
   };
   if (weakSkills?.length) {
     body.weak_skills = weakSkills;
+  }
+  if (backendType) {
+    body.backend_type = backendType;
+  }
+  if (modelName) {
+    body.model_name = modelName;
   }
   const response = await fetch(`${API_BASE}/jobs/${jobId}/apply-suggestions`, {
     method: 'POST',

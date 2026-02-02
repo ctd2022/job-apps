@@ -146,6 +146,11 @@ class JobStatusResponse(BaseModel):
     files: Optional[List[str]] = None
     error: Optional[str] = None
     cv_version_id: Optional[int] = None
+    backend_type: Optional[str] = None
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    created_at: Optional[str] = None
+    completed_at: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
@@ -204,6 +209,8 @@ class ApplySuggestionsRequest(BaseModel):
     cv_version_id: int
     selected_keywords: List[str]
     weak_skills: Optional[List[str]] = None
+    backend_type: Optional[str] = None
+    model_name: Optional[str] = None
 
 
 class MetricsResponse(BaseModel):
@@ -877,6 +884,11 @@ async def get_job_status(job_id: str):
         files=job["files"],
         error=job["error"],
         cv_version_id=job.get("cv_version_id"),
+        backend_type=job.get("backend_type"),
+        company_name=job.get("company_name"),
+        job_title=job.get("job_title"),
+        created_at=job.get("created_at"),
+        completed_at=job.get("updated_at") if job["status"] == "completed" else None,
     )
 
 
@@ -1167,16 +1179,16 @@ async def apply_suggestions(
             detail="Job description text not available for this job",
         )
 
-    # Reconstruct LLM backend (same pattern as /rematch)
-    backend_type = job.get("backend_type", "ollama")
+    # Use request overrides or fall back to job's original backend
+    backend_type = request.backend_type or job.get("backend_type", "ollama")
     backend_config: Dict[str, Any] = {}
     if backend_type == "ollama":
-        backend_config["model_name"] = "llama3.1:8b"
+        backend_config["model_name"] = request.model_name or "llama3.1:8b"
     elif backend_type == "llamacpp":
-        backend_config["model_name"] = "gemma-3-27B"
+        backend_config["model_name"] = request.model_name or "gemma-3-27B"
         backend_config["base_url"] = "http://localhost:8080"
     elif backend_type == "gemini":
-        backend_config["model_name"] = "gemini-2.0-flash"
+        backend_config["model_name"] = request.model_name or "gemini-2.0-flash"
         backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
 
     backend = LLMBackendFactory.create_backend(backend_type, **backend_config)

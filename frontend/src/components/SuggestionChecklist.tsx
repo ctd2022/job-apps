@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
 import { Wand2, Loader2 } from 'lucide-react';
-import type { ATSAnalysisData } from '../types';
+import type { ATSAnalysisData, Backend } from '../types';
 import CollapsibleSection from './CollapsibleSection';
 
 interface SuggestionChecklistProps {
   analysis: ATSAnalysisData;
-  onApply: (keywords: string[], weakSkills: string[]) => void;
+  onApply: (keywords: string[], weakSkills: string[], backendType?: string, modelName?: string) => void;
   applying: boolean;
+  backends?: Backend[];
 }
 
 interface CategoryGroup {
@@ -17,9 +18,11 @@ interface CategoryGroup {
   checkboxColor: string;
 }
 
-function SuggestionChecklist({ analysis, onApply, applying }: SuggestionChecklistProps) {
+function SuggestionChecklist({ analysis, onApply, applying, backends }: SuggestionChecklistProps) {
   const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
   const [selectedWeakSkills, setSelectedWeakSkills] = useState<Set<string>>(new Set());
+  const [selectedBackend, setSelectedBackend] = useState('');
+  const [selectedModel, setSelectedModel] = useState('');
 
   const categories = useMemo<CategoryGroup[]>(() => {
     const cats = analysis.scores_by_category;
@@ -101,8 +104,21 @@ function SuggestionChecklist({ analysis, onApply, applying }: SuggestionChecklis
     });
   }
 
+  const activeBackend = backends?.find(b => b.id === selectedBackend);
+  const availableModels = activeBackend?.models || [];
+
+  function handleBackendChange(id: string) {
+    setSelectedBackend(id);
+    setSelectedModel('');
+  }
+
   function handleApply() {
-    onApply([...selectedKeywords], [...selectedWeakSkills]);
+    onApply(
+      [...selectedKeywords],
+      [...selectedWeakSkills],
+      selectedBackend || undefined,
+      selectedModel || undefined,
+    );
   }
 
   return (
@@ -187,6 +203,34 @@ function SuggestionChecklist({ analysis, onApply, applying }: SuggestionChecklis
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Backend picker */}
+        {backends && backends.length > 0 && (
+          <div className="flex items-center gap-2 pt-1">
+            <select
+              value={selectedBackend}
+              onChange={(e) => handleBackendChange(e.target.value)}
+              className="text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded"
+            >
+              <option value="">Default backend</option>
+              {backends.filter(b => b.available).map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+            {availableModels.length > 0 && (
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded"
+              >
+                <option value="">Default model</option>
+                {availableModels.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            )}
           </div>
         )}
 

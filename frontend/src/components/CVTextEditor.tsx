@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw, Wand2 } from 'lucide-react';
-import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis, applySuggestions } from '../api';
-import type { CVVersion, RematchResponse, ATSAnalysisData, ATSComparisonData, CategoryComparison } from '../types';
+import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis, applySuggestions, getBackends } from '../api';
+import type { CVVersion, RematchResponse, ATSAnalysisData, ATSComparisonData, CategoryComparison, Backend } from '../types';
 import MissingKeywordsAlert from './MissingKeywordsAlert';
 import SuggestionChecklist from './SuggestionChecklist';
 import MatchExplanationCard from './MatchExplanationCard';
 import CVCompletenessMeter from './CVCompletenessMeter';
 import ScoreComparisonPanel from './ScoreComparisonPanel';
+import ATSExplainability from './ATSExplainability';
 
 interface CVTextEditorProps {
   cvVersionId: number;
@@ -96,6 +97,9 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
 
+  // Backend picker state (#123)
+  const [backends, setBackends] = useState<Backend[]>([]);
+
   const isDirty = content !== originalContent;
 
   useEffect(() => {
@@ -105,6 +109,10 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
   useEffect(() => {
     if (jobId) {
       loadATSAnalysis();
+      getBackends().then(data => {
+        const list = (data as any)?.backends || data || [];
+        setBackends(list);
+      }).catch(() => {});
     }
   }, [jobId]);
 
@@ -197,13 +205,13 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
     }
   }
 
-  async function handleApplySuggestions(keywords: string[], weakSkills: string[]) {
+  async function handleApplySuggestions(keywords: string[], weakSkills: string[], backendType?: string, modelName?: string) {
     if (!jobId || applying) return;
     const versionId = savedNewVersionId || cvVersionId;
     try {
       setApplying(true);
       setApplyError(null);
-      const result = await applySuggestions(jobId, versionId, keywords, weakSkills);
+      const result = await applySuggestions(jobId, versionId, keywords, weakSkills, backendType, modelName);
       setContent(result.revised_cv);
       if (result.changelog) {
         setChangeSummary(`LLM (${result.model_name}):\n${result.changelog}`);
@@ -412,9 +420,11 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
                     analysis={atsAnalysis}
                     onApply={handleApplySuggestions}
                     applying={applying}
+                    backends={backends}
                   />
                   <MissingKeywordsAlert analysis={atsAnalysis} defaultCollapsed />
                   <MatchExplanationCard analysis={atsAnalysis} />
+                  <ATSExplainability analysis={atsAnalysis} />
                   <CVCompletenessMeter analysis={atsAnalysis} />
                 </>
               )}
