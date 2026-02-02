@@ -1,3 +1,11 @@
+# Project Diary 025 - LLM-Assisted CV Improvement
+
+**Date**: 2 February 2026
+**Focus**: LLM-Assisted CV Improvement from ATS Checklist (#122)
+**Status**: COMPLETE
+
+---
+
 ## Quick Resume
 
 > **Read this first when returning to the project after a break.**
@@ -9,7 +17,7 @@
 - **Blocked/broken**: Port 8000 has ghost socket — using 8001 temporarily. `vite.config.ts` proxy points to 8001, revert after reboot.
 - **Ideas backlog**: #122 done. New: #123, #124. Pipeline: #124 (quick win), #123, #79, #104
 
-# PROJECT_DIARY_025.md - LLM-Assisted CV Improvement
+---
 
 ## Idea #122 — LLM-Assisted CV Improvement (COMPLETE)
 

@@ -2,7 +2,7 @@
 
 **Role**: You (Gemini) are a **Secondary Agent** on this project. Claude Code is the **Lead Architect**.
 
-**Last Updated**: 30 January 2026
+**Last Updated**: 2 February 2026
 
 ---
 
@@ -25,7 +25,7 @@
 - Add new dependencies (pip/npm) without user approval
 - Change the hybrid scoring formula (Lexical 55% + Semantic 35% + Evidence 10%)
 - Alter database schema without migration logic
-- Push to git or create commits (the user handles git workflow)
+- Push to git or create commits **unless TODO.md explicitly instructs you to**
 
 ### When in doubt:
 - Ask the user. Do not guess at architectural decisions.
@@ -40,8 +40,8 @@
 **Key differentiator**: Everything runs locally. "Your CV never leaves this PC" (when using local LLM backends).
 
 ### Current Status
-- **Track 2.9.1 COMPLETE** - Quick Wins (tier labels, privacy footer, JD auto-save)
-- **Next**: Track 2.9.2 Core UX - Match Explanation Cards
+- **Track 2.9.5 COMPLETE** - LLM-Assisted CV Improvement (#122)
+- **Next**: #124 (blank labels bug), #123 (LLM picker for suggestions)
 - **Branch**: `track2.8-semantic-ats`
 
 ### What exists:
@@ -172,11 +172,19 @@ curl http://localhost:8000/api/health
    ```
 6. **Write diary entry** in `docs/journal/PROJECT_DIARY_NNN.md` (must include Quick Resume)
 
-### Diary Entry Quick Resume Template
+### Diary Entry Template
 
-**Every diary entry MUST start with a Quick Resume section** right after the header. This lets agents quickly regain context when returning after a break.
+**Every diary entry MUST follow this format.** Match the structure of existing entries in `docs/journal/`.
 
 ```markdown
+# Project Diary NNN - Title Here
+
+**Date**: DD Month YYYY
+**Focus**: Brief focus description (#idea_number)
+**Status**: COMPLETE
+
+---
+
 ## Quick Resume
 
 > **Read this first when returning to the project after a break.**
@@ -187,7 +195,14 @@ curl http://localhost:8000/api/health
 - **Next steps**: what to pick up next
 - **Blocked/broken**: any known issues, or "Nothing"
 - **Ideas backlog**: notable new/high-priority ideas if any
+
+---
+
+## Summary
+... (rest of entry)
 ```
+
+The header block (title, date, focus, status) is mandatory — do not skip it.
 
 ---
 
@@ -217,7 +232,7 @@ The user will switch you (Gemini) in when a task matches your strengths. Here is
 
 ### Handover artifacts:
 - Check `TODO.md` in the project root for instructions from Claude
-- When done, write a summary of what you changed in `TODO.md` so Claude can review
+- When done, **update TODO.md status to RESOLVED** and write a brief summary of what you changed
 - If you created a diary entry, note its number in `TODO.md`
 
 ---
@@ -235,7 +250,7 @@ The user will switch you (Gemini) in when a task matches your strengths. Here is
 | `MASTER_VISION.md` | Full roadmap, architecture diagram, decision log, track status |
 | `docs/ARCHITECTURE.md` | Directory structure, system overview |
 | `docs/API.md` | All endpoints, routes, database schema |
-| `docs/journal/PROJECT_DIARY_*.md` | Progress history (001-017 so far) |
+| `docs/journal/PROJECT_DIARY_*.md` | Progress history (001-025 so far) |
 | `docs/raw/competitors-ux/` | UX research on LinkedIn, Otta, Wellfound, etc. |
 | `ideas.db` | Feature backlog - view with `python scripts/ideas.py list` |
 
@@ -253,6 +268,7 @@ The user will switch you (Gemini) in when a task matches your strengths. Here is
 | `workflow_available: false` | Check for stale processes first: `netstat -ano \| findstr :8000` then kill zombie PIDs with `taskkill /F /PID <pid>`. Only investigate imports after confirming a fresh process is serving. |
 | Backend restart has no effect | Uvicorn child processes survive parent kill on Windows. Verify port is free before restarting. |
 | "Was working before, now broken" | Suspect stale processes or port conflicts before assuming missing dependencies. Run `tasklist \| findstr python` to find zombies. |
+| Ghost socket (dead PID in netstat) | Process is dead but socket lingers. If `taskkill` fails, **try a different port** (e.g. 8001) to confirm the code works, then update `vite.config.ts` proxy. |
 
 ### Debugging Protocol
 
