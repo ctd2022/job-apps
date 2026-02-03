@@ -237,9 +237,8 @@ function ATSExplainability({ analysis }: ATSExplainabilityProps) {
 
       {/* Gap Analysis */}
       {gap_analysis && (
-        <GapAnalysis gapAnalysis={gap_analysis} />
-      )}
-    </div>
+        <GapAnalysis gapAnalysis={gap_analysis} semanticAvailable={semantic_analysis?.available ?? false} />
+      )}    </div>
   );
 }
 

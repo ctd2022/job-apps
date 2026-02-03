@@ -347,14 +347,14 @@ class SemanticScorer:
             return SemanticScoreResult(
                 score=0.0,
                 available=False,
-                gaps=["sentence-transformers not installed"]
+                gaps=[]
             )
 
         if not self._load_model():
             return SemanticScoreResult(
                 score=0.0,
                 available=False,
-                gaps=["Failed to load embedding model"]
+                gaps=[]
             )
 
         # Match sections

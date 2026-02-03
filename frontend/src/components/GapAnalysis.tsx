@@ -4,15 +4,16 @@ import CollapsibleSection from './CollapsibleSection';
 
 interface GapAnalysisProps {
   gapAnalysis: GapAnalysisData;
+  semanticAvailable?: boolean;
 }
 
-function GapAnalysis({ gapAnalysis }: GapAnalysisProps) {
+function GapAnalysis({ gapAnalysis, semanticAvailable = true }: GapAnalysisProps) {
   const { critical_gaps, evidence_gaps, semantic_gaps, experience_gaps } = gapAnalysis;
 
   const hasCriticalGaps =
     critical_gaps.missing_critical_keywords.length > 0 || critical_gaps.missing_required_skills.length > 0;
   const hasEvidenceGaps = evidence_gaps.weak_evidence_skills.length > 0;
-  const hasSemanticGaps = semantic_gaps.missing_concepts.length > 0;
+  const hasSemanticGaps = semanticAvailable && semantic_gaps.missing_concepts.length > 0;
   const hasExperienceGaps = experience_gaps.gap > 0;
 
   return (
