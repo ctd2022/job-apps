@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { BarChart3, AlertTriangle, CheckCircle2, Brain, Target } from 'lucide-react';
 import type { ATSAnalysisData } from '../types';
 import CollapsibleSection from './CollapsibleSection';
+import GapAnalysis from './GapAnalysis';
 
 interface ATSExplainabilityProps {
   analysis: ATSAnalysisData;
@@ -24,7 +25,7 @@ const SEVERITY_CONFIG: Record<string, { label: string; className: string }> = {
 };
 
 function ATSExplainability({ analysis }: ATSExplainabilityProps) {
-  const { hybrid_scoring, scores_by_category, section_analysis, semantic_analysis } = analysis;
+  const { hybrid_scoring, scores_by_category, section_analysis, semantic_analysis, gap_analysis } = analysis;
 
   // Score breakdown
   const scoreRows = useMemo(() => {
@@ -232,6 +233,11 @@ function ATSExplainability({ analysis }: ATSExplainabilityProps) {
             )}
           </div>
         </CollapsibleSection>
+      )}
+
+      {/* Gap Analysis */}
+      {gap_analysis && (
+        <GapAnalysis gapAnalysis={gap_analysis} />
       )}
     </div>
   );

@@ -5,9 +5,13 @@
 
 ---
 
-## Completed: Idea #122 — LLM-Assisted CV Improvement
+## Completed: Track 2.9.5 (#124, #123, #79, #104)
 
-All tasks done. Diary entry 025 created, idea #122 marked Done, committed and pushed as `dae2e2f`.
+Committed and pushed changes for Track 2.9.5.
+
+- **Commit**: `c8e899e`
+- **Diary Entry**: `docs/journal/PROJECT_DIARY_026.md`
+- **Summary**: Completed implementation and testing of four features: ATS Explainability UI, LLM Backend Picker, a fix for blank labels, and a new per-component testing strategy.
 
 ---
 

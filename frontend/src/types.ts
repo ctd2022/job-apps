@@ -220,6 +220,32 @@ export interface SectionAnalysis {
   jd_sections_detected: number;
 }
 
+export interface CriticalGaps {
+  missing_critical_keywords: string[];
+  missing_required_skills: string[];
+}
+
+export interface EvidenceGaps {
+  weak_evidence_skills: string[];
+}
+
+export interface SemanticGaps {
+  missing_concepts: string[];
+}
+
+export interface ExperienceGaps {
+  cv_years: number | null;
+  jd_years: number | null;
+  gap: number;
+}
+
+export interface GapAnalysis {
+  critical_gaps: CriticalGaps;
+  evidence_gaps: EvidenceGaps;
+  semantic_gaps: SemanticGaps;
+  experience_gaps: ExperienceGaps;
+}
+
 export interface ATSAnalysisData {
   score: number;
   matched: number;
@@ -235,6 +261,7 @@ export interface ATSAnalysisData {
   parsed_entities: ParsedEntities;
   hybrid_scoring: HybridScoring;
   semantic_analysis: SemanticAnalysis;
+  gap_analysis?: GapAnalysis;
 }
 
 export interface ATSAnalysisResponse {

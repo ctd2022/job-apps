@@ -830,6 +830,24 @@ PREFERRED: skill1, skill2, skill3"""
                 'gaps': semantic_result.gaps,
                 'entity_support_ratio': semantic_result.entity_support_ratio,
                 'high_value_match_count': semantic_result.high_value_match_count,
+            },
+            # Track 2.8.4: Enhanced Gap Analysis
+            'gap_analysis': {
+                'critical_gaps': {
+                    'missing_critical_keywords': scores['critical_keywords']['missing'],
+                    'missing_required_skills': scores['required']['missing'],
+                },
+                'evidence_gaps': {
+                    'weak_evidence_skills': [e['skill'] for e in evidence_scores['weak_evidence']],
+                },
+                'semantic_gaps': {
+                    'missing_concepts': semantic_result.gaps,
+                },
+                'experience_gaps': {
+                    'cv_years': parsed_cv.years_experience,
+                    'jd_years': parsed_jd.years_required,
+                    'gap': (parsed_jd.years_required or 0) - (parsed_cv.years_experience or 0)
+                }
             }
         }
 

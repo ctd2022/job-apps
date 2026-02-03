@@ -64,6 +64,23 @@ const mockAnalysis: ATSAnalysisData = {
     entity_support_ratio: 0.6,
     high_value_match_count: 2,
   },
+  gap_analysis: {
+    critical_gaps: {
+      missing_critical_keywords: ['kubernetes'],
+      missing_required_skills: ['terraform'],
+    },
+    evidence_gaps: {
+      weak_evidence_skills: ['docker'],
+    },
+    semantic_gaps: {
+      missing_concepts: [],
+    },
+    experience_gaps: {
+      cv_years: null,
+      jd_years: null,
+      gap: 0,
+    },
+  },
 };
 
 const mockBackends: Backend[] = [

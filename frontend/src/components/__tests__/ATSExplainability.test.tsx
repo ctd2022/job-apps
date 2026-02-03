@@ -65,6 +65,23 @@ const mockAnalysis: ATSAnalysisData = {
     entity_support_ratio: 0.71,
     high_value_match_count: 4,
   },
+  gap_analysis: {
+    critical_gaps: {
+      missing_critical_keywords: ['kubernetes'],
+      missing_required_skills: [],
+    },
+    evidence_gaps: {
+      weak_evidence_skills: ['sql'],
+    },
+    semantic_gaps: {
+      missing_concepts: ['infrastructure automation', 'cloud architecture'],
+    },
+    experience_gaps: {
+      cv_years: 5,
+      jd_years: 3,
+      gap: -2,
+    },
+  },
 };
 
 describe('ATSExplainability', () => {

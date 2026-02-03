@@ -13,9 +13,9 @@
 - **Branch**: track2.8-semantic-ats
 - **Track**: Track 2.9.5 COMPLETE
 - **Last session**: Claude completed implementation and testing of four features: #124 (Fix Blank Labels), #123 (LLM Backend Picker), #79 (ATS Explainability UI), and #104 (Per-component Testing Strategy).
-- **Next steps**: Continue with the next highest priority item in `ideas.db` or `TODO.md`.
+- **Next steps**: Implement recommendations from Ideas Backlog Review (see bottom of this entry). Start with backlog cull, then #78 Enhanced Gap Analysis.
 - **Blocked/broken**: Nothing
-- **Ideas backlog**: Review `ideas.db` for next focus.
+- **Ideas backlog**: Reviewed by Gemini + Claude — see recommendations below. 115 ideas, ~70 still open. Cull needed.
 
 ---
 
@@ -43,3 +43,37 @@ This entry confirms the successful implementation and testing of four key featur
 - `npx vitest run`: 11 passed
 
 All features are implemented and tested, confirming the completion of Track 2.9.5.
+
+---
+
+## Ideas Backlog Review (Gemini + Claude)
+
+**Reviewers**: Gemini CLI (first pass), then Claude Code (second pass)
+**Method**: Full review of `ideas.db` (115 ideas) for strategic alignment and prioritisation
+
+### Agreed Recommendations (both agents)
+
+1. **#78 (Enhanced Gap Analysis)** — top priority, natural next step after Track 2.8/2.9
+2. **#81 (Multiple CVs per user)** — first step toward multi-profile support, immediate single-user value
+3. **#84 (ML Intelligence Platform)** — too vague, defer until broken into concrete features
+4. **#103 (Programme-Level CLAUDE.md)** — zero user value, low priority
+5. **#4/#5 (Auth/Payments)** — defer, premature commercialisation
+
+### Claude's Additional Recommendations
+
+6. **Cull the backlog** — reject/archive 20-30 ideas that are scope creep (e.g. #29 Brand Archetype, #36 Interview Teleprompter, #64 Resignation Letter). 115 ideas for a single-user tool is decision paralysis. Anything outside the core loop of *apply > tailor CV > track outcome* should be cut.
+7. **Audit #82/#87/#100 against #122** — before un-deferring these (as Gemini suggests), check what #122 (LLM-Assisted CV Improvement) already delivers. Some may be "Done" in spirit.
+8. **#71 (Batch Processing) is not anti-quality** — Gemini dismissed it as contradicting tailored applications. Disagree: batch means applying the same tailoring pipeline to multiple jobs, not lowering quality.
+9. **#91 (Kanban Tracker) and #72 (Historical Analytics) are undervalued** — directly serve the daily workflow, more useful than many "smart" features.
+10. **Strategic fork: local vs. hosted** — #105 (Deploy Online) and #83 (AWS Bedrock) gate the product direction. Decide before piling on features.
+11. **#119 (Token optimisation) needs a focused sprint** — "build efficiently as you go" is aspirational; without a dedicated pass, debt accumulates.
+
+### Suggested Priority Order for Next Session
+
+| # | Action |
+|---|--------|
+| 1 | Cull the backlog — reject/archive scope-creep ideas |
+| 2 | #78 Enhanced Gap Analysis |
+| 3 | Audit #82/#87/#100 against #122 deliverables |
+| 4 | #81 Multiple CVs per user |
+| 5 | Strategic decision: local vs. hosted (#105/#83) |
