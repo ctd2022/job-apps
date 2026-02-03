@@ -1,114 +1,205 @@
 # TODO.md - Agent Handover
 
-**Status**: RESOLVED
+**Status**: PENDING
 **Date**: 3 February 2026
 **From**: Claude (Lead Architect)
 **To**: Gemini (Implementation)
 
 ---
 
-## Task: #48 Hard Skills Extractor
+## Package: CV Quality Display Features (3 tasks)
 
-**Goal**: Add a dedicated UI panel showing extracted hard skills from the CV, compared against JD requirements. Most backend logic already exists — this is primarily a surfacing/UI task.
+All three tasks are **frontend-only**. Backend data already exists. No new API endpoints, no backend changes, no new dependencies.
 
----
-
-### What Already Exists
-
-- `src/entity_taxonomy.py` — `HARD_SKILLS` set (170+ skills with regex patterns)
-- `src/document_parser.py` — `EntityExtractor.extract_entities()` (line 481), `ParsedCV.get_hard_skills()` (line 110)
-- `frontend/src/types.ts` — `ParsedEntities` interface (line 205) already has `cv_hard_skills`, `jd_required_skills`, `jd_preferred_skills`
-- `backend/main.py` — `/api/jobs/{job_id}/ats-analysis` (line 995) already returns `parsed_entities` in response
-- ATS analysis already extracts and stores hard skills in `ats_details` JSON column
-
-**Translation: extraction is done. You're building the display layer.**
+**Run tests with**: `cd frontend && npx vitest run`
+**Type check with**: `cd frontend && npx tsc --noEmit`
 
 ---
 
-### Deliverables
+## Task 1: Soft Skills Display (#49)
 
-#### 1. New Frontend Component: `ExtractedSkillsList.tsx`
+**Goal**: Add a soft skills section to the existing `ExtractedSkillsList.tsx` component.
 
-**Location**: `frontend/src/components/ExtractedSkillsList.tsx`
+### What exists
 
-**Data source**: Use `parsed_entities` from the existing `/api/jobs/{job_id}/ats-analysis` response. No new API endpoint needed.
+- `parsed_entities.cv_soft_skills: string[]` — already returned by the ATS analysis API
+- `parsed_entities.jd_required_skills` and `jd_preferred_skills` contain both hard AND soft skills
+- `ExtractedSkillsList.tsx` already handles hard skills with colour-coded matching
 
-**Display requirements**:
-- List all `cv_hard_skills` extracted from the CV
-- For each skill, show match status:
-  - **Matched (required)**: skill appears in both CV and `jd_required_skills` → green
-  - **Matched (preferred)**: skill appears in both CV and `jd_preferred_skills` → yellow/amber
-  - **CV only**: skill in CV but not in JD → neutral/grey
-- Separate section showing **Missing from CV**:
-  - Skills in `jd_required_skills` not found in `cv_hard_skills` → red
-  - Skills in `jd_preferred_skills` not found in `cv_hard_skills` → orange
-- Show counts: "12/18 required skills matched", "3/5 preferred skills matched"
+### What to do
 
-**Styling**: Use TailwindCSS. Follow the pattern in `ATSExplainability.tsx` and `GapAnalysis.tsx` for card layout, colour coding, and dark mode support.
+Add a **second section** below the existing hard skills in `ExtractedSkillsList.tsx`:
 
-**Component signature**:
-```tsx
-interface ExtractedSkillsListProps {
-  parsedEntities: ParsedEntities;
-}
-```
+1. After the hard skills sections, add a divider and "Soft Skills" heading
+2. Categorise `cv_soft_skills` the same way hard skills are categorised:
+   - **Matched (required)**: in both `cv_soft_skills` and `jd_required_skills` → green
+   - **Matched (preferred)**: in both `cv_soft_skills` and `jd_preferred_skills` → yellow/amber
+   - **CV only**: in `cv_soft_skills` but not in JD → grey
+3. Show count: "X/Y soft skills matched" (where Y = unique soft skills in jd_required + jd_preferred)
+4. Keep the component compact — reuse `renderSkillList` helper already in the file
 
-#### 2. Integrate into JobDetail page
+### Test updates
 
-**Location**: `frontend/src/components/JobDetail.tsx`
+**File**: `frontend/src/components/__tests__/ExtractedSkillsList.test.tsx`
 
-- Add `ExtractedSkillsList` as a collapsible section (use `CollapsibleSection.tsx` pattern)
-- Place it after the ATS Explainability section
-- Only render when `parsed_entities` data is available
+Add tests for:
+- Soft skills rendered with correct colour classes
+- Soft skills counts shown correctly
+- Empty `cv_soft_skills` array handled (show "N/A")
+- Soft skills that match required/preferred are categorised correctly
 
-#### 3. Tests
-
-**Location**: `frontend/src/components/__tests__/ExtractedSkillsList.test.tsx`
-
-**Test cases**:
-- Renders matched required skills in green
-- Renders matched preferred skills in amber
-- Renders CV-only skills in grey
-- Renders missing required skills in red
-- Shows correct counts ("X/Y required skills matched")
-- Handles empty skills arrays gracefully
-- Handles case where no ATS analysis has been run (no crash)
-
-**Follow the test pattern** in existing `__tests__/` files. Use vitest + React Testing Library.
-
----
-
-### Patterns to Follow
-
-- **API calls**: All through `frontend/src/api.ts` (already has ATS analysis fetch)
-- **Types**: All in `frontend/src/types.ts` (no new types needed, `ParsedEntities` exists)
-- **Styling**: TailwindCSS utility classes, dark mode via `dark:` prefix
-- **Collapsible sections**: See `CollapsibleSection.tsx` for the wrapper pattern
-- **Colour conventions**: green = matched/good, red = missing/critical, amber = preferred/warning, grey = neutral
+The existing mock data in the test file already has `cv_soft_skills: ['Communication', 'Teamwork']` — extend the mock's `jd_required_skills` or `jd_preferred_skills` to include one of them so you can test matching.
 
 ### Do NOT
 
-- Create new API endpoints (data already available)
-- Modify `document_parser.py` or `entity_taxonomy.py`
-- Modify the ATS scoring logic in `ats_optimizer.py`
-- Change any database schema
-- Add new dependencies
+- Create a separate component — extend the existing one
+- Modify backend code
+- Change `types.ts` (types already exist)
 
 ---
 
-### Acceptance Criteria
+## Task 2: Evidence Strength Panel (#45)
 
-- [x] `ExtractedSkillsList.tsx` component created and renders correctly
-- [x] Integrated into `JobDetail.tsx` as a collapsible section
-- [x] All test cases pass (`cd frontend && npx vitest run`)
-- [x] TypeScript compiles cleanly (`cd frontend && npx tsc --noEmit`)
-- [ ] No console errors in browser
-- [ ] Dark mode works correctly
-- [x] Write a brief completion summary back into this file
+**Goal**: New component showing how well CV skills are evidenced with metrics and context.
+
+### What exists
+
+**Type** (`frontend/src/types.ts`):
+```typescript
+interface EvidenceAnalysis {
+  strong_evidence_count: number;
+  moderate_evidence_count: number;
+  weak_evidence_count: number;
+  average_strength: number;       // 0.0 - 1.0
+  strong_skills: string[];        // top 5
+  weak_skills: string[];          // top 5
+}
+```
+
+This is already in `ATSAnalysisData.evidence_analysis` — returned by the API.
+
+`gap_analysis.evidence_gaps.weak_evidence_skills: string[]` also lists skills needing improvement.
+
+### What to build
+
+**New file**: `frontend/src/components/EvidenceStrengthPanel.tsx`
+
+```tsx
+interface EvidenceStrengthPanelProps {
+  evidenceAnalysis: EvidenceAnalysis;
+  evidenceGaps?: EvidenceGaps;  // from gap_analysis.evidence_gaps
+}
+```
+
+**Display**:
+1. **Summary bar** — stacked horizontal bar showing strong (green) / moderate (yellow) / weak (red) proportions
+2. **Average strength** — show `average_strength` as percentage with colour coding
+3. **Strong skills list** — green, show the `strong_skills` array (max 5)
+4. **Weak skills list** — red, show `weak_skills` array with actionable suggestion: "Add metrics or context to strengthen evidence for: [skill]"
+5. If `evidenceGaps.weak_evidence_skills` exists, merge with `weak_skills` for the suggestions
+
+**Styling**: TailwindCSS, dark mode. Follow `CVCompletenessMeter.tsx` for layout pattern.
+
+### Integration
+
+In `JobDetail.tsx`, add after the Extracted Hard Skills collapsible section (around line 320):
+
+```tsx
+{atsAnalysis?.evidence_analysis && (
+  <CollapsibleSection title="Evidence Strength" icon={BadgeCheck}>
+    <EvidenceStrengthPanel
+      evidenceAnalysis={atsAnalysis.evidence_analysis}
+      evidenceGaps={atsAnalysis.gap_analysis?.evidence_gaps}
+    />
+  </CollapsibleSection>
+)}
+```
+
+Import `BadgeCheck` from `lucide-react`. Import `EvidenceStrengthPanel` from `./EvidenceStrengthPanel`.
+
+### Tests
+
+**New file**: `frontend/src/components/__tests__/EvidenceStrengthPanel.test.tsx`
+
+Use the mock data pattern from `ATSExplainability.test.tsx` (it already has `evidence_analysis` mock data at lines 30-37).
+
+Test cases:
+- Renders strong/moderate/weak counts
+- Renders average strength as percentage
+- Strong skills shown in green
+- Weak skills shown in red with suggestion text
+- Handles zero counts gracefully
+- Handles missing `evidenceGaps` prop
+
+### Do NOT
+
+- Modify `CVCompletenessMeter.tsx` (it already uses evidence data — this is a separate, detailed view)
+- Add new API endpoints
+- Change backend code
 
 ---
 
-**Completion Summary**: Implemented the `ExtractedSkillsList.tsx` component to display hard skills extracted from CV, compared against JD requirements with appropriate color coding and counts. Integrated it into `JobDetail.tsx` as a collapsible section. Created `ExtractedSkillsList.test.tsx` with comprehensive unit tests covering various scenarios, including empty skill arrays and no ATS analysis data. Fixed TypeScript compilation errors and updated test assertions to ensure all related tests pass. Manual verification for console errors and dark mode is pending.
+## Task 3: Fix ATSExplainability Test Failures
+
+**Goal**: Fix 2 failing tests in `frontend/src/components/__tests__/ATSExplainability.test.tsx`.
+
+### The problem
+
+Two tests fail because `screen.getByText()` finds **multiple elements**:
+
+1. **Line 110**: `screen.getByText('kubernetes')` — "kubernetes" appears in both the Biggest Penalties section AND the GapAnalysis component (rendered at the bottom of ATSExplainability)
+2. **Line 122**: `screen.getByText('infrastructure automation')` — appears in both Semantic Insights gaps list AND GapAnalysis semantic_gaps section
+
+### The fix
+
+Use `within()` from `@testing-library/react` to scope queries to specific sections, OR use `getAllByText()[0]` if the simpler approach suffices.
+
+**Preferred approach** — scope with `within`:
+
+```tsx
+import { render, screen, within } from '@testing-library/react';
+
+// Test "renders biggest penalties"
+const penaltiesSection = screen.getByText('Biggest Penalties').closest('div')!;
+await user.click(screen.getByText('Biggest Penalties'));
+expect(within(penaltiesSection).getByText('kubernetes')).toBeInTheDocument();
+
+// Test "renders semantic insights"
+const semanticSection = screen.getByText('Semantic Insights').closest('div')!;
+await user.click(screen.getByText('Semantic Insights'));
+expect(within(semanticSection).getByText('infrastructure automation')).toBeInTheDocument();
+```
+
+You may need to adjust the `.closest()` selector to find the right container — check the rendered DOM structure in `ATSExplainability.tsx`.
+
+### Acceptance
+
+- All 5 ATSExplainability tests pass
+- No changes to `ATSExplainability.tsx` itself (only fix the test file)
+
+---
+
+## Global Acceptance Criteria
+
+- [ ] All tests pass: `cd frontend && npx vitest run` (0 failures)
+- [ ] TypeScript clean: `cd frontend && npx tsc --noEmit` (existing errors in Dashboard/NewApplication are pre-existing — ignore those)
+- [ ] No new console warnings in test output
+- [ ] Write completion summary at bottom of this file
+
+## Patterns Reference
+
+- **CollapsibleSection props**: `title: string, icon?: LucideIcon, badge?: string|number, badgeColor?: string, defaultExpanded?: boolean, children: ReactNode`
+- **Colour conventions**: green = good/matched, yellow = preferred/moderate, red = missing/weak, grey = neutral
+- **Test imports**: `import { render, screen } from '@testing-library/react'; import { describe, it, expect } from 'vitest';`
+- **Type imports**: `import type { ATSAnalysisData, EvidenceAnalysis, EvidenceGaps, ParsedEntities } from '../../types';`
+
+## Do NOT (global)
+
+- Modify any Python backend files
+- Create new API endpoints
+- Change database schema
+- Add new npm dependencies
+- Modify `types.ts` (all types already exist)
 
 ---
 
