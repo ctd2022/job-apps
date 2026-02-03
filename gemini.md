@@ -2,7 +2,7 @@
 
 **Role**: You (Gemini) are a **Secondary Agent** on this project. Claude Code is the **Lead Architect**.
 
-**Last Updated**: 2 February 2026
+**Last Updated**: 3 February 2026
 
 ---
 
@@ -229,6 +229,30 @@ The user will switch you (Gemini) in when a task matches your strengths. Here is
 - The handover is strictly **turn-based**: the user must fully exit Claude before starting you, and fully exit you before returning to Claude
 - **Do not** start/stop/kill backend or frontend services unless your TODO.md task specifically requires it -- Claude may have left them running intentionally
 - If you need to restart a service, first check for stale processes: `netstat -ano | findstr :8000`
+
+### Reading TODO.md tasks
+
+TODO.md contains two types of tasks. Handle them differently:
+
+- **Implementation tasks** (e.g. "add soft skills section"): Follow the spec closely. The file paths, props, and patterns are reliable — implement as described.
+- **Diagnostic/fix tasks** (e.g. "fix failing tests"): The TODO may suggest a cause or fix, but **treat it as a hypothesis, not a prescription**. Investigate the symptoms yourself first. If the suggested fix doesn't work after 2 attempts, stop and re-diagnose from scratch — re-read the error output, examine the rendered DOM, trace the logic. The real root cause may be different from what Claude expected.
+
+### Debugging heuristic: stop and re-think
+
+If your fix doesn't work after 2 attempts:
+
+1. **Stop iterating** on variations of the same approach
+2. **Re-read the error output** from scratch — what does it actually say?
+3. **Look at what's rendered/returned**, not just what's missing — is the expected content present at all? If not, the problem is upstream of your query/assertion
+4. **Question your assumptions** — is the component in the state you think it is? Is the section expanded? Is the data flowing through?
+5. **Only then** try a new approach based on your revised understanding
+
+### Completion checklist
+
+Before writing your completion summary in TODO.md, **run every command listed in the Global Acceptance Criteria section** and fix any new errors you introduced. Common gotchas:
+- Unused imports causing `tsc` errors
+- `getByText` finding multiple elements (use `within()` to scope)
+- Tests passing individually but failing when run together
 
 ### Handover artifacts:
 - Check `TODO.md` in the project root for instructions from Claude
