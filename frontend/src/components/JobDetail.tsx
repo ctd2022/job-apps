@@ -24,6 +24,8 @@ import MatchHistoryTable from './MatchHistoryTable';
 import MissingKeywordsAlert from './MissingKeywordsAlert';
 import CVCompletenessMeter from './CVCompletenessMeter';
 import ATSExplainability from './ATSExplainability';
+import CollapsibleSection from './CollapsibleSection';
+import ExtractedSkillsList from './ExtractedSkillsList';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600' },
@@ -312,6 +314,11 @@ function JobDetail() {
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600 space-y-3">
             <MatchExplanationCard analysis={atsAnalysis} />
             <ATSExplainability analysis={atsAnalysis} />
+            {atsAnalysis?.parsed_entities && (
+              <CollapsibleSection title="Extracted Hard Skills">
+                <ExtractedSkillsList parsedEntities={atsAnalysis.parsed_entities} />
+              </CollapsibleSection>
+            )}
             <MissingKeywordsAlert analysis={atsAnalysis} />
             <CVCompletenessMeter analysis={atsAnalysis} />
           </div>
