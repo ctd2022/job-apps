@@ -42,6 +42,30 @@ const ExtractedSkillsList: React.FC<ExtractedSkillsListProps> = ({ parsedEntitie
     }
   });
 
+  const cvSoftSkills = new Set(parsedEntities.cv_soft_skills);
+  const jdRequiredSoftSkills = new Set(
+    parsedEntities.jd_required_skills.filter(skill => parsedEntities.cv_soft_skills.includes(skill))
+  );
+  const jdPreferredSoftSkills = new Set(
+    parsedEntities.jd_preferred_skills.filter(skill => parsedEntities.cv_soft_skills.includes(skill))
+  );
+
+  const matchedSoftRequired: string[] = [];
+  const matchedSoftPreferred: string[] = [];
+  const cvOnlySoftSkills: string[] = [];
+
+  cvSoftSkills.forEach(skill => {
+    if (jdRequiredSoftSkills.has(skill)) {
+      matchedSoftRequired.push(skill);
+    } else if (jdPreferredSoftSkills.has(skill)) {
+      matchedSoftPreferred.push(skill);
+    } else {
+      cvOnlySoftSkills.push(skill);
+    }
+  });
+
+  const totalJdSoftSkills = new Set([...jdRequiredSoftSkills, ...jdPreferredSoftSkills]).size;
+
   const renderSkillList = (skills: string[], colorClass: string, darkColorClass: string) => (
     <ul className="space-y-1 text-sm">
       {skills.length > 0 ? (
@@ -101,6 +125,35 @@ const ExtractedSkillsList: React.FC<ExtractedSkillsListProps> = ({ parsedEntitie
                 Preferred: <span className="font-bold text-orange-600 dark:text-orange-400">{missingPreferred.length}/{jdPreferredSkills.size}</span>
               </p>
               {renderSkillList(missingPreferred, 'text-orange-700', 'dark:text-orange-300')}
+            </div>
+          </div>
+        </div>
+
+        {/* Soft Skills Section */}
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Extracted Soft Skills</h3>
+          <div className="space-y-6">
+            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md">
+              <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">Matched Soft Skills</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Required: <span className="font-bold text-green-600 dark:text-green-400">{matchedSoftRequired.length}/{totalJdSoftSkills}</span>
+                  </p>
+                  {renderSkillList(matchedSoftRequired, 'text-green-700', 'dark:text-green-300')}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Preferred: <span className="font-bold text-yellow-600 dark:text-yellow-400">{matchedSoftPreferred.length}/{totalJdSoftSkills}</span>
+                  </p>
+                  {renderSkillList(matchedSoftPreferred, 'text-yellow-700', 'dark:text-yellow-300')}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md">
+              <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">CV Only Soft Skills</h4>
+              {renderSkillList(cvOnlySoftSkills, 'text-gray-600', 'dark:text-gray-400')}
             </div>
           </div>
         </div>

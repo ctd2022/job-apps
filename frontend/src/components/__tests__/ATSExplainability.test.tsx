@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect } from 'vitest';
 import ATSExplainability from '../ATSExplainability';
@@ -103,11 +103,16 @@ describe('ATSExplainability', () => {
   it('renders biggest penalties', async () => {
     const user = userEvent.setup();
     render(<ATSExplainability analysis={mockAnalysis} />);
-    const header = screen.getByText('Biggest Penalties');
-    expect(header).toBeInTheDocument();
+    const penaltiesButton = screen.getByRole('button', { name: /Biggest Penalties/i });
+    expect(penaltiesButton).toBeInTheDocument();
     // Expand collapsed section
-    await user.click(header);
-    expect(screen.getByText('kubernetes')).toBeInTheDocument();
+    await user.click(penaltiesButton);
+    const penaltiesSection = penaltiesButton.closest('.border')!;
+    const kubernetesElement = within(penaltiesSection as HTMLElement).getByText('kubernetes', { exact: false });
+    expect(kubernetesElement).toBeInTheDocument();
+    const parentSpan = kubernetesElement.closest('span');
+    expect(parentSpan).toBeInTheDocument();
+    expect(parentSpan).toHaveTextContent(/Critical:/i);
   });
 
   it('renders semantic insights when available', async () => {
@@ -115,11 +120,12 @@ describe('ATSExplainability', () => {
     render(<ATSExplainability analysis={mockAnalysis} />);
 
     // Semantic Insights is collapsed by default — click to expand
-    const header = screen.getByText('Semantic Insights');
-    await user.click(header);
+    const semanticButton = screen.getByRole('button', { name: /Semantic Insights/i });
+    await user.click(semanticButton);
 
     expect(screen.getByText('Entity Support Ratio')).toBeInTheDocument();
-    expect(screen.getByText('infrastructure automation')).toBeInTheDocument();
+    const semanticSection = semanticButton.closest('.border')!;
+    expect(within(semanticSection as HTMLElement).getByText(/infrastructure automation/i)).toBeInTheDocument();
   });
 
   it('hides semantic section when not available', () => {

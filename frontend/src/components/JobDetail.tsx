@@ -26,6 +26,8 @@ import CVCompletenessMeter from './CVCompletenessMeter';
 import ATSExplainability from './ATSExplainability';
 import CollapsibleSection from './CollapsibleSection';
 import ExtractedSkillsList from './ExtractedSkillsList';
+import EvidenceStrengthPanel from './EvidenceStrengthPanel';
+import { BadgeCheck } from 'lucide-react';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600' },
@@ -317,6 +319,14 @@ function JobDetail() {
             {atsAnalysis?.parsed_entities && (
               <CollapsibleSection title="Extracted Hard Skills">
                 <ExtractedSkillsList parsedEntities={atsAnalysis.parsed_entities} />
+              </CollapsibleSection>
+            )}
+            {atsAnalysis?.evidence_analysis && (
+              <CollapsibleSection title="Evidence Strength" icon={BadgeCheck}>
+                <EvidenceStrengthPanel
+                  evidenceAnalysis={atsAnalysis.evidence_analysis}
+                  evidenceGaps={atsAnalysis.gap_analysis?.evidence_gaps}
+                />
               </CollapsibleSection>
             )}
             <MissingKeywordsAlert analysis={atsAnalysis} />

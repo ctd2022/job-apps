@@ -1,6 +1,6 @@
 # TODO.md - Agent Handover
 
-**Status**: PENDING
+**Status**: RESOLVED
 **Date**: 3 February 2026
 **From**: Claude (Lead Architect)
 **To**: Gemini (Implementation)
@@ -141,7 +141,9 @@ Test cases:
 
 ## Task 3: Fix ATSExplainability Test Failures
 
-**Goal**: Fix 2 failing tests in `frontend/src/components/__tests__/ATSExplainability.test.tsx`.
+**Status**: RESOLVED
+
+**Summary**: The tests for 'renders biggest penalties' and 'renders semantic insights when available' in `frontend/src/components/__tests__/ATSExplainability.test.tsx` were failing due to a double-click issue. The tests were clicking on both the section header and then the button, causing the collapsible section to open and immediately close. The fix involved removing the duplicate click, ensuring each section is opened with a single, correct click. Additionally, unused imports (`within`) and unused variables (`penaltiesSection`, `semanticSection`) were removed, and the `penaltiesButton` and `semanticButton` declarations were correctly placed.
 
 ### The problem
 
