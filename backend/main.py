@@ -222,6 +222,13 @@ class MetricsResponse(BaseModel):
     avg_time_to_response_days: Optional[float]
 
 
+class PipelineDiagnosisResponse(BaseModel):
+    """Response for pipeline health diagnosis"""
+    diagnosis: str
+    advice: str
+    metrics: Dict[str, Any]
+
+
 class UserCreateRequest(BaseModel):
     """Request to create a new user"""
     name: str
@@ -1270,6 +1277,16 @@ async def get_metrics(user_id: str = Header(None, alias="X-User-ID")):
     return MetricsResponse(**metrics)
 
 
+@app.get("/api/pipeline/diagnosis", response_model=PipelineDiagnosisResponse)
+async def get_pipeline_diagnosis(user_id: str = Header(None, alias="X-User-ID")):
+    """
+    Analyze the application funnel and provide a diagnosis and advice.
+    """
+    user_id = user_id or "default"
+    diagnosis = job_store.get_pipeline_diagnosis(user_id=user_id)
+    return PipelineDiagnosisResponse(**diagnosis)
+
+
 @app.get("/api/jobs/{job_id}/files")
 async def list_job_files(job_id: str):
     """List output files for a completed job"""
@@ -1539,6 +1556,23 @@ async def delete_cv(cv_id: int, user_id: str = Header(None, alias="X-User-ID")):
     if not deleted:
         raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
     return {"message": f"CV {cv_id} deleted"}
+
+
+class CVRenameRequest(BaseModel):
+    """Request to rename a CV."""
+    name: str
+
+
+@app.put("/api/cvs/{cv_id}/name")
+async def rename_cv(cv_id: int, request: CVRenameRequest, user_id: str = Header(None, alias="X-User-ID")):
+    """Rename a CV. Verifies user ownership."""
+    user_id = user_id or "default"
+    if not request.name.strip():
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    updated = cv_store.update_cv(cv_id, user_id=user_id, name=request.name.strip())
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return updated
 
 
 @app.put("/api/cvs/{cv_id}/default")

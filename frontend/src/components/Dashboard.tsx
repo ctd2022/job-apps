@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  FileText,
   CheckCircle,
   XCircle,
   Loader2,
@@ -12,6 +11,7 @@ import {
 import { getHealth, getJobs, getApplications, getMetrics } from '../api';
 import type { Job, Application, HealthStatus, Metrics } from '../types';
 import { getMatchTier } from '../utils/matchTier';
+import PipelineDiagnosis from './PipelineDiagnosis';
 
 function Dashboard() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -36,8 +36,8 @@ function Dashboard() {
         getMetrics(),
       ]);
       setHealth(healthData);
-      setJobs(Array.isArray(jobsData) ? jobsData : (jobsData?.jobs || []));
-      setApplications(Array.isArray(appsData) ? appsData : (appsData?.applications || []));
+      setJobs(Array.isArray(jobsData) ? jobsData : ((jobsData as any)?.jobs || []));
+      setApplications(appsData);
       setMetrics(metricsData);
       setError(null);
     } catch (err) {
@@ -137,6 +137,8 @@ function Dashboard() {
           </div>
         </div>
       )}
+
+      <PipelineDiagnosis />
 
       {/* Active Jobs */}
       {activeJobs.length > 0 && (

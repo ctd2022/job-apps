@@ -26,6 +26,8 @@
 - Change the hybrid scoring formula (Lexical 55% + Semantic 35% + Evidence 10%)
 - Alter database schema without migration logic
 - Push to git or create commits **unless TODO.md explicitly instructs you to**
+- **Fix pre-existing warnings or errors in files you weren't asked to change.** If `tsc --noEmit` reports issues in other files, **ignore them** — they are known and tracked separately. Only ensure you introduced no *new* errors.
+- **Replace imports with stubs or placeholders.** If an import doesn't resolve, the module exists — investigate the path. Never replace a real import with an inline dummy.
 
 ### When in doubt:
 - Ask the user. Do not guess at architectural decisions.
@@ -249,7 +251,7 @@ If your fix doesn't work after 2 attempts:
 
 ### Completion checklist
 
-Before writing your completion summary in TODO.md, **run every command listed in the Global Acceptance Criteria section** and fix any new errors you introduced. Common gotchas:
+Before writing your completion summary in TODO.md, **run every command listed in the Global Acceptance Criteria section** and fix any new errors **you introduced** (not pre-existing ones). Common gotchas:
 - Unused imports causing `tsc` errors
 - `getByText` finding multiple elements (use `within()` to scope)
 - Tests passing individually but failing when run together

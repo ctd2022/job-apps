@@ -631,6 +631,43 @@ class JobStore:
 
         return None
 
+    def get_pipeline_diagnosis(self, user_id: str = None) -> Dict[str, Any]:
+        """Analyze the application funnel and provide a diagnosis."""
+        metrics = self.get_outcome_metrics(user_id=user_id)
+        
+        funnel = metrics["funnel"]
+        rates = metrics["rates"]
+        
+        submitted_count = funnel.get("submitted", 0)
+        interview_count = funnel.get("interview", 0)
+        offer_count = funnel.get("offer", 0)
+        
+        diagnosis = "Your pipeline looks healthy. Keep up the great work!"
+        advice = "Continue applying to relevant roles and preparing for interviews."
+        
+        if submitted_count < 5:
+            diagnosis = "You're just getting started."
+            advice = "Focus on submitting more applications to build up your pipeline data."
+        elif rates["interview_rate"] < 10 and submitted_count > 10:
+            diagnosis = "Your application-to-interview rate is low."
+            advice = "This could indicate that your CV isn't getting past the initial screen. Focus on improving your ATS score and tailoring your CV to each job."
+        elif rates["interview_rate"] > 20 and rates["offer_rate"] < 10 and interview_count > 5:
+            diagnosis = "You're getting interviews, but not as many offers as expected."
+            advice = "This is a great sign that your CV is effective! Now, focus on honing your interview skills. Practice common interview questions and be prepared to talk about your experience in detail."
+        elif submitted_count > 20 and interview_count == 0:
+            diagnosis = "You've submitted a good number of applications but haven't landed an interview yet."
+            advice = "It's time to take a close look at your CV and cover letter. Are they tailored to the jobs you're applying for? Are they optimized for ATS scanners? Consider getting feedback from a career coach or mentor."
+
+        return {
+            "diagnosis": diagnosis,
+            "advice": advice,
+            "metrics": {
+                "total_submitted": submitted_count,
+                "interview_rate": rates["interview_rate"],
+                "offer_rate": rates["offer_rate"],
+            },
+        }
+
     def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
         """Convert a database row to a dictionary."""
         # Handle columns which may not exist in older databases

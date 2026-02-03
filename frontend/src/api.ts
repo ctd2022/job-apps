@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse } from './types';
 
 const API_BASE = '/api';
 
@@ -324,6 +324,13 @@ export async function getMetrics(): Promise<Metrics> {
   return handleResponse(response);
 }
 
+export async function getPipelineDiagnosis(): Promise<PipelineDiagnosis> {
+  const response = await fetch(`${API_BASE}/pipeline/diagnosis`, {
+    headers: getUserHeaders(),
+  });
+  return handleResponse(response);
+}
+
 // Utility: Poll job status until complete (fallback for when WebSocket fails)
 export async function pollJobUntilComplete(
   jobId: string,
@@ -496,6 +503,15 @@ export async function createCV(
     method: 'POST',
     headers: getUserHeaders(),
     body: formData,
+  });
+  return handleResponse(response);
+}
+
+export async function renameCV(cvId: number, name: string): Promise<StoredCV> {
+  const response = await fetch(`${API_BASE}/cvs/${cvId}/name`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ name }),
   });
   return handleResponse(response);
 }

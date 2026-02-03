@@ -48,7 +48,7 @@ function ApplicationHistory() {
   async function loadApplications() {
     try {
       const data = await getApplications();
-      setApplications(Array.isArray(data) ? data : (data?.applications || []));
+      setApplications(data);
     } catch (err) {
       console.error('API Error:', err);
       setError('Failed to load applications');

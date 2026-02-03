@@ -105,6 +105,17 @@ export interface Application {
   notes?: string;
 }
 
+export interface HealthStatus {
+  status: string;
+  version: string;
+  backends: {
+    ollama: boolean;
+    llamacpp: boolean;
+    gemini: boolean;
+  };
+  workflow_available: boolean;
+}
+
 export interface OutcomeUpdate {
   outcome_status: OutcomeStatus;
   notes?: string;
@@ -113,13 +124,7 @@ export interface OutcomeUpdate {
 export interface Metrics {
   total: number;
   by_status: Record<string, number>;
-  funnel: {
-    draft: number;
-    submitted: number;
-    response: number;
-    interview: number;
-    offer: number;
-  };
+  funnel: Record<string, number>;
   rates: {
     response_rate: number;
     interview_rate: number;
@@ -128,13 +133,13 @@ export interface Metrics {
   avg_time_to_response_days: number | null;
 }
 
-export interface HealthStatus {
-  status: string;
-  version: string;
-  backends: {
-    ollama: boolean;
-    llamacpp: boolean;
-    gemini: boolean;
+export interface PipelineDiagnosis {
+  diagnosis: string;
+  advice: string;
+  metrics: {
+    total_submitted: number;
+    interview_rate: number;
+    offer_rate: number;
   };
 }
 

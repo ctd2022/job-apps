@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { FileText, PlusCircle, History, User, UserPlus, Sun, Moon, Shield } from 'lucide-react';
+import { FileText, PlusCircle, History, User, UserPlus, Sun, Moon, Shield, FolderOpen } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import NewApplication from './components/NewApplication';
 import ApplicationHistory from './components/ApplicationHistory';
 import JobDetail from './components/JobDetail';
+import CVManager from './components/CVManager';
 import ErrorBoundary from './components/ErrorBoundary';
 import { getUsers, createUser, setCurrentUser, getCurrentUser, initTheme, setTheme, Theme } from './api';
 import type { User as UserType } from './types';
@@ -63,6 +64,7 @@ function App() {
   const navItems = [
     { path: '/', icon: FileText, label: 'Dashboard' },
     { path: '/new', icon: PlusCircle, label: 'New Application' },
+    { path: '/cvs', icon: FolderOpen, label: 'CVs' },
     { path: '/history', icon: History, label: 'History' },
   ];
   
@@ -137,6 +139,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard key={refreshKey} />} />
             <Route path="/new" element={<NewApplication key={refreshKey} />} />
+            <Route path="/cvs" element={<CVManager key={refreshKey} />} />
             <Route path="/history" element={<ApplicationHistory key={refreshKey} />} />
             <Route path="/job/:id" element={<JobDetail key={refreshKey} />} />
           </Routes>
