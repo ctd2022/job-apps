@@ -16,6 +16,9 @@
 - **Next steps**: #23 (ATS Confidence Score), #56 (AI Skills Suggester), or #30 (Follow-up Automation). Could also add `vitest --coverage` script.
 - **Blocked/broken**: Nothing. 52 tests passing, zero TS errors.
 - **Ideas backlog**: #127 done. Test coverage improving — 6 test files now (was 4).
+- **Quick commands**:
+  - Run tests: `cd frontend && npx vitest run`
+  - Test coverage check: `cd frontend/src/components && for f in *.tsx; do name="${f%.tsx}"; if [ ! -f "__tests__/${name}.test.tsx" ]; then echo "UNTESTED: $f"; else echo "TESTED:   $f"; fi; done`
 
 ---
 
