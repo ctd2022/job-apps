@@ -84,7 +84,8 @@ export async function getUser(userId: string): Promise<User> {
 // Backends
 export async function getBackends(): Promise<Backend[]> {
   const response = await fetch(`${API_BASE}/backends`);
-  return handleResponse(response);
+  const data = await handleResponse(response);
+  return Array.isArray(data) ? data : data.backends ?? [];
 }
 
 // Jobs
