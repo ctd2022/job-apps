@@ -7,6 +7,21 @@
 
 ---
 
+## Philosophy: Work With ATS, Not Against It
+
+This tool does not game applicant tracking systems. ATS exists to help employers find the right candidates efficiently — undermining that helps no one.
+
+Our goal is **impeccable presentation**: ensuring a candidate's real skills, experience, and evidence are structured and surfaced in the way ATS expects to receive them. No keyword stuffing, no invisible text, no inflated claims.
+
+This creates a three-way win:
+- **Job seekers** get fairly evaluated on their actual strengths
+- **Employers** receive well-structured applications that their systems can parse correctly
+- **Us (the tool)** build something sustainable that doesn't break when ATS vendors tighten their filters
+
+Every feature — ATS scoring, gap analysis, keyword suggestions, CV refinement — should be measured against this principle: *does it help the candidate present their truth more clearly, or does it help them fabricate a better-looking lie?* Only the former belongs here.
+
+---
+
 ## 📍 **WHERE WE ARE NOW**
 
 ### **✅ Track 1: CLI Workflow** - COMPLETE (Production Ready)
