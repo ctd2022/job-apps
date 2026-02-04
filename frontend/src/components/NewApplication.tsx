@@ -2,16 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Upload,
-  FileText,
-  Building2,
-  Server,
   Loader2,
   CheckCircle,
   XCircle,
   AlertCircle,
-  ChevronDown,
   Sparkles,
-  Save,
   Star,
   Trash2
 } from 'lucide-react';
@@ -63,7 +58,7 @@ function NewApplication() {
       ]);
 
       // Handle various response formats
-      const backendList = Array.isArray(backendData) ? backendData : (backendData?.backends || []);
+      const backendList = Array.isArray(backendData) ? backendData : [];
       setBackends(backendList);
 
       // Set default model for selected backend
@@ -721,194 +716,5 @@ function SharpDropZone({
   );
 }
 
-function CompactDropZone({
-  accept,
-  file,
-  onFileSelect,
-  disabled,
-}: {
-  accept: string;
-  file: File | null;
-  onFileSelect: (file: File | null) => void;
-  disabled?: boolean;
-}) {
-  const [isDragging, setIsDragging] = useState(false);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    if (!disabled) setIsDragging(true);
-  }, [disabled]);
-
-  const handleDragLeave = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (disabled) return;
-
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      onFileSelect(droppedFile);
-    }
-  }, [disabled, onFileSelect]);
-
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      onFileSelect(selectedFile);
-    }
-  }, [onFileSelect]);
-
-  return (
-    <div
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      className={`relative border-2 border-dashed rounded px-3 py-4 text-center transition-colors ${
-        isDragging
-          ? 'border-indigo-500 bg-indigo-50'
-          : file
-            ? 'border-green-400 bg-green-50'
-            : 'border-gray-300 hover:border-gray-400'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <input
-        type="file"
-        accept={accept}
-        onChange={handleFileInput}
-        disabled={disabled}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-      />
-      {file ? (
-        <div className="flex items-center justify-center space-x-2">
-          <CheckCircle className="w-4 h-4 text-green-500" />
-          <span className="text-sm font-medium text-gray-900 truncate max-w-[150px]">{file.name}</span>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onFileSelect(null); }}
-            className="p-0.5 hover:bg-gray-200 rounded"
-          >
-            <XCircle className="w-4 h-4 text-gray-400" />
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
-          <Upload className="w-4 h-4" />
-          <span>Drop or <span className="text-indigo-600">browse</span></span>
-          <span className="text-xs text-gray-400">({accept})</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FileDropZone({
-  label,
-  accept,
-  file,
-  onFileSelect,
-  disabled,
-}: {
-  label: string;
-  accept: string;
-  file: File | null;
-  onFileSelect: (file: File | null) => void;
-  disabled?: boolean;
-}) {
-  const [isDragging, setIsDragging] = useState(false);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    if (!disabled) setIsDragging(true);
-  }, [disabled]);
-
-  const handleDragLeave = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (disabled) return;
-
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      onFileSelect(droppedFile);
-    }
-  }, [disabled, onFileSelect]);
-
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      onFileSelect(selectedFile);
-    }
-  }, [onFileSelect]);
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        <FileText className="w-4 h-4 inline mr-2" />
-        {label}
-      </label>
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-          isDragging
-            ? 'border-indigo-500 bg-indigo-50'
-            : file
-              ? 'border-green-300 bg-green-50'
-              : 'border-gray-300 hover:border-gray-400'
-        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-      >
-        <input
-          type="file"
-          accept={accept}
-          onChange={handleFileInput}
-          disabled={disabled}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        />
-        {file ? (
-          <div className="flex items-center justify-center space-x-3">
-            <CheckCircle className="w-6 h-6 text-green-500" />
-            <div className="text-left">
-              <p className="font-medium text-gray-900">{file.name}</p>
-              <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
-            </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onFileSelect(null);
-              }}
-              className="p-1 hover:bg-gray-200 rounded"
-            >
-              <XCircle className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
-        ) : (
-          <>
-            <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-            <p className="text-gray-600">
-              Drag & drop or <span className="text-indigo-600 font-medium">browse</span>
-            </p>
-            <p className="text-sm text-gray-400 mt-1">
-              Accepts: {accept.split(',').join(', ')}
-            </p>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 export default NewApplication;
+
