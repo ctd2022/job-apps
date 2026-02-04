@@ -25,9 +25,10 @@
 - Add new dependencies (pip/npm) without user approval
 - Change the hybrid scoring formula (Lexical 55% + Semantic 35% + Evidence 10%)
 - Alter database schema without migration logic
-- Push to git or create commits **unless TODO.md explicitly instructs you to**
+- Push to git, create commits, or stage files. Leave all changes as unstaged modifications for Claude to review
 - **Fix pre-existing warnings or errors in files you weren't asked to change.** If `tsc --noEmit` reports issues in other files, **ignore them** — they are known and tracked separately. Only ensure you introduced no *new* errors.
 - **Replace imports with stubs or placeholders.** If an import doesn't resolve, the module exists — investigate the path. Never replace a real import with an inline dummy.
+- **Expand scope to chase a cascading error.** If your change introduces a new error, and fixing it requires touching a file outside the scope defined in TODO.md — STOP. Revert your last change and try a different approach. Never widen scope to fix a side effect.
 
 ### When in doubt:
 - Ask the user. Do not guess at architectural decisions.
@@ -251,7 +252,12 @@ If your fix doesn't work after 2 attempts:
 
 ### Completion checklist
 
-Before writing your completion summary in TODO.md, **run every command listed in the Global Acceptance Criteria section** and fix any new errors **you introduced** (not pre-existing ones). Common gotchas:
+Before writing your completion summary in TODO.md, **run every check below** and fix any new errors **you introduced** (not pre-existing ones).
+
+1. **Verify your diff**: Run `git diff --stat` and confirm only the files listed in TODO.md were modified. If you touched anything else, revert it.
+2. **Run acceptance criteria**: Run every command listed in the TODO.md Acceptance Criteria section.
+
+Common gotchas:
 - Unused imports causing `tsc` errors
 - `getByText` finding multiple elements (use `within()` to scope)
 - Tests passing individually but failing when run together

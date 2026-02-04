@@ -1,145 +1,157 @@
 # TODO.md - Agent Handover
 
-**Status**: PENDING
+**Status**: RESOLVED
+**Completion Summary**: Created the two new test files, `GapAnalysis.test.tsx` and `MissingKeywordsAlert.test.tsx`. Fixed all failing tests and resolved all TypeScript errors. The test suite now passes and the project type-checks successfully.
 **Date**: 04 February 2026
 **From**: Claude (Lead Architect)
 **To**: Gemini (Implementation)
-**Idea**: #127 — Clean up pre-existing TypeScript warnings in NewApplication.tsx
+**Task**: Write unit tests for GapAnalysis and MissingKeywordsAlert components
 
 ---
 
 ## Overview
 
-`npx tsc --noEmit` reports 7 errors in `NewApplication.tsx`. All are unused declarations — dead code that should be removed. No logic changes needed.
+Add unit tests for two untested presentational components. Both are pure props-in/JSX-out with no API calls or state management. Follow the existing test pattern in `EvidenceStrengthPanel.test.tsx` exactly.
+
+**This is an additive-only task. You are creating 2 new files. You are not modifying any existing files.**
 
 ---
 
-## Errors to Fix
+## Reference: Existing test pattern
 
-```
-src/components/NewApplication.tsx(6,3):  TS6133: 'Building2' is declared but its value is never read.
-src/components/NewApplication.tsx(7,3):  TS6133: 'Server' is declared but its value is never read.
-src/components/NewApplication.tsx(12,3): TS6133: 'ChevronDown' is declared but its value is never read.
-src/components/NewApplication.tsx(14,3): TS6133: 'Save' is declared but its value is never read.
-src/components/NewApplication.tsx(66,84): TS2339: Property 'backends' does not exist on type 'never'.
-src/components/NewApplication.tsx(724,10): TS6133: 'CompactDropZone' is declared but its value is never read.
-src/components/NewApplication.tsx(807,10): TS6133: 'FileDropZone' is declared but its value is never read.
-```
+Study `frontend/src/components/__tests__/EvidenceStrengthPanel.test.tsx` before writing anything. Match its structure:
 
----
-
-## Task 1: Remove unused icon imports (lines 6, 7, 12, 14)
-
-**File**: `frontend/src/components/NewApplication.tsx`
-
-Remove `Building2`, `Server`, `ChevronDown`, and `Save` from the lucide-react import block (lines 3-17). Keep all other icons — they are used.
-
-Current:
 ```typescript
-import {
-  Upload,
-  FileText,
-  Building2,
-  Server,
-  Loader2,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  ChevronDown,
-  Sparkles,
-  Save,
-  Star,
-  Trash2
-} from 'lucide-react';
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import ComponentName from '../ComponentName';
+import type { ... } from '../../types';
+
+describe('ComponentName', () => {
+  const mockData = { ... };
+
+  it('renders without crashing', () => { ... });
+  it('handles empty/null data', () => { ... });
+  it('renders specific content', () => { ... });
+});
 ```
 
-Target:
+---
+
+## Task 1: Test GapAnalysis component
+
+**Create**: `frontend/src/components/__tests__/GapAnalysis.test.tsx`
+
+**Component source**: `frontend/src/components/GapAnalysis.tsx` (139 lines)
+
+**Props interface**:
 ```typescript
-import {
-  Upload,
-  FileText,
-  Loader2,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  Sparkles,
-  Star,
-  Trash2
-} from 'lucide-react';
+interface GapAnalysisProps {
+  gapAnalysis: GapAnalysisData;
+  semanticAvailable?: boolean;
+}
 ```
 
----
-
-## Task 2: Fix type inference on line 66
-
-**File**: `frontend/src/components/NewApplication.tsx`
-
-Line 66:
+**Types to import from `../../types`**:
 ```typescript
-const backendList = Array.isArray(backendData) ? backendData : (backendData?.backends || []);
+import type { GapAnalysis as GapAnalysisData } from '../../types';
 ```
 
-The `.backends` property access triggers TS2339 because `getBackends()` returns `Backend[]`, so the non-array branch is typed as `never`. The `?.backends` fallback is dead code from an old API shape.
-
-**Change to**:
+**Mock data shape** (construct from these types):
 ```typescript
-const backendList = Array.isArray(backendData) ? backendData : [];
+// GapAnalysis = { critical_gaps, evidence_gaps, semantic_gaps, experience_gaps }
+// CriticalGaps = { missing_critical_keywords: string[], missing_required_skills: string[] }
+// EvidenceGaps = { weak_evidence_skills: string[] }
+// SemanticGaps = { missing_concepts: string[] }
+// ExperienceGaps = { cv_years: number | null, jd_years: number | null, gap: number }
 ```
 
-This preserves the defensive array check while removing the dead property access.
+**Tests to write**:
+
+1. `renders without crashing` — render with full mock data, expect "Gap Analysis" heading present
+2. `shows critical gaps when present` — provide mock with `missing_critical_keywords: ['Python', 'AWS']`, assert both appear and "Critical Gaps" heading shows
+3. `shows evidence gaps when present` — provide mock with `weak_evidence_skills: ['Docker']`, assert "Evidence Gaps" heading and skill appear
+4. `shows semantic gaps when semanticAvailable is true` — provide mock with `missing_concepts: ['microservices']` and `semanticAvailable={true}`, assert "Semantic Gaps" heading appears
+5. `hides semantic gaps when semanticAvailable is false` — same mock but `semanticAvailable={false}`, assert "Semantic Gaps" heading is NOT in document
+6. `shows experience gap when gap > 0` — provide `{ cv_years: 3, jd_years: 5, gap: 2 }`, assert text mentioning "5" and "3" years appears
+7. `hides sections when data is empty` — provide mock with all empty arrays and `gap: 0`, assert none of the section headings ("Critical Gaps", "Evidence Gaps", "Semantic Gaps", "Experience Gap") appear
+8. `badge count reflects number of active gap categories` — render with all 4 gap types populated, check badge shows "4"
 
 ---
 
-## Task 3: Delete unused `CompactDropZone` component (lines 724-805)
+## Task 2: Test MissingKeywordsAlert component
 
-**File**: `frontend/src/components/NewApplication.tsx`
+**Create**: `frontend/src/components/__tests__/MissingKeywordsAlert.test.tsx`
 
-Delete the entire `CompactDropZone` function (lines 724-805). It is defined but never used anywhere in the codebase.
+**Component source**: `frontend/src/components/MissingKeywordsAlert.tsx` (157 lines)
+
+**Props interface**:
+```typescript
+interface MissingKeywordsAlertProps {
+  analysis: ATSAnalysisData;
+  defaultCollapsed?: boolean;
+}
+```
+
+**Types to import from `../../types`**:
+```typescript
+import type { ATSAnalysisData } from '../../types';
+```
+
+The component only reads `analysis.scores_by_category`, so you need to construct a minimal `ATSAnalysisData` mock. For fields beyond `scores_by_category`, use sensible defaults (0, empty arrays, empty objects). The type definition:
+
+```typescript
+// ATSCategoryScore = { matched: number, missing: number, items_matched: string[], items_missing: string[] }
+// scores_by_category: Record<string, ATSCategoryScore>
+// Keys the component reads: 'critical_keywords', 'required', 'hard_skills', 'preferred'
+```
+
+**Tests to write**:
+
+1. `renders without crashing` — render with mock data, expect "Missing Keywords" heading present
+2. `shows success state when no keywords missing` — provide mock where all `items_missing` are `[]`, assert text "Excellent" or "covers all" appears
+3. `shows critical missing keywords` — provide `critical_keywords: { items_missing: ['Python', 'AWS'], ... }`, assert both keywords render and "Critical" heading appears
+4. `shows required missing keywords` — provide `required: { items_missing: ['Docker'], ... }`, assert keyword renders and "Required Skills" heading appears
+5. `shows technical skills missing` — provide `hard_skills: { items_missing: ['Kubernetes'], ... }`, assert "Technical Skills" heading appears
+6. `shows nice-to-have missing keywords` — provide `preferred: { items_missing: ['GraphQL'], ... }`, assert "Nice to Have" heading appears
+7. `shows correct total badge count` — provide mock with 2 critical + 1 required + 1 hard_skills = 4 total, assert badge shows "4"
+8. `shows summary tip text` — render with any missing keywords, assert text about "Adding these keywords" appears
 
 ---
 
-## Task 4: Delete unused `FileDropZone` component (lines 807-914)
+## Scope — Only these new files
 
-**File**: `frontend/src/components/NewApplication.tsx`
-
-Delete the entire `FileDropZone` function (lines 807 to end of file). It is defined but never used anywhere in the codebase.
-
----
-
-## Scope — Only this file
-
-| File | Change |
+| File | Action |
 |------|--------|
-| `frontend/src/components/NewApplication.tsx` | Remove 4 unused imports, simplify line 66, delete 2 dead components |
+| `frontend/src/components/__tests__/GapAnalysis.test.tsx` | CREATE |
+| `frontend/src/components/__tests__/MissingKeywordsAlert.test.tsx` | CREATE |
 
-**Total: 1 file. ~200 lines removed, ~1 line changed.**
+**Total: 2 new files. Zero existing files modified.**
 
 ---
 
 ## Out of Scope — Do NOT Touch
 
-- Any other files
-- Any other components
-- Any test files
+- Any existing files (components, tests, types, api, config)
+- ideas.db, diary entries, CLAUDE.md, GEMINI.md
 - Backend code
-- Database or ideas.db (Claude will update idea status)
-- Diary entries (Claude will write the diary)
+- Any file not listed above
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `cd frontend && npx tsc --noEmit` — zero errors (currently 7)
-- [ ] `cd frontend && npx vitest run` — all existing tests pass
-- [ ] No other files modified
-- [ ] No new code added — this is purely a deletion/cleanup task
+- [ ] `cd frontend && npx vitest run` — all tests pass (existing 36 + your new ones)
+- [ ] `cd frontend && npx tsc --noEmit` — zero errors (same as current)
+- [ ] `git diff --stat` shows only the 2 new files (nothing else modified)
+- [ ] No new dependencies added
 - [ ] Write a short completion summary at the top of this file
 
 ---
 
 ## REMINDER: Scope Boundaries
 
-**Only modify `frontend/src/components/NewApplication.tsx`.** Do not add new imports, new components, or new functionality. This is a cleanup task — remove dead code only. See GEMINI.md for full rules.
+**You are only CREATING two new test files.** Do not modify any existing files. Do not "fix" or "improve" the components being tested. Do not add types or helpers. If a test doesn't pass, the test is wrong — fix the test, not the component. See GEMINI.md for full rules.
 
 ---
 
