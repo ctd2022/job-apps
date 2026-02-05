@@ -84,7 +84,7 @@ export async function getUser(userId: string): Promise<User> {
 // Backends
 export async function getBackends(): Promise<Backend[]> {
   const response = await fetch(`${API_BASE}/backends`);
-  const data = await handleResponse(response);
+  const data = await handleResponse<any>(response);
   return Array.isArray(data) ? data : data.backends ?? [];
 }
 
@@ -288,6 +288,16 @@ export async function getMatchHistory(jobId: string): Promise<MatchHistoryRespon
     headers: getUserHeaders(),
   });
   return handleResponse(response);
+}
+
+// AI Skill Suggester (Idea #56)
+export async function suggestSkills(jobId: string): Promise<string[]> {
+    const response = await fetch(`${API_BASE}/jobs/${jobId}/suggest-skills`, {
+        method: 'POST',
+        headers: getUserHeaders(),
+    });
+    const data = await handleResponse<{ suggestions: string[] }>(response);
+    return data.suggestions;
 }
 
 // Applications (past outputs)

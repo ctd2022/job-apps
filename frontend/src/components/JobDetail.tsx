@@ -14,7 +14,7 @@ import {
   Edit3,
   X
 } from 'lucide-react';
-import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory } from '../api';
+import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills } from '../api';
 import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry } from '../types';
 import FilePreview from './FilePreview';
 import CVTextEditor from './CVTextEditor';
@@ -59,6 +59,11 @@ function JobDetail() {
 
   // CV Editor modal state
   const [showCVEditor, setShowCVEditor] = useState(false);
+
+  // Skill Suggester state (Idea #56)
+  const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
 
   // Job Description modal state
   const [showJD, setShowJD] = useState(false);
@@ -131,6 +136,25 @@ function JobDetail() {
     } finally {
       setLoadingJD(false);
     }
+  }
+
+  async function handleSuggestSkills() {
+    if (!job || loadingSuggestions) return;
+    setLoadingSuggestions(true);
+    setSuggestionError(null);
+    try {
+      const skills = await suggestSkills(job.id);
+      setSuggestedSkills(skills);
+    } catch (err: any) {
+      console.error('Failed to get skill suggestions:', err);
+      setSuggestionError(err?.message || 'Failed to get suggestions');
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }
+
+  function handleDismissSuggestion(skill: string) {
+    setSuggestedSkills(prev => prev.filter(s => s !== skill));
   }
 
   if (loading) {
@@ -331,6 +355,53 @@ function JobDetail() {
             )}
             <MissingKeywordsAlert analysis={atsAnalysis} />
             <CVCompletenessMeter analysis={atsAnalysis} />
+
+            <CollapsibleSection title="AI Skill Suggester" icon={Sparkles}>
+              <div className="p-4 bg-slate-50 dark:bg-slate-700">
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+                  Get AI-powered suggestions for skills you might have missed, based on the job description.
+                </p>
+                <button
+                  onClick={handleSuggestSkills}
+                  disabled={loadingSuggestions}
+                  className="px-3 py-1.5 bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  {loadingSuggestions && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{loadingSuggestions ? 'Analyzing...' : 'Suggest Skills'}</span>
+                </button>
+
+                {suggestionError && (
+                  <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-sm text-red-600 dark:text-red-400">
+                    {suggestionError}
+                  </div>
+                )}
+
+                {suggestedSkills.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Suggested Skills ({suggestedSkills.length})
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestedSkills.map((skill) => (
+                        <div
+                          key={skill}
+                          className="flex items-center space-x-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-sm"
+                        >
+                          <span>{skill}</span>
+                          <button
+                            onClick={() => handleDismissSuggestion(skill)}
+                            className="p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800 rounded"
+                            title="Dismiss"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
           </div>
         )}
 

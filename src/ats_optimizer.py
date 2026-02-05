@@ -982,6 +982,34 @@ Generate the complete CV now:"""
 
         return self.backend.chat(messages, temperature=0.3, max_tokens=8192)
 
+    def suggest_skills(self, cv_text: str, job_description: str) -> list[str]:
+        """Use LLM to suggest skills to add to the CV."""
+        system_message = (
+            "You are an expert CV analyst. Your task is to suggest skills that are "
+            "mentioned in the job description but are missing from the CV. "
+            "Output ONLY a comma-separated list of skills. "
+            "Do NOT add any preamble, explanation, or commentary."
+        )
+
+        prompt = (
+            f"CV:\n{cv_text}\n\n"
+            f"JOB DESCRIPTION:\n{job_description}\n\n"
+            "Suggest 5-10 skills that are in the job description but not in the CV. "
+            "Output a single line of comma-separated values. For example: "
+            "Python, FastAPI, Docker, Kubernetes, AWS"
+        )
+
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": prompt},
+        ]
+
+        response = self.backend.chat(messages, temperature=0.7, max_tokens=256)
+        
+        # Clean up the response and split into a list
+        skills = [skill.strip() for skill in response.split(',') if skill.strip()]
+        return skills
+
     def generate_ats_report(self, cv_text: str, job_description: str) -> tuple:
         """Generate a comprehensive ATS analysis report"""
 

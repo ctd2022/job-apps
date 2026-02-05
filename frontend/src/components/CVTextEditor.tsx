@@ -8,6 +8,7 @@ import MatchExplanationCard from './MatchExplanationCard';
 import CVCompletenessMeter from './CVCompletenessMeter';
 import ScoreComparisonPanel from './ScoreComparisonPanel';
 import ATSExplainability from './ATSExplainability';
+import FormattingTipsPanel from './FormattingTipsPanel';
 
 interface CVTextEditorProps {
   cvVersionId: number;
@@ -370,6 +371,8 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
                   className="w-full min-h-[300px] h-96 font-mono text-sm p-3 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
                   spellCheck={false}
                 />
+
+                <FormattingTipsPanel content={content} />
 
                 {/* Change summary */}
                 <div>
