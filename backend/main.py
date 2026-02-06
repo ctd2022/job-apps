@@ -1246,6 +1246,76 @@ async def apply_suggestions(
     }
 
 
+@app.post("/api/jobs/{job_id}/suggest-skills")
+async def suggest_skills(
+    job_id: str,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Use LLM to suggest skills to add to the CV based on the job description (Idea #56)."""
+    user_id = user_id or "default"
+
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Workflow modules not available. Check server logs.",
+        )
+
+    job = job_store.get_job(job_id, user_id=user_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if job["status"] != "completed":
+        raise HTTPException(
+            status_code=400, detail="Can only suggest skills for completed jobs"
+        )
+
+    # Get CV content from the job's CV version
+    cv_version_id = job.get("cv_version_id")
+    cv_content = None
+    if cv_version_id:
+        cv_content = cv_store.get_cv_version_content(cv_version_id)
+
+    if not cv_content:
+        raise HTTPException(
+            status_code=400,
+            detail="CV content not available for this job",
+        )
+
+    job_description = job_store.get_job_description_text(job_id)
+    if not job_description:
+        raise HTTPException(
+            status_code=400,
+            detail="Job description text not available for this job",
+        )
+
+    # Use job's backend or default to gemini (fast for suggestions)
+    backend_type = job.get("backend_type", "gemini")
+    backend_config: Dict[str, Any] = {}
+    if backend_type == "ollama":
+        backend_config["model_name"] = "llama3.1:8b"
+    elif backend_type == "llamacpp":
+        backend_config["model_name"] = "gemma-3-27B"
+        backend_config["base_url"] = "http://localhost:8080"
+    elif backend_type == "gemini":
+        backend_config["model_name"] = "gemini-2.0-flash"
+        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+
+    backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
+    ats_optimizer = ATSOptimizer(
+        backend=backend, company_name=job.get("company_name")
+    )
+
+    loop = asyncio.get_event_loop()
+    suggestions = await loop.run_in_executor(
+        None,
+        ats_optimizer.suggest_skills,
+        cv_content,
+        job_description,
+    )
+
+    return {"suggestions": suggestions}
+
+
 @app.get("/api/jobs/{job_id}/match-history")
 async def get_match_history(
     job_id: str,

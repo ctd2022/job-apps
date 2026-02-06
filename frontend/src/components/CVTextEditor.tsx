@@ -427,7 +427,12 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
                   />
                   <MissingKeywordsAlert analysis={atsAnalysis} defaultCollapsed />
                   <MatchExplanationCard analysis={atsAnalysis} />
-                  <ATSExplainability analysis={atsAnalysis} />
+                  <ATSExplainability
+                    analysis={atsAnalysis}
+                    onApply={handleApplySuggestions}
+                    applying={applying}
+                    backends={backends}
+                  />
                   <CVCompletenessMeter analysis={atsAnalysis} />
                 </>
               )}

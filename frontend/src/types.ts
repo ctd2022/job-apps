@@ -244,11 +244,21 @@ export interface ExperienceGaps {
   gap: number;
 }
 
+// Idea #87: Smart CV Gap Analysis with Actionable Suggestions
+export interface ActionableSuggestion {
+  skill: string;
+  priority: 'critical' | 'required' | 'hard_skills' | 'preferred';
+  recommended_section: string;
+  section_score: number;
+  reason: string;
+}
+
 export interface GapAnalysis {
   critical_gaps: CriticalGaps;
   evidence_gaps: EvidenceGaps;
   semantic_gaps: SemanticGaps;
   experience_gaps: ExperienceGaps;
+  actionable_suggestions?: ActionableSuggestion[];
 }
 
 export interface ATSAnalysisData {

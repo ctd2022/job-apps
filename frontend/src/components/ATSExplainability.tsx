@@ -1,11 +1,14 @@
 import { useMemo } from 'react';
 import { BarChart3, AlertTriangle, CheckCircle2, Brain, Target } from 'lucide-react';
-import type { ATSAnalysisData } from '../types';
+import type { ATSAnalysisData, Backend } from '../types';
 import CollapsibleSection from './CollapsibleSection';
 import GapAnalysis from './GapAnalysis';
 
 interface ATSExplainabilityProps {
   analysis: ATSAnalysisData;
+  onApply?: (keywords: string[], weakSkills: string[], backendType?: string, modelName?: string) => void;
+  applying?: boolean;
+  backends?: Backend[];
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -24,7 +27,7 @@ const SEVERITY_CONFIG: Record<string, { label: string; className: string }> = {
   hard_skills: { label: 'Technical', className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300' },
 };
 
-function ATSExplainability({ analysis }: ATSExplainabilityProps) {
+function ATSExplainability({ analysis, onApply, applying, backends }: ATSExplainabilityProps) {
   const { hybrid_scoring, scores_by_category, section_analysis, semantic_analysis, gap_analysis } = analysis;
 
   // Score breakdown
@@ -237,8 +240,15 @@ function ATSExplainability({ analysis }: ATSExplainabilityProps) {
 
       {/* Gap Analysis */}
       {gap_analysis && (
-        <GapAnalysis gapAnalysis={gap_analysis} semanticAvailable={semantic_analysis?.available ?? false} />
-      )}    </div>
+        <GapAnalysis
+          gapAnalysis={gap_analysis}
+          semanticAvailable={semantic_analysis?.available ?? false}
+          onApply={onApply}
+          applying={applying}
+          backends={backends}
+        />
+      )}
+    </div>
   );
 }
 

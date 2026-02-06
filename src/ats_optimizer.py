@@ -520,6 +520,62 @@ PREFERRED: skill1, skill2, skill3"""
 
         return section_matches
 
+    def _generate_actionable_suggestions(
+        self,
+        section_matches: dict,
+        semantic_result: SemanticScoreResult,
+        scores: dict
+    ) -> list[dict]:
+        """Generate actionable suggestions with section recommendations."""
+        suggestions = []
+
+        # Map categories to priority
+        priority_order = [
+            ('critical_keywords', 'critical'),
+            ('required', 'required'),
+            ('hard_skills', 'hard_skills'),
+            ('preferred', 'preferred')
+        ]
+
+        # Collect all missing skills with their source category
+        missing_by_priority: list[tuple[str, str]] = []
+        for cat_key, priority in priority_order:
+            if cat_key in scores:
+                for skill in scores[cat_key]['missing'][:5]:  # Top 5 per category
+                    missing_by_priority.append((skill, priority))
+
+        # Also include not_found from section analysis
+        for skill in section_matches['not_found'][:5]:
+            if not any(s[0] == skill for s in missing_by_priority):
+                missing_by_priority.append((skill, 'required'))
+
+        # Get section similarities for recommendations
+        section_scores = semantic_result.section_similarities if semantic_result else {}
+
+        # Section mapping: recommend where skill would have most impact
+        section_priority = ['experience', 'projects', 'skills']
+
+        for skill, priority in missing_by_priority[:10]:  # Limit to 10 suggestions
+            # Find best section (lowest current similarity = most room to improve)
+            best_section = 'skills'  # default
+            best_score = 100.0
+
+            for section in section_priority:
+                score = section_scores.get(section, 50.0)
+                if score < best_score:
+                    best_score = score
+                    best_section = section
+
+            suggestions.append({
+                'skill': skill,
+                'priority': priority,
+                'recommended_section': best_section,
+                'section_score': round(best_score, 1),
+                'reason': f"Add to {best_section.title()} section to improve alignment"
+            })
+
+        return suggestions
+
     def _calculate_evidence_scores(self, parsed_cv: ParsedCV, parsed_jd: ParsedJD) -> dict:
         """
         Calculate evidence-weighted scores for skills.
@@ -847,7 +903,11 @@ PREFERRED: skill1, skill2, skill3"""
                     'cv_years': parsed_cv.years_experience,
                     'jd_years': parsed_jd.years_required,
                     'gap': (parsed_jd.years_required or 0) - (parsed_cv.years_experience or 0)
-                }
+                },
+                # Idea #87: Smart CV Gap Analysis with Actionable Suggestions
+                'actionable_suggestions': self._generate_actionable_suggestions(
+                    section_matches, semantic_result, scores
+                )
             }
         }
 
