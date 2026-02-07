@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw, Wand2 } from 'lucide-react';
-import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis, applySuggestions, getBackends } from '../api';
+import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw, Wand2, Sparkles } from 'lucide-react';
+import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis, applySuggestions, getBackends, suggestSkills } from '../api';
 import type { CVVersion, RematchResponse, ATSAnalysisData, ATSComparisonData, CategoryComparison, Backend } from '../types';
-import MissingKeywordsAlert from './MissingKeywordsAlert';
 import SuggestionChecklist from './SuggestionChecklist';
-import MatchExplanationCard from './MatchExplanationCard';
 import CVCompletenessMeter from './CVCompletenessMeter';
 import ScoreComparisonPanel from './ScoreComparisonPanel';
 import ATSExplainability from './ATSExplainability';
 import FormattingTipsPanel from './FormattingTipsPanel';
+import CollapsibleSection from './CollapsibleSection';
 
 interface CVTextEditorProps {
   cvVersionId: number;
@@ -100,6 +99,11 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
 
   // Backend picker state (#123)
   const [backends, setBackends] = useState<Backend[]>([]);
+
+  // AI Skill Suggester state (#128)
+  const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
 
   const isDirty = content !== originalContent;
 
@@ -229,6 +233,24 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
     } finally {
       setApplying(false);
     }
+  }
+
+  async function handleSuggestSkills() {
+    if (!jobId || loadingSuggestions) return;
+    setLoadingSuggestions(true);
+    setSuggestionError(null);
+    try {
+      const skills = await suggestSkills(jobId);
+      setSuggestedSkills(skills);
+    } catch (err: any) {
+      setSuggestionError(err?.message || 'Failed to get suggestions');
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }
+
+  function handleDismissSuggestion(skill: string) {
+    setSuggestedSkills(prev => prev.filter(s => s !== skill));
   }
 
   return (
@@ -425,8 +447,50 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
                     applying={applying}
                     backends={backends}
                   />
-                  <MissingKeywordsAlert analysis={atsAnalysis} defaultCollapsed />
-                  <MatchExplanationCard analysis={atsAnalysis} />
+                  <CollapsibleSection title="AI Skill Suggester" icon={Sparkles}>
+                    <div className="p-4 bg-slate-50 dark:bg-slate-700">
+                      <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+                        Get AI-powered suggestions for skills you might have missed, based on the job description.
+                      </p>
+                      <button
+                        onClick={handleSuggestSkills}
+                        disabled={loadingSuggestions}
+                        className="px-3 py-1.5 bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                      >
+                        {loadingSuggestions && <Loader2 className="w-4 h-4 animate-spin" />}
+                        <span>{loadingSuggestions ? 'Analyzing...' : 'Suggest Skills'}</span>
+                      </button>
+                      {suggestionError && (
+                        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-sm text-red-600 dark:text-red-400">
+                          {suggestionError}
+                        </div>
+                      )}
+                      {suggestedSkills.length > 0 && (
+                        <div className="mt-4">
+                          <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Suggested Skills ({suggestedSkills.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {suggestedSkills.map((skill) => (
+                              <div
+                                key={skill}
+                                className="flex items-center space-x-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-sm"
+                              >
+                                <span>{skill}</span>
+                                <button
+                                  onClick={() => handleDismissSuggestion(skill)}
+                                  className="p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800 rounded"
+                                  title="Dismiss"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CollapsibleSection>
                   <ATSExplainability
                     analysis={atsAnalysis}
                     onApply={handleApplySuggestions}
