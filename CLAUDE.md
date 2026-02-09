@@ -29,9 +29,9 @@ cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications/frontend" && npm run d
 | `python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload` | Start backend |
 | `cd frontend && npm run dev` | Start frontend |
 | `cd frontend && npx tsc --noEmit` | TypeScript check |
-| `python scripts/ideas.py list` | View ideas backlog |
-| `python scripts/ideas.py add` | Add new idea |
-| `python scripts/ideas_html.py && start ideas.html` | View ideas in browser |
+| `python "<programme>/scripts/ideas/ideas.py" list --project job_applications` | View ideas backlog |
+| `python "<programme>/scripts/ideas/ideas.py" add` | Add new idea |
+| `python "<programme>/scripts/ideas/ideas.py" html` | Generate ideas HTML |
 | `curl http://localhost:8000/api/health` | Health check |
 
 ---
@@ -48,54 +48,28 @@ cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications/frontend" && npm run d
 
 ### Updating Idea Status
 
-**ALWAYS update ideas.db when starting or completing work:**
+Ideas are managed at programme level. Use the programme CLI:
 
-```python
-# Mark idea(s) as In Progress when starting
-python -c "
-import sqlite3
-from datetime import datetime
-conn = sqlite3.connect('ideas.db')
-cursor = conn.cursor()
-cursor.execute('UPDATE ideas SET status = ?, updated_at = ? WHERE id IN (ID1, ID2)', ('In Progress', datetime.now().isoformat()))
-conn.commit()
-print(f'Updated {cursor.rowcount} ideas')
-conn.close()
-"
+```bash
+# Mark idea as In Progress
+python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" update ID --status "In Progress"
 
-# Mark idea(s) as Done when complete
-python -c "
-import sqlite3
-from datetime import datetime
-conn = sqlite3.connect('ideas.db')
-cursor = conn.cursor()
-cursor.execute('UPDATE ideas SET status = ?, updated_at = ? WHERE id IN (ID1, ID2)', ('Done', datetime.now().isoformat()))
-conn.commit()
-print(f'Updated {cursor.rowcount} ideas')
-conn.close()
-"
+# Mark idea as Done
+python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" update ID --status "Done"
+
+# List this project's ideas
+python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" list --project job_applications
 ```
 
-**Status values**: Idea → In Progress → Done (or Rejected/Deferred)
+**Status values**: Idea -> In Progress -> Done (or Rejected/Deferred)
 
 ### Capturing User Suggestions
 
-**When the user suggests a feature or improvement, ALWAYS add it to `ideas.db`:**
+**When the user suggests a feature or improvement, add it via the programme CLI:**
 
-```python
-python -c "
-import sqlite3
-from datetime import datetime
-conn = sqlite3.connect('ideas.db')
-cursor = conn.cursor()
-cursor.execute('''
-    INSERT INTO ideas (title, description, category, complexity, impact, priority, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-''', ('Title here', 'Description here', 'Feature', 'Medium', 'High', 5, 'Idea', datetime.now().isoformat()))
-conn.commit()
-print(f'Added idea #{cursor.lastrowid}')
-conn.close()
-"
+```bash
+python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" add
+# Set stream=career-tools, project=job_applications when prompted
 ```
 
 - Category: Feature, UI, Bug, Architecture, Research
