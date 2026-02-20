@@ -1,14 +1,11 @@
 import { useMemo } from 'react';
-import { BarChart3, AlertTriangle, CheckCircle2, Brain, Target } from 'lucide-react';
-import type { ATSAnalysisData, Backend } from '../types';
+import { BarChart3, CheckCircle2, Brain, Target } from 'lucide-react';
+import type { ATSAnalysisData } from '../types';
 import CollapsibleSection from './CollapsibleSection';
 import GapAnalysis from './GapAnalysis';
 
 interface ATSExplainabilityProps {
   analysis: ATSAnalysisData;
-  onApply?: (keywords: string[], weakSkills: string[], backendType?: string, modelName?: string) => void;
-  applying?: boolean;
-  backends?: Backend[];
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -17,17 +14,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   hard_skills: 'Technical Skills',
   soft_skills: 'Soft Skills',
   preferred: 'Nice to Have',
+  frequency_keywords: 'Other Keywords',
   certifications: 'Certifications',
   industry_terms: 'Industry Terms',
 };
 
-const SEVERITY_CONFIG: Record<string, { label: string; className: string }> = {
-  critical: { label: 'Critical', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
-  required: { label: 'Required', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
-  hard_skills: { label: 'Technical', className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300' },
-};
 
-function ATSExplainability({ analysis, onApply, applying, backends }: ATSExplainabilityProps) {
+function ATSExplainability({ analysis }: ATSExplainabilityProps) {
   const { hybrid_scoring, scores_by_category, section_analysis, semantic_analysis, gap_analysis } = analysis;
 
   // Score breakdown
@@ -55,24 +48,6 @@ function ATSExplainability({ analysis, onApply, applying, backends }: ATSExplain
     }
     return matches.slice(0, 12);
   }, [section_analysis]);
-
-  // Biggest penalties — missing items from critical/required categories
-  const penalties = useMemo(() => {
-    const items: { keyword: string; severity: string }[] = [];
-    for (const [catKey, severityKey] of [
-      ['critical_keywords', 'critical'],
-      ['required', 'required'],
-      ['hard_skills', 'hard_skills'],
-    ] as const) {
-      const cat = scores_by_category[catKey];
-      if (cat?.items_missing?.length) {
-        for (const kw of cat.items_missing) {
-          items.push({ keyword: kw, severity: severityKey });
-        }
-      }
-    }
-    return items;
-  }, [scores_by_category]);
 
   // Category completion
   const categoryBars = useMemo(() => {
@@ -139,30 +114,6 @@ function ATSExplainability({ analysis, onApply, applying, backends }: ATSExplain
                 </div>
               </div>
             ))}
-          </div>
-        </CollapsibleSection>
-      )}
-
-      {/* Biggest Penalties */}
-      {penalties.length > 0 && (
-        <CollapsibleSection
-          title="Biggest Penalties"
-          icon={AlertTriangle}
-          badge={penalties.length}
-          badgeColor="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
-        >
-          <div className="flex flex-wrap gap-1.5">
-            {penalties.map(p => {
-              const cfg = SEVERITY_CONFIG[p.severity] || SEVERITY_CONFIG.hard_skills;
-              return (
-                <span
-                  key={`${p.severity}-${p.keyword}`}
-                  className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${cfg.className}`}
-                >
-                  <span className="font-medium">{cfg.label}:</span> {p.keyword}
-                </span>
-              );
-            })}
           </div>
         </CollapsibleSection>
       )}
@@ -243,9 +194,6 @@ function ATSExplainability({ analysis, onApply, applying, backends }: ATSExplain
         <GapAnalysis
           gapAnalysis={gap_analysis}
           semanticAvailable={semantic_analysis?.available ?? false}
-          onApply={onApply}
-          applying={applying}
-          backends={backends}
         />
       )}
     </div>

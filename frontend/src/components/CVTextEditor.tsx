@@ -498,12 +498,7 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
                       )}
                     </div>
                   </CollapsibleSection>
-                  <ATSExplainability
-                    analysis={atsAnalysis}
-                    onApply={handleApplySuggestions}
-                    applying={applying}
-                    backends={backends}
-                  />
+                  <ATSExplainability analysis={atsAnalysis} />
                   <CVCompletenessMeter analysis={atsAnalysis} />
                 </>
               )}
