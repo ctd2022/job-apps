@@ -47,7 +47,7 @@ frontend/dist/
 
 # Local databases and generated content not for version control
 CLAUDE.local.md
-jobs.db
+data/
 ideas.db
 ideas.html
 nul

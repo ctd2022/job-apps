@@ -31,8 +31,8 @@ class OutcomeStatus(str, Enum):
     withdrawn = "withdrawn"   # Candidate withdrew application
 
 
-# Database path - in project root
-DB_PATH = Path(__file__).parent.parent / "jobs.db"
+# Database path - in data/ directory
+DB_PATH = Path(__file__).parent.parent / "data" / "jobs.db"
 
 
 def get_connection() -> sqlite3.Connection:
