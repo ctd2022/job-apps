@@ -36,7 +36,7 @@ function NewApplication() {
   // Form state
   const [companyName, setCompanyName] = useState('');
   const [jobTitle, setJobTitle] = useState('');
-  const [selectedBackend, setSelectedBackend] = useState('ollama');
+  const [selectedBackend, setSelectedBackend] = useState(() => localStorage.getItem('llm_backend') || 'ollama');
   const [selectedModel, setSelectedModel] = useState('');
   const [enableAts, setEnableAts] = useState(true);
 
@@ -61,10 +61,17 @@ function NewApplication() {
       const backendList = Array.isArray(backendData) ? backendData : [];
       setBackends(backendList);
 
-      // Set default model for selected backend
-      const defaultBackend = backendList.find((b: Backend) => b.id === 'ollama');
-      if (defaultBackend?.default_model) {
-        setSelectedModel(defaultBackend.default_model);
+      // Set model: prefer saved choice, fall back to backend default
+      const savedBackend = localStorage.getItem('llm_backend') || 'ollama';
+      const savedModel = localStorage.getItem('llm_model');
+      const targetBackend = backendList.find((b: Backend) => b.id === savedBackend)
+        || backendList.find((b: Backend) => b.id === 'ollama');
+      if (targetBackend) {
+        setSelectedBackend(targetBackend.id);
+        const model = savedModel && targetBackend.models?.includes(savedModel)
+          ? savedModel
+          : targetBackend.default_model;
+        if (model) setSelectedModel(model);
       }
 
       // Set stored CVs
@@ -133,9 +140,11 @@ function NewApplication() {
   
   function handleBackendChange(backendId: string) {
     setSelectedBackend(backendId);
+    localStorage.setItem('llm_backend', backendId);
     const backend = (backends || []).find(b => b.id === backendId);
     if (backend?.default_model) {
       setSelectedModel(backend.default_model);
+      localStorage.setItem('llm_model', backend.default_model);
     }
   }
   
@@ -576,7 +585,7 @@ function NewApplication() {
               <label className="text-xs text-slate-500 dark:text-slate-400 mb-0.5 block">Model</label>
               <select
                 value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
+                onChange={(e) => { setSelectedModel(e.target.value); localStorage.setItem('llm_model', e.target.value); }}
                 disabled={submitting}
                 className="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-slate-500"
               >
