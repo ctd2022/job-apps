@@ -192,7 +192,7 @@ function ATSExplainability({ analysis, onApply, applying, backends }: ATSExplain
             <div className="flex items-center justify-between">
               <span className="text-slate-600 dark:text-slate-400">Entity Support Ratio</span>
               <span className="font-mono text-slate-800 dark:text-slate-200">
-                {(semantic_analysis.entity_support_ratio * 100).toFixed(0)}%
+                {Math.min(semantic_analysis.entity_support_ratio * 100, 100).toFixed(0)}%
               </span>
             </div>
 
@@ -208,11 +208,11 @@ function ATSExplainability({ analysis, onApply, applying, backends }: ATSExplain
                         <div className="w-24 bg-slate-200 dark:bg-slate-600 h-1.5 rounded-full overflow-hidden">
                           <div
                             className="h-1.5 rounded-full bg-blue-500"
-                            style={{ width: `${(sim as number) * 100}%` }}
+                            style={{ width: `${Math.min(sim as number, 100)}%` }}
                           />
                         </div>
                         <span className="font-mono text-xs text-slate-500 dark:text-slate-400 w-10 text-right">
-                          {((sim as number) * 100).toFixed(0)}%
+                          {(sim as number).toFixed(0)}%
                         </span>
                       </div>
                     </div>

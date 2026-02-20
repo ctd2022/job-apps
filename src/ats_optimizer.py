@@ -537,16 +537,21 @@ PREFERRED: skill1, skill2, skill3"""
             ('preferred', 'preferred')
         ]
 
-        # Collect all missing skills with their source category
+        # Collect missing skills deduped by skill name — highest priority wins
+        seen_skills: set[str] = set()
         missing_by_priority: list[tuple[str, str]] = []
         for cat_key, priority in priority_order:
             if cat_key in scores:
-                for skill in scores[cat_key]['missing'][:5]:  # Top 5 per category
-                    missing_by_priority.append((skill, priority))
+                for skill in scores[cat_key]['missing'][:5]:
+                    key = skill.lower()
+                    if key not in seen_skills:
+                        seen_skills.add(key)
+                        missing_by_priority.append((skill, priority))
 
         # Also include not_found from section analysis
         for skill in section_matches['not_found'][:5]:
-            if not any(s[0] == skill for s in missing_by_priority):
+            if skill.lower() not in seen_skills:
+                seen_skills.add(skill.lower())
                 missing_by_priority.append((skill, 'required'))
 
         # Get section similarities for recommendations
