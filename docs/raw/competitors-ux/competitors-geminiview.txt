@@ -1,0 +1,142 @@
+This research document analyzes key patterns from industry leaders (LinkedIn, Otta, Wellfound, etc.) to inform the design of your "Local Matcher" application.
+
+## **Executive Summary: The "Candidate-First" Pivot**
+
+The biggest shift in 2024-2025 UX is moving from **"Search & Filter"** (Candidate does the work) to **"Match & Explain"** (AI does the work).
+
+* **Old Way (Indeed/Monster):** Infinite scroll of job cards.
+* **New Way (Otta/Cord):** "Daily Picks" or "Top Matches" with explicit reasons *why* they were chosen.
+
+---
+
+## **1. Application Flows & Friction Points**
+
+*Comparison of entry barriers across platforms.*
+
+| Platform | Flow Type | Friction Level | UX Pattern |
+| --- | --- | --- | --- |
+| **LinkedIn** | "Easy Apply" | 🟢 Low | **1-Click Apply.** Pulls profile data. No cover letter required. *Risk:* frequent "resume black hole" feeling. |
+| **Workday** | Legacy ATS | 🔴 High | **Forced Registration.** Requires account creation before viewing full details. Parsing often fails, forcing manual re-entry. |
+| **Otta** | "Batch" | 🟡 Medium | **Guided Pitch.** Asks 3 specific questions (e.g., "Why this role?") max 140 chars. Forces quality over quantity. |
+| **Cord** | Direct msg | 🟢 Low | **Chat-First.** Applying = sending a DM to the hiring manager. "Start a conversation" button instead of "Apply". |
+
+**🏆 Recommendation for Your App:**
+Avoid the Workday "account wall." Use the **Otta pattern**:
+
+* Don't just ask for a CV upload.
+* Ask **one** contextual question: *"What is your top achievement relevant to this role?"* (Use this to feed your "Evidence" scorer).
+
+---
+
+## **2. CV & Profile Builders (Guided Input)**
+
+*How platforms get high-quality data without annoying users.*
+
+### **Pattern A: The "Parser + Verify" (Indeed/LinkedIn)**
+
+1. **Upload:** User drags PDF.
+2. **Ghosting:** The UI "ghosts" the parsed text into form fields.
+3. **Verification:** The user only edits fields the parser was unsure about (highlighted in yellow).
+
+### **Pattern B: The "Mad Libs" Summary (Polywork/Wellfound)**
+
+Instead of a blank "Summary" box, they use a structured sentence builder:
+
+> "I am a **[Senior Engineer]** interested in **[FinTech]**. I have **[5]** years of experience using **[Python, React]**."
+
+**🏆 Recommendation for Your App:**
+Since you are using Llama locally:
+
+1. **Auto-fill:** Parse the uploaded CV.
+2. **The "Gap" Prompt:** If the CV is missing a key section (e.g., "Projects"), explicitly ask: *"I noticed you didn't list any side projects. Want to add one to boost your score?"*
+
+---
+
+## **3. Match Explanations (The "Black Box" Solution)**
+
+*This is the most critical section for your "Polish."*
+
+### **LinkedIn: The "Venn Diagram" Approach**
+
+* **UI:** A dedicated "How you match" card on the job page.
+* **Visual:**
+* **✅ Top Skills:** "You have 8/10 skills." (Clickable list).
+* **⚠️ Missing:** "Add **Docker** to your profile to appear in more searches."
+
+
+* **Psychology:** It treats the CV as a living document, encouraging immediate editing.
+
+### **Otta: The "Narrative" Match**
+
+* **UI:** Instead of a score, they show "Why we think it's a match."
+* **Copy:** *"This role is in **EdTech** (your interest), requires **Python** (your top skill), and is **Remote** (your preference)."*
+* **Badge:** They categorize matches: "Moonshot", "Safe Bet", "Strong Match."
+
+**🏆 Recommendation for Your App:**
+Implement the **"Match Card"**:
+
+* **Header:** Your Match Score (e.g., "Strong Contender").
+* **Body:** A generated bullet list (using your Llama integration):
+* *"✅ Your experience at [Company A] is highly relevant."*
+* *"✅ You possess 4 of the 5 'Must-Have' technical skills."*
+* *"⚠️ Missing Evidence: 'Team Leadership' is required but not found in your CV."*
+
+
+
+---
+
+## **4. Dashboards & Tracking**
+
+*How candidates see their status.*
+
+### **The Standard (Greenhouse/Lever)**
+
+* **Status:** Applied -> Phone Screen -> Interview -> Offer.
+* **Problem:** It's passive. "Applied (2 weeks ago)" implies rejection but doesn't confirm it.
+
+### **The "Active" Dashboard (Hired/Cord)**
+
+* **Metric:** "Response Rate." They show how responsive the *company* is (e.g., "This company responds to 85% of applicants within 4 days").
+* **Action:** "Withdraw" or "Nudge" buttons.
+
+**🏆 Recommendation for Your App:**
+Add a **"Optimize"** column to your dashboard.
+
+* If a match score is < 70%, show a button: **"Fix Resume"**.
+* Clicking it highlights exactly which keywords to add to target that specific role.
+
+---
+
+## **5. Visual Reference Guide (for your UI Design)**
+
+### **Component: The Match Score Badge**
+
+*(Based on LinkedIn/Otta)*
+
+* **High Match (>85%):** Green Ring. Label: "Top 10% Match". Icon: 🌟
+* **Medium Match (60-85%):** Blue Ring. Label: "Good Fit". Icon: ✅
+* **Low Match (<60%):** Grey Ring. Label: "Reach". Icon: 📈
+
+### **Component: The "Missing Skills" Alert**
+
+*(Based on Jobscan/Teal)*
+
+> **⚠️ Boost your score:**
+> The Job Description mentions **"Kubernetes"** (5x) and **"CI/CD"** (3x).
+> *We didn't find these in your text. Did you mean "DevOps"?*
+
+---
+
+## **Strategic Summary for Your Local App**
+
+| Feature | "Big Tech" Standard | Your "Local Llama" Advantage |
+| --- | --- | --- |
+| **Parsing** | Server-side, rigid. | **Local Llama:** Can "reason" out implied skills (e.g., "Used Pandas" → Implies "Python"). |
+| **Matching** | Keyword counting (mostly). | **Semantic + Evidence:** You can penalize "hallucinations" (as discussed previously). |
+| **Privacy** | Data sold/stored in cloud. | **100% Private:** "Your CV never leaves this PC." (Huge selling point). |
+
+### **Next Step**
+
+To implement the **"Match Explanation"** (Otta style), you need a prompt that compares the JD and CV and outputs a narrative.
+
+**Would you like the specific "Narrative Matcher" prompt template to use with your local Llama model?**

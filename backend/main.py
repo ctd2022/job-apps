@@ -1,0 +1,1937 @@
+#!/usr/bin/env python3
+"""
+FastAPI Backend for Job Application Workflow
+Track 2: Local Web UI - Week 1
+
+This provides a REST API for the existing job application workflow,
+enabling a web-based interface while keeping everything local.
+"""
+
+import os
+import sys
+import json
+import uuid
+import shutil
+import asyncio
+from pathlib import Path
+from datetime import datetime
+from typing import Optional, Dict, Any, List, Set
+from enum import Enum
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
+
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Header
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+# ============================================================================
+# Path Configuration - IMPORTANT for your project structure
+# ============================================================================
+# Your structure:
+#   job_applications/
+#   ├── backend/     <- we are here (main.py)
+#   ├── src/         <- workflow modules are here
+#   ├── scripts/
+#   └── ...
+
+# Get project root (parent of backend/)
+PROJECT_ROOT = Path(__file__).parent.parent
+
+# Add src/ directory to Python path for imports
+SRC_DIR = PROJECT_ROOT / "src"
+sys.path.insert(0, str(SRC_DIR))
+sys.path.insert(0, str(PROJECT_ROOT))  # Also add root for any root-level modules
+
+# Now import existing workflow modules
+try:
+    from job_application_workflow import JobApplicationWorkflow
+    from llm_backend import LLMBackendFactory
+    from ats_optimizer import ATSOptimizer
+    WORKFLOW_AVAILABLE = True
+    print(f"[OK] Successfully imported workflow modules from {SRC_DIR}")
+except ImportError as e:
+    WORKFLOW_AVAILABLE = False
+    print(f"[WARN] Could not import workflow modules: {e}")
+    print(f"   Looked in: {SRC_DIR}")
+    print("   Some endpoints will not work until this is fixed.")
+
+
+# ============================================================================
+# Configuration
+# ============================================================================
+
+class Settings:
+    """Application settings"""
+    APP_NAME = "Job Application Workflow API"
+    VERSION = "2.0.0"
+    
+    # Directories (relative to project root)
+    BASE_DIR = PROJECT_ROOT
+    INPUTS_DIR = BASE_DIR / "inputs"
+    OUTPUTS_DIR = BASE_DIR / "outputs"
+    UPLOADS_DIR = BASE_DIR / "uploads"  # Temporary upload storage
+    SRC_DIR = SRC_DIR
+    
+    # Ensure directories exist
+    INPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    (INPUTS_DIR / "job_descriptions").mkdir(parents=True, exist_ok=True)
+
+
+settings = Settings()
+
+
+# ============================================================================
+# Pydantic Models (Request/Response schemas)
+# ============================================================================
+
+class BackendType(str, Enum):
+    ollama = "ollama"
+    llamacpp = "llamacpp"
+    gemini = "gemini"
+
+
+# Import from job_store module
+# Handle both direct run and uvicorn import contexts
+try:
+    from job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore, MatchHistoryStore
+except ImportError:
+    from backend.job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore, MatchHistoryStore
+
+
+class BackendConfig(BaseModel):
+    """Configuration for LLM backend"""
+    backend_type: BackendType = BackendType.ollama
+    model_name: Optional[str] = None
+    # Ollama specific
+    ollama_model: Optional[str] = "llama3.1:8b"
+    # Llama.cpp specific
+    llamacpp_url: Optional[str] = "http://localhost:8080"
+    llamacpp_model: Optional[str] = "gemma-3-27B"
+    # Gemini specific
+    gemini_api_key: Optional[str] = None
+    gemini_model: Optional[str] = "gemini-2.0-flash"
+
+
+class JobRequest(BaseModel):
+    """Request to process a job application"""
+    company_name: Optional[str] = None
+    enable_ats: bool = True
+    backend_config: BackendConfig = BackendConfig()
+    custom_questions: Optional[str] = None
+
+
+class JobResponse(BaseModel):
+    """Response for job processing"""
+    job_id: str
+    status: JobStatus
+    message: str
+    created_at: str
+
+
+class JobStatusResponse(BaseModel):
+    """Response for job status check"""
+    job_id: str
+    status: JobStatus
+    progress: int  # 0-100
+    current_step: Optional[str] = None
+    message: Optional[str] = None
+    output_dir: Optional[str] = None
+    ats_score: Optional[float] = None
+    files: Optional[List[str]] = None
+    error: Optional[str] = None
+    cv_version_id: Optional[int] = None
+    backend_type: Optional[str] = None
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    created_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+
+class HealthResponse(BaseModel):
+    """Health check response"""
+    status: str
+    version: str
+    backends_available: Dict[str, bool]
+    workflow_available: bool
+
+
+class BackendListResponse(BaseModel):
+    """List of available backends"""
+    backends: List[Dict[str, Any]]
+
+
+class OutputFile(BaseModel):
+    """Output file metadata"""
+    filename: str
+    path: str
+    size: int
+    type: str  # cv, cover_letter, ats_report, answers, metadata
+
+
+class ApplicationSummary(BaseModel):
+    """Summary of a processed application"""
+    job_id: str
+    job_name: str
+    company_name: Optional[str]
+    job_title: Optional[str]
+    backend: str
+    timestamp: str
+    ats_score: Optional[float]
+    status: JobStatus
+    output_dir: str
+
+
+class OutcomeUpdateRequest(BaseModel):
+    """Request to update job application outcome"""
+    outcome_status: str  # draft, submitted, response, interview, offer, rejected, withdrawn
+    notes: Optional[str] = None
+
+
+class CVContentUpdateRequest(BaseModel):
+    """Request to update CV content (creates new version)"""
+    content: str
+    change_summary: Optional[str] = None
+
+
+class RematchRequest(BaseModel):
+    """Request to re-run ATS analysis with a different CV version."""
+    cv_version_id: int
+
+
+class ApplySuggestionsRequest(BaseModel):
+    """Request to incorporate missing keywords into CV via LLM."""
+    cv_version_id: int
+    selected_keywords: List[str]
+    weak_skills: Optional[List[str]] = None
+    backend_type: Optional[str] = None
+    model_name: Optional[str] = None
+
+
+class GapFillAnswer(BaseModel):
+    skill: str
+    gap_type: str
+    user_content: str
+
+
+class GapFillRequest(BaseModel):
+    cv_version_id: int
+    answers: List[GapFillAnswer]
+    backend_type: Optional[str] = None
+    model_name: Optional[str] = None
+
+
+class MetricsResponse(BaseModel):
+    """Application funnel metrics"""
+    total: int
+    by_status: Dict[str, int]
+    funnel: Dict[str, int]
+    rates: Dict[str, float]
+    avg_time_to_response_days: Optional[float]
+
+
+class PipelineDiagnosisResponse(BaseModel):
+    """Response for pipeline health diagnosis"""
+    diagnosis: str
+    advice: str
+    metrics: Dict[str, Any]
+
+
+class UserCreateRequest(BaseModel):
+    """Request to create a new user"""
+    name: str
+
+
+class UserResponse(BaseModel):
+    """User response"""
+    id: str
+    name: str
+    created_at: str
+
+
+# ============================================================================
+# User ID Header Dependency
+# ============================================================================
+
+def get_current_user_id(x_user_id: Optional[str] = Header(None)) -> str:
+    """
+    Extract user ID from X-User-ID header.
+    Falls back to 'default' if not provided (backwards compatibility).
+    """
+    return x_user_id or "default"
+
+
+# ============================================================================
+# SQLite Stores (persistent across restarts)
+# ============================================================================
+
+# Global store instances (SQLite-backed)
+job_store = JobStore()
+cv_store = CVStore()
+user_store = UserStore()
+match_history_store = MatchHistoryStore()
+
+
+# ============================================================================
+# WebSocket Connection Manager
+# ============================================================================
+
+class ConnectionManager:
+    """Manages WebSocket connections for real-time job progress updates"""
+
+    def __init__(self):
+        # Map of job_id -> list of WebSocket connections
+        self.active_connections: Dict[str, List[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, job_id: str):
+        """Accept a new WebSocket connection for a job"""
+        await websocket.accept()
+        if job_id not in self.active_connections:
+            self.active_connections[job_id] = []
+        self.active_connections[job_id].append(websocket)
+        print(f"WebSocket connected for job {job_id}. Total connections: {len(self.active_connections[job_id])}")
+
+    def disconnect(self, websocket: WebSocket, job_id: str):
+        """Remove a WebSocket connection"""
+        if job_id in self.active_connections:
+            if websocket in self.active_connections[job_id]:
+                self.active_connections[job_id].remove(websocket)
+            if not self.active_connections[job_id]:
+                del self.active_connections[job_id]
+        print(f"WebSocket disconnected for job {job_id}")
+
+    async def broadcast_job_update(self, job_id: str, data: Dict[str, Any]):
+        """Send job update to all connected clients for this job"""
+        if job_id in self.active_connections:
+            disconnected = []
+            for connection in self.active_connections[job_id]:
+                try:
+                    await connection.send_json(data)
+                except Exception as e:
+                    print(f"Error sending to WebSocket: {e}")
+                    disconnected.append(connection)
+
+            # Clean up disconnected clients
+            for conn in disconnected:
+                self.disconnect(conn, job_id)
+
+
+# Global connection manager instance
+ws_manager = ConnectionManager()
+
+
+# ============================================================================
+# FastAPI Application
+# ============================================================================
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.VERSION,
+    description="Local API for job application CV and cover letter generation with ATS optimization",
+)
+
+# CORS middleware for local development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============================================================================
+# Background Task: Process Job Application
+# ============================================================================
+
+async def update_job_and_broadcast(job_id: str, **kwargs):
+    """Helper to update job status and broadcast via WebSocket"""
+    job = job_store.update_job(job_id, **kwargs)
+    await ws_manager.broadcast_job_update(job_id, job)
+    return job
+
+
+async def process_job_application(
+    job_id: str,
+    cv_path: str,
+    job_desc_path: str,
+    company_name: Optional[str],
+    enable_ats: bool,
+    backend_type: str,
+    backend_config: dict,
+    custom_questions: Optional[str] = None
+):
+    """
+    Background task to process a job application.
+    Updates job_store with progress and broadcasts via WebSocket.
+    """
+    
+    # Check if workflow is available
+    if not WORKFLOW_AVAILABLE:
+        await update_job_and_broadcast(
+            job_id,
+            status=JobStatus.failed,
+            progress=0,
+            current_step="Failed",
+            message="Workflow modules not available. Check server logs.",
+            error="JobApplicationWorkflow module not imported. Check src/ folder."
+        )
+        return
+    
+    try:
+        # Update status: Starting
+        await update_job_and_broadcast(
+            job_id,
+            status=JobStatus.processing,
+            progress=5,
+            current_step="Initializing workflow",
+            message="Setting up LLM backend..."
+        )
+        
+        # Small delay to allow status update to propagate
+        await asyncio.sleep(0.1)
+        
+        # Initialize workflow
+        workflow = JobApplicationWorkflow(
+            backend_type=backend_type,
+            backend_config=backend_config,
+            enable_ats=enable_ats
+        )
+        
+        await update_job_and_broadcast(
+            job_id,
+            progress=10,
+            current_step="Reading input files",
+            message="Loading CV and job description..."
+        )
+        await asyncio.sleep(0.1)
+        
+        # Read inputs
+        base_cv = workflow.read_cv(cv_path)
+        job_description = workflow.read_text_file(job_desc_path)
+        
+        await update_job_and_broadcast(
+            job_id,
+            progress=15,
+            current_step="Analyzing job description",
+            message="Extracting key requirements..."
+        )
+        await asyncio.sleep(0.1)
+        
+        # ATS Analysis (if enabled)
+        ats_report = None
+        key_requirements = None
+        ats_score = None
+        
+        if enable_ats:
+            # ATSOptimizer imported at module level to ensure correct path
+            ats_optimizer = ATSOptimizer(
+                backend=workflow.backend,
+                company_name=company_name
+            )
+            
+            await update_job_and_broadcast(
+                job_id,
+                progress=25,
+                current_step="Running ATS analysis",
+                message="Calculating keyword match score..."
+            )
+            await asyncio.sleep(0.1)
+            
+            ats_report, key_requirements, ats_score = ats_optimizer.generate_ats_report(
+                base_cv, job_description
+            )
+
+            # Track 2.9.2: Store full ATS analysis details
+            ats_details_json = json.dumps(ats_score) if ats_score else None
+
+            await update_job_and_broadcast(
+                job_id,
+                progress=40,
+                current_step="Generating ATS-optimized CV",
+                message=f"ATS Score: {ats_score['score']}% - Generating optimized CV...",
+                ats_score=ats_score['score'],
+                ats_details=ats_details_json
+            )
+
+            # Record initial match history entry (Idea #121)
+            job_data = job_store.get_job(job_id)
+            match_history_store.add_entry(
+                job_id=job_id,
+                score=ats_score['score'],
+                cv_version_id=job_data.get("cv_version_id") if job_data else None,
+                matched=ats_score.get('matched'),
+                total=ats_score.get('total'),
+                missing_count=len(ats_score.get('missing_keywords', [])),
+            )
+
+            await asyncio.sleep(0.1)
+
+            tailored_cv = ats_optimizer.generate_ats_optimized_cv(
+                base_cv, job_description, key_requirements
+            )
+        else:
+            await update_job_and_broadcast(
+                job_id,
+                progress=40,
+                current_step="Generating tailored CV",
+                message="Creating customized CV..."
+            )
+            await asyncio.sleep(0.1)
+            
+            tailored_cv = workflow.tailor_cv(base_cv, job_description)
+        
+        await update_job_and_broadcast(
+            job_id,
+            progress=60,
+            current_step="Generating cover letter",
+            message="Writing personalized cover letter..."
+        )
+        await asyncio.sleep(0.1)
+        
+        cover_letter = workflow.generate_cover_letter(
+            base_cv, job_description, company_name or "the company"
+        )
+        
+        # Answer custom questions if provided
+        answers = None
+        if custom_questions:
+            await update_job_and_broadcast(
+                job_id,
+                progress=75,
+                current_step="Answering application questions",
+                message="Generating responses to questions..."
+            )
+            await asyncio.sleep(0.1)
+            
+            answers = workflow.answer_application_questions(
+                base_cv, job_description, custom_questions
+            )
+        
+        await update_job_and_broadcast(
+            job_id,
+            progress=85,
+            current_step="Saving outputs",
+            message="Writing files to disk..."
+        )
+        await asyncio.sleep(0.1)
+        
+        # Save outputs
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        job_name = Path(job_desc_path).stem
+        backend_label = backend_type.upper()
+        output_dir = settings.OUTPUTS_DIR / f"{job_name}_{backend_label}_{timestamp}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        files = []
+        
+        # Save CV
+        cv_filename = f"tailored_cv_{backend_label.lower()}.md"
+        cv_path_out = output_dir / cv_filename
+        with open(cv_path_out, 'w', encoding='utf-8') as f:
+            f.write(tailored_cv)
+        files.append(cv_filename)
+        
+        # Save cover letter
+        letter_filename = f"cover_letter_{backend_label.lower()}.txt"
+        letter_path = output_dir / letter_filename
+        with open(letter_path, 'w', encoding='utf-8') as f:
+            f.write(cover_letter)
+        files.append(letter_filename)
+        
+        # Save ATS report
+        if ats_report:
+            ats_filename = f"ats_analysis_{backend_label.lower()}.txt"
+            ats_path = output_dir / ats_filename
+            with open(ats_path, 'w', encoding='utf-8') as f:
+                f.write(ats_report)
+            files.append(ats_filename)
+        
+        # Save answers
+        if answers:
+            answers_filename = f"application_answers_{backend_label.lower()}.txt"
+            answers_path = output_dir / answers_filename
+            with open(answers_path, 'w', encoding='utf-8') as f:
+                f.write(answers)
+            files.append(answers_filename)
+        
+        # Save metadata
+        metadata = {
+            "job_id": job_id,
+            "job_description": str(job_desc_path),
+            "company_name": company_name,
+            "timestamp": timestamp,
+            "backend": {
+                "type": backend_type,
+                "config": backend_config
+            },
+            "ats_optimized": enable_ats,
+            "ats_score": ats_score['score'] if ats_score else None
+        }
+        metadata_path = output_dir / "metadata.json"
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        files.append("metadata.json")
+        
+        # Try to generate DOCX files (optional - requires docx_templates)
+        try:
+            await update_job_and_broadcast(
+                job_id,
+                progress=92,
+                current_step="Generating DOCX files",
+                message="Creating professional Word documents..."
+            )
+            await asyncio.sleep(0.1)
+            
+            from docx_templates import generate_cv_docx_node, generate_cover_letter_docx_node
+            
+            # Generate CV DOCX
+            cv_docx_path = str(output_dir / f"tailored_cv_{backend_label.lower()}.docx")
+            generate_cv_docx_node(tailored_cv, cv_docx_path)
+            files.append(f"tailored_cv_{backend_label.lower()}.docx")
+            
+            # Generate Cover Letter DOCX
+            # Extract name from CV for signature
+            applicant_name = "Applicant"
+            lines = tailored_cv.split('\n')
+            for line in lines[:5]:
+                if line.startswith('# '):
+                    applicant_name = line.replace('# ', '').strip()
+                    break
+            
+            cl_docx_path = str(output_dir / f"cover_letter_{backend_label.lower()}.docx")
+            generate_cover_letter_docx_node(cover_letter, cl_docx_path, applicant_name)
+            files.append(f"cover_letter_{backend_label.lower()}.docx")
+            
+        except ImportError:
+            # docx_templates not available, skip DOCX generation
+            print("Note: docx_templates not available, skipping DOCX generation")
+        except Exception as e:
+            # DOCX generation failed, but continue
+            print(f"Warning: DOCX generation failed: {e}")
+        
+        # Mark as complete
+        await update_job_and_broadcast(
+            job_id,
+            status=JobStatus.completed,
+            progress=100,
+            current_step="Complete",
+            message="Job application materials generated successfully!",
+            output_dir=str(output_dir),
+            files=files
+        )
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error processing job {job_id}: {error_details}")
+
+        # Mark as failed
+        await update_job_and_broadcast(
+            job_id,
+            status=JobStatus.failed,
+            progress=0,
+            current_step="Failed",
+            message=str(e),
+            error=str(e)
+        )
+
+
+# ============================================================================
+# API Endpoints
+# ============================================================================
+
+@app.get("/", response_model=HealthResponse)
+async def root():
+    """Root endpoint - health check"""
+    # Check which backends are available
+    backends_available = {
+        "ollama": False,
+        "llamacpp": False,
+        "gemini": False
+    }
+    
+    # Check Ollama
+    try:
+        import ollama
+        ollama.list()
+        backends_available["ollama"] = True
+    except:
+        pass
+    
+    # Check Llama.cpp (just check if requests works)
+    backends_available["llamacpp"] = True  # Assume available, will fail at runtime if not
+    
+    # Check Gemini (check for API key)
+    if os.environ.get("GEMINI_API_KEY"):
+        backends_available["gemini"] = True
+    
+    return HealthResponse(
+        status="healthy",
+        version=settings.VERSION,
+        backends_available=backends_available,
+        workflow_available=WORKFLOW_AVAILABLE
+    )
+
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "ok",
+        "timestamp": datetime.now().isoformat(),
+        "workflow_available": WORKFLOW_AVAILABLE,
+        "src_dir": str(settings.SRC_DIR),
+        "src_exists": settings.SRC_DIR.exists()
+    }
+
+
+# ============================================================================
+# User Management Endpoints
+# ============================================================================
+
+@app.get("/api/users")
+async def list_users():
+    """List all users."""
+    users = user_store.list_users()
+    return {"users": users, "total": len(users)}
+
+
+@app.post("/api/users", response_model=UserResponse)
+async def create_user(request: UserCreateRequest):
+    """Create a new user."""
+    user = user_store.create_user(request.name)
+    return UserResponse(**user)
+
+
+@app.get("/api/users/{user_id}", response_model=UserResponse)
+async def get_user(user_id: str):
+    """Get a user by ID."""
+    user = user_store.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+    return UserResponse(**user)
+
+
+@app.get("/api/backends", response_model=BackendListResponse)
+async def list_backends():
+    """List available LLM backends and their configuration options"""
+    backends = [
+        {
+            "id": "ollama",
+            "name": "Ollama (Local)",
+            "description": "Run models locally with Ollama",
+            "available": True,
+            "default_model": "llama3.1:8b",
+            "models": ["llama3.2:3b", "llama3.1:8b", "qwen2.5:32b"],
+            "config_fields": ["ollama_model"]
+        },
+        {
+            "id": "llamacpp",
+            "name": "Llama.cpp Server",
+            "description": "Use llama.cpp server for custom GGUF models",
+            "available": True,
+            "default_model": "gemma-3-27B",
+            "config_fields": ["llamacpp_url", "llamacpp_model"]
+        },
+        {
+            "id": "gemini",
+            "name": "Google Gemini",
+            "description": "Use Google's Gemini API (requires API key)",
+            "available": bool(os.environ.get("GEMINI_API_KEY")),
+            "default_model": "gemini-2.0-flash",
+            "models": ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"],
+            "config_fields": ["gemini_api_key", "gemini_model"]
+        }
+    ]
+    return BackendListResponse(backends=backends)
+
+
+@app.post("/api/jobs", response_model=JobResponse)
+async def create_job(
+    background_tasks: BackgroundTasks,
+    cv_file: Optional[UploadFile] = File(None),
+    job_desc_file: UploadFile = File(...),
+    cv_id: Optional[int] = Form(None),
+    company_name: Optional[str] = Form(None),
+    job_title: Optional[str] = Form(None),
+    enable_ats: bool = Form(True),
+    backend_type: str = Form("ollama"),
+    backend_model: Optional[str] = Form(None),
+    custom_questions: Optional[str] = Form(None),
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """
+    Create a new job application processing task.
+
+    Provide CV either by uploading cv_file OR by specifying cv_id (stored CV).
+    Upload job description file, configure backend, and start processing.
+    """
+    # Default to 'default' user if not specified
+    user_id = user_id or "default"
+
+    # Check if workflow is available
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Workflow modules not available. Check server logs and ensure src/ folder contains the required modules."
+        )
+
+    # Must provide either cv_file or cv_id
+    if not cv_file and not cv_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Must provide either cv_file (upload) or cv_id (stored CV)"
+        )
+
+    # Generate unique job ID
+    job_id = str(uuid.uuid4())[:8]
+
+    # Create job in store with user_id
+    job_store.create_job(job_id, user_id=user_id)
+
+    try:
+        cv_version_id = None  # Track which CV version is used (stored CVs only)
+
+        # Handle CV - either from upload or from stored CV
+        if cv_file:
+            # Use uploaded file
+            cv_path = settings.UPLOADS_DIR / f"{job_id}_cv{Path(cv_file.filename).suffix}"
+            with open(cv_path, "wb") as f:
+                content = await cv_file.read()
+                f.write(content)
+        else:
+            # Use stored CV (verify user ownership)
+            cv_data = cv_store.get_cv(cv_id, user_id=user_id)
+            if not cv_data:
+                raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+            cv_content = cv_data.get("content", "")
+            cv_version_id = cv_data.get("current_version_id")
+            cv_path = settings.UPLOADS_DIR / f"{job_id}_cv.txt"
+            with open(cv_path, "w", encoding="utf-8") as f:
+                f.write(cv_content)
+
+        # Save job description file and extract text
+        job_desc_path = settings.UPLOADS_DIR / f"{job_id}_job{Path(job_desc_file.filename).suffix}"
+        job_desc_content = await job_desc_file.read()
+        with open(job_desc_path, "wb") as f:
+            f.write(job_desc_content)
+
+        # Decode JD text for storage (try utf-8, fallback to latin-1)
+        try:
+            job_description_text = job_desc_content.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                job_description_text = job_desc_content.decode("latin-1")
+            except Exception:
+                job_description_text = None
+
+        # Build backend config
+        backend_config = {}
+        if backend_type == "ollama":
+            backend_config["model_name"] = backend_model or "llama3.1:8b"
+        elif backend_type == "llamacpp":
+            backend_config["model_name"] = backend_model or "gemma-3-27B"
+            backend_config["base_url"] = "http://localhost:8080"
+        elif backend_type == "gemini":
+            backend_config["model_name"] = backend_model or "gemini-2.0-flash"
+            backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+        
+        # Update job with file paths, JD text, and CV version link
+        update_kwargs: dict = dict(
+            cv_path=str(cv_path),
+            job_desc_path=str(job_desc_path),
+            company_name=company_name,
+            job_title=job_title,
+            backend_type=backend_type,
+            job_description_text=job_description_text,
+        )
+        # Track which CV version was used (only for stored CVs)
+        if cv_id and cv_version_id:
+            update_kwargs["cv_version_id"] = cv_version_id
+        job_store.update_job(job_id, **update_kwargs)
+        
+        # Add background task
+        background_tasks.add_task(
+            process_job_application,
+            job_id=job_id,
+            cv_path=str(cv_path),
+            job_desc_path=str(job_desc_path),
+            company_name=company_name,
+            enable_ats=enable_ats,
+            backend_type=backend_type,
+            backend_config=backend_config,
+            custom_questions=custom_questions
+        )
+        
+        return JobResponse(
+            job_id=job_id,
+            status=JobStatus.pending,
+            message="Job created and queued for processing",
+            created_at=datetime.now().isoformat()
+        )
+        
+    except Exception as e:
+        job_store.update_job(
+            job_id,
+            status=JobStatus.failed,
+            error=str(e)
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/jobs/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(job_id: str):
+    """Get the status of a job application processing task"""
+    job = job_store.get_job(job_id)
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    return JobStatusResponse(
+        job_id=job["job_id"],
+        status=job["status"],
+        progress=job["progress"],
+        current_step=job["current_step"],
+        message=job["message"],
+        output_dir=job["output_dir"],
+        ats_score=job["ats_score"],
+        files=job["files"],
+        error=job["error"],
+        cv_version_id=job.get("cv_version_id"),
+        backend_type=job.get("backend_type"),
+        company_name=job.get("company_name"),
+        job_title=job.get("job_title"),
+        created_at=job.get("created_at"),
+        completed_at=job.get("updated_at") if job["status"] == "completed" else None,
+    )
+
+
+@app.get("/api/jobs")
+async def list_jobs(
+    limit: int = 50,
+    outcome_status: Optional[str] = None,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """List recent job processing tasks, optionally filtered by outcome status"""
+    user_id = user_id or "default"
+    jobs = job_store.list_jobs(user_id=user_id, limit=limit, outcome_status=outcome_status)
+    return {"jobs": jobs, "total": len(jobs)}
+
+
+@app.delete("/api/jobs/{job_id}")
+async def delete_job(job_id: str, user_id: str = Header(None, alias="X-User-ID")):
+    """Delete a job and optionally its output files"""
+    user_id = user_id or "default"
+    job = job_store.get_job(job_id, user_id=user_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    # Delete from store (with user verification)
+    job_store.delete_job(job_id, user_id=user_id)
+
+    # Clean up uploaded files
+    for pattern in [f"{job_id}_cv*", f"{job_id}_job*"]:
+        for f in settings.UPLOADS_DIR.glob(pattern):
+            f.unlink()
+
+    return {"message": f"Job {job_id} deleted"}
+
+
+@app.patch("/api/jobs/{job_id}/outcome")
+async def update_job_outcome(
+    job_id: str,
+    request: OutcomeUpdateRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """
+    Update the application outcome status for a job.
+
+    Status flow: draft -> submitted -> response -> interview -> offer/rejected/withdrawn
+
+    Timestamps are automatically set:
+    - submitted -> sets submitted_at
+    - response/interview -> sets response_at (if not already set)
+    - offer/rejected/withdrawn -> sets outcome_at
+    """
+    user_id = user_id or "default"
+
+    # Validate outcome_status
+    valid_statuses = ["draft", "submitted", "response", "interview", "offer", "rejected", "withdrawn"]
+    if request.outcome_status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid outcome_status. Must be one of: {', '.join(valid_statuses)}"
+        )
+
+    try:
+        job = job_store.update_outcome(
+            job_id,
+            outcome_status=request.outcome_status,
+            notes=request.notes,
+            user_id=user_id
+        )
+        return job
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+
+@app.get("/api/jobs/{job_id}/description")
+async def get_job_description(job_id: str):
+    """
+    Get the original job description text for a job.
+
+    Returns the stored JD text, or reads from the file for legacy jobs.
+    """
+    job = job_store.get_job(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    # Try to get stored text first, fallback to file read for legacy jobs
+    description = job_store.get_job_description_text(job_id)
+
+    if description:
+        return {
+            "job_id": job_id,
+            "description": description,
+            "source": "database" if job.get("job_description_text") else "file"
+        }
+
+    return {
+        "job_id": job_id,
+        "description": None,
+        "source": None,
+        "message": "Job description not available"
+    }
+
+
+@app.get("/api/jobs/{job_id}/ats-analysis")
+async def get_ats_analysis(job_id: str):
+    """
+    Get detailed ATS analysis for a completed job (Track 2.9.2).
+
+    Returns the full ATS analysis data including:
+    - Hybrid scoring breakdown (lexical, semantic, evidence)
+    - Category scores (critical keywords, hard skills, etc.)
+    - Section-level analysis
+    - Semantic matching details
+    - Parsed entities from CV and JD
+    """
+    job = job_store.get_job(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if job["status"] != "completed":
+        raise HTTPException(status_code=400, detail="ATS analysis only available for completed jobs")
+
+    # Try to get stored ATS details
+    ats_details = job.get("ats_details")
+
+    if ats_details:
+        try:
+            return {
+                "job_id": job_id,
+                "ats_score": job.get("ats_score"),
+                "analysis": json.loads(ats_details),
+                "source": "database"
+            }
+        except json.JSONDecodeError:
+            pass
+
+    # No stored details available
+    return {
+        "job_id": job_id,
+        "ats_score": job.get("ats_score"),
+        "analysis": None,
+        "source": None,
+        "message": "Detailed ATS analysis not available for this job (created before Track 2.9.2)"
+    }
+
+
+@app.post("/api/jobs/{job_id}/rematch")
+async def rematch_ats(
+    job_id: str,
+    request: RematchRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Re-run ATS analysis for an existing job using a new CV version.
+
+    Runs only the ATS scoring pipeline (no CV generation, cover letter, or Q&A).
+    Updates the job record with the new score, details, and CV version ID.
+    """
+    user_id = user_id or "default"
+
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Workflow modules not available. Check server logs.",
+        )
+
+    job = job_store.get_job(job_id, user_id=user_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if job["status"] != "completed":
+        raise HTTPException(
+            status_code=400, detail="Can only re-match completed jobs"
+        )
+
+    cv_content = cv_store.get_cv_version_content(request.cv_version_id)
+    if not cv_content:
+        raise HTTPException(
+            status_code=404,
+            detail=f"CV version {request.cv_version_id} not found",
+        )
+
+    job_description = job_store.get_job_description_text(job_id)
+    if not job_description:
+        raise HTTPException(
+            status_code=400,
+            detail="Job description text not available for this job",
+        )
+
+    # Reconstruct LLM backend from job's stored backend_type
+    backend_type = job.get("backend_type", "ollama")
+    backend_config: Dict[str, Any] = {}
+    if backend_type == "ollama":
+        backend_config["model_name"] = "llama3.1:8b"
+    elif backend_type == "llamacpp":
+        backend_config["model_name"] = "gemma-3-27B"
+        backend_config["base_url"] = "http://localhost:8080"
+    elif backend_type == "gemini":
+        backend_config["model_name"] = "gemini-2.0-flash"
+        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+
+    backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
+    ats_optimizer = ATSOptimizer(
+        backend=backend, company_name=job.get("company_name")
+    )
+
+    old_score = job.get("ats_score")
+
+    loop = asyncio.get_event_loop()
+    _report, _key_req, ats_score_dict = await loop.run_in_executor(
+        None, ats_optimizer.generate_ats_report, cv_content, job_description
+    )
+
+    new_score = ats_score_dict["score"]
+    delta = round(new_score - (old_score or 0), 1)
+    ats_details_json = json.dumps(ats_score_dict)
+
+    job_store.update_job(
+        job_id,
+        ats_score=new_score,
+        ats_details=ats_details_json,
+        cv_version_id=request.cv_version_id,
+    )
+
+    # Record re-match in history (Idea #121)
+    match_history_store.add_entry(
+        job_id=job_id,
+        score=new_score,
+        cv_version_id=request.cv_version_id,
+        matched=ats_score_dict.get('matched'),
+        total=ats_score_dict.get('total'),
+        missing_count=len(ats_score_dict.get('missing_keywords', [])),
+    )
+
+    return {
+        "job_id": job_id,
+        "old_score": old_score,
+        "new_score": new_score,
+        "delta": delta,
+        "ats_details": ats_score_dict,
+        "cv_version_id": request.cv_version_id,
+    }
+
+
+@app.post("/api/jobs/{job_id}/apply-suggestions")
+async def apply_suggestions(
+    job_id: str,
+    request: ApplySuggestionsRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Use LLM to incorporate selected missing keywords into CV text.
+
+    Does NOT save — returns revised CV for user review.
+    """
+    user_id = user_id or "default"
+
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Workflow modules not available. Check server logs.",
+        )
+
+    job = job_store.get_job(job_id, user_id=user_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if job["status"] != "completed":
+        raise HTTPException(
+            status_code=400, detail="Can only apply suggestions to completed jobs"
+        )
+
+    if not request.selected_keywords:
+        raise HTTPException(
+            status_code=400, detail="No keywords selected"
+        )
+
+    cv_content = cv_store.get_cv_version_content(request.cv_version_id)
+    if not cv_content:
+        raise HTTPException(
+            status_code=404,
+            detail=f"CV version {request.cv_version_id} not found",
+        )
+
+    job_description = job_store.get_job_description_text(job_id)
+    if not job_description:
+        raise HTTPException(
+            status_code=400,
+            detail="Job description text not available for this job",
+        )
+
+    # Use request overrides or fall back to job's original backend
+    backend_type = request.backend_type or job.get("backend_type", "ollama")
+    backend_config: Dict[str, Any] = {}
+    if backend_type == "ollama":
+        backend_config["model_name"] = request.model_name or "llama3.1:8b"
+    elif backend_type == "llamacpp":
+        backend_config["model_name"] = request.model_name or "gemma-3-27B"
+        backend_config["base_url"] = "http://localhost:8080"
+    elif backend_type == "gemini":
+        backend_config["model_name"] = request.model_name or "gemini-2.0-flash"
+        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+
+    backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
+    ats_optimizer = ATSOptimizer(
+        backend=backend, company_name=job.get("company_name")
+    )
+
+    model_name = backend_config.get("model_name", backend_type)
+
+    loop = asyncio.get_event_loop()
+    revised_cv = await loop.run_in_executor(
+        None,
+        ats_optimizer.incorporate_keywords,
+        cv_content,
+        job_description,
+        request.selected_keywords,
+        request.weak_skills,
+    )
+
+    # Split CV text from changelog (LLM outputs ===CHANGELOG=== separator)
+    changelog = ""
+    if "===CHANGELOG===" in revised_cv:
+        parts = revised_cv.split("===CHANGELOG===", 1)
+        revised_cv = parts[0].rstrip()
+        changelog = parts[1].strip()
+
+    # Strip LLM preamble — anything before the actual CV content
+    _preamble = (
+        "here is", "below is", "i've", "i have", "sure", "certainly",
+        "of course", "the updated", "the revised", "updated cv",
+    )
+    lines = revised_cv.split("\n")
+    for i, line in enumerate(lines):
+        stripped = line.strip().lower()
+        if stripped and not stripped.startswith(_preamble):
+            if i > 0:
+                revised_cv = "\n".join(lines[i:])
+            break
+
+    return {
+        "job_id": job_id,
+        "revised_cv": revised_cv,
+        "applied_count": len(request.selected_keywords),
+        "cv_version_id": request.cv_version_id,
+        "backend_type": backend_type,
+        "model_name": model_name,
+        "changelog": changelog,
+    }
+
+
+@app.post("/api/jobs/{job_id}/suggest-skills")
+async def suggest_skills(
+    job_id: str,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Use LLM to suggest skills to add to the CV based on the job description (Idea #56)."""
+    user_id = user_id or "default"
+
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Workflow modules not available. Check server logs.",
+        )
+
+    job = job_store.get_job(job_id, user_id=user_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if job["status"] != "completed":
+        raise HTTPException(
+            status_code=400, detail="Can only suggest skills for completed jobs"
+        )
+
+    # Get CV content from the job's CV version
+    cv_version_id = job.get("cv_version_id")
+    cv_content = None
+    if cv_version_id:
+        cv_content = cv_store.get_cv_version_content(cv_version_id)
+
+    if not cv_content:
+        raise HTTPException(
+            status_code=400,
+            detail="CV content not available for this job",
+        )
+
+    job_description = job_store.get_job_description_text(job_id)
+    if not job_description:
+        raise HTTPException(
+            status_code=400,
+            detail="Job description text not available for this job",
+        )
+
+    # Use job's backend or default to gemini (fast for suggestions)
+    backend_type = job.get("backend_type", "gemini")
+    backend_config: Dict[str, Any] = {}
+    if backend_type == "ollama":
+        backend_config["model_name"] = "llama3.1:8b"
+    elif backend_type == "llamacpp":
+        backend_config["model_name"] = "gemma-3-27B"
+        backend_config["base_url"] = "http://localhost:8080"
+    elif backend_type == "gemini":
+        backend_config["model_name"] = "gemini-2.0-flash"
+        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+
+    backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
+    ats_optimizer = ATSOptimizer(
+        backend=backend, company_name=job.get("company_name")
+    )
+
+    loop = asyncio.get_event_loop()
+    suggestions = await loop.run_in_executor(
+        None,
+        ats_optimizer.suggest_skills,
+        cv_content,
+        job_description,
+    )
+
+    return {"suggestions": suggestions}
+
+
+@app.post("/api/jobs/{job_id}/gap-fill")
+async def gap_fill(
+    job_id: str,
+    request: GapFillRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Incorporate user-provided experiences into CV via LLM (Idea #82)."""
+    user_id = user_id or "default"
+
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Workflow modules not available. Check server logs.",
+        )
+
+    job = job_store.get_job(job_id, user_id=user_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if job["status"] != "completed":
+        raise HTTPException(
+            status_code=400, detail="Can only gap-fill completed jobs"
+        )
+
+    filled_answers = [
+        {"skill": a.skill, "gap_type": a.gap_type, "user_content": a.user_content}
+        for a in request.answers
+        if a.user_content.strip()
+    ]
+
+    if not filled_answers:
+        raise HTTPException(status_code=400, detail="No answers provided")
+
+    cv_content = cv_store.get_cv_version_content(request.cv_version_id)
+    if not cv_content:
+        raise HTTPException(
+            status_code=404,
+            detail=f"CV version {request.cv_version_id} not found",
+        )
+
+    job_description = job_store.get_job_description_text(job_id)
+    if not job_description:
+        raise HTTPException(
+            status_code=400,
+            detail="Job description text not available for this job",
+        )
+
+    backend_type = request.backend_type or job.get("backend_type", "ollama")
+    backend_config: Dict[str, Any] = {}
+    if backend_type == "ollama":
+        backend_config["model_name"] = request.model_name or "llama3.1:8b"
+    elif backend_type == "llamacpp":
+        backend_config["model_name"] = request.model_name or "gemma-3-27B"
+        backend_config["base_url"] = "http://localhost:8080"
+    elif backend_type == "gemini":
+        backend_config["model_name"] = request.model_name or "gemini-2.0-flash"
+        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+
+    backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
+    ats_optimizer = ATSOptimizer(
+        backend=backend, company_name=job.get("company_name")
+    )
+
+    model_name = backend_config.get("model_name", backend_type)
+
+    loop = asyncio.get_event_loop()
+    revised_cv = await loop.run_in_executor(
+        None,
+        ats_optimizer.incorporate_user_experiences,
+        cv_content,
+        job_description,
+        filled_answers,
+    )
+
+    changelog = ""
+    if "===CHANGELOG===" in revised_cv:
+        parts = revised_cv.split("===CHANGELOG===", 1)
+        revised_cv = parts[0].rstrip()
+        changelog = parts[1].strip()
+
+    _preamble = (
+        "here is", "below is", "i've", "i have", "sure", "certainly",
+        "of course", "the updated", "the revised", "updated cv",
+    )
+    lines = revised_cv.split("\n")
+    for i, line in enumerate(lines):
+        stripped = line.strip().lower()
+        if stripped and not stripped.startswith(_preamble):
+            if i > 0:
+                revised_cv = "\n".join(lines[i:])
+            break
+
+    return {
+        "job_id": job_id,
+        "revised_cv": revised_cv,
+        "applied_count": len(filled_answers),
+        "cv_version_id": request.cv_version_id,
+        "backend_type": backend_type,
+        "model_name": model_name,
+        "changelog": changelog,
+    }
+
+
+@app.get("/api/jobs/{job_id}/match-history")
+async def get_match_history(
+    job_id: str,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Get ATS match iteration history for a job (Idea #121)."""
+    user_id = user_id or "default"
+    job = job_store.get_job(job_id, user_id=user_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    history = match_history_store.get_history(job_id)
+    return {"job_id": job_id, "history": history}
+
+
+@app.get("/api/metrics", response_model=MetricsResponse)
+async def get_metrics(user_id: str = Header(None, alias="X-User-ID")):
+    """
+    Get application funnel metrics and success rates for the current user.
+
+    Returns:
+    - total: Total completed jobs
+    - by_status: Count of jobs by outcome status
+    - funnel: Progression through stages (draft -> submitted -> response -> interview -> offer)
+    - rates: Response rate, interview rate, offer rate (as percentages)
+    - avg_time_to_response_days: Average days from submission to first response
+    """
+    user_id = user_id or "default"
+    metrics = job_store.get_outcome_metrics(user_id=user_id)
+    return MetricsResponse(**metrics)
+
+
+@app.get("/api/pipeline/diagnosis", response_model=PipelineDiagnosisResponse)
+async def get_pipeline_diagnosis(user_id: str = Header(None, alias="X-User-ID")):
+    """
+    Analyze the application funnel and provide a diagnosis and advice.
+    """
+    user_id = user_id or "default"
+    diagnosis = job_store.get_pipeline_diagnosis(user_id=user_id)
+    return PipelineDiagnosisResponse(**diagnosis)
+
+
+@app.get("/api/jobs/{job_id}/files")
+async def list_job_files(job_id: str):
+    """List output files for a completed job"""
+    job = job_store.get_job(job_id)
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    if job["status"] != JobStatus.completed:
+        raise HTTPException(status_code=400, detail="Job not completed yet")
+    
+    if not job["output_dir"]:
+        raise HTTPException(status_code=404, detail="No output directory found")
+    
+    output_dir = Path(job["output_dir"])
+    if not output_dir.exists():
+        raise HTTPException(status_code=404, detail="Output directory not found")
+    
+    files = []
+    for f in output_dir.iterdir():
+        if f.is_file():
+            # Determine file type
+            file_type = "other"
+            if "cv" in f.name.lower():
+                file_type = "cv"
+            elif "cover_letter" in f.name.lower():
+                file_type = "cover_letter"
+            elif "ats" in f.name.lower():
+                file_type = "ats_report"
+            elif "answers" in f.name.lower():
+                file_type = "answers"
+            elif f.name == "metadata.json":
+                file_type = "metadata"
+            
+            files.append({
+                "filename": f.name,
+                "path": str(f),
+                "size": f.stat().st_size,
+                "type": file_type
+            })
+    
+    return {"job_id": job_id, "files": files}
+
+
+@app.get("/api/jobs/{job_id}/files/{filename}")
+async def download_file(job_id: str, filename: str):
+    """Download a specific output file"""
+    job = job_store.get_job(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if not job["output_dir"]:
+        raise HTTPException(status_code=404, detail="No output directory found")
+
+    file_path = Path(job["output_dir"]) / filename
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File {filename} not found")
+
+    # Determine media type
+    media_type = "application/octet-stream"
+    if filename.endswith(".md"):
+        media_type = "text/markdown"
+    elif filename.endswith(".txt"):
+        media_type = "text/plain"
+    elif filename.endswith(".json"):
+        media_type = "application/json"
+    elif filename.endswith(".docx"):
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type=media_type
+    )
+
+
+@app.get("/api/jobs/{job_id}/files/{filename}/content")
+async def get_file_content(job_id: str, filename: str):
+    """Get the text content of a file for preview (supports .md, .txt, .json)"""
+    job = job_store.get_job(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    if not job["output_dir"]:
+        raise HTTPException(status_code=404, detail="No output directory found")
+
+    file_path = Path(job["output_dir"]) / filename
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File {filename} not found")
+
+    # Only allow text-based files
+    allowed_extensions = ['.md', '.txt', '.json']
+    if not any(filename.endswith(ext) for ext in allowed_extensions):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Preview not supported for this file type. Allowed: {', '.join(allowed_extensions)}"
+        )
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        return {
+            "filename": filename,
+            "content": content,
+            "type": "markdown" if filename.endswith('.md') else "json" if filename.endswith('.json') else "text"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {str(e)}")
+
+
+@app.get("/api/applications")
+async def list_applications(
+    limit: int = 50,
+    outcome_status: Optional[str] = None,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """
+    List all processed applications with outcome tracking data for the current user.
+    Combines filesystem data with database outcome tracking.
+    """
+    user_id = user_id or "default"
+    applications = []
+
+    # Get jobs from database (has outcome tracking) - filtered by user
+    jobs = job_store.list_jobs(user_id=user_id, limit=500, outcome_status=outcome_status)
+    job_map = {j["job_id"]: j for j in jobs}
+
+    if settings.OUTPUTS_DIR.exists():
+        for folder in settings.OUTPUTS_DIR.iterdir():
+            if folder.is_dir():
+                metadata_path = folder / "metadata.json"
+
+                app_info = {
+                    "job_id": folder.name,
+                    "job_name": folder.name.split("_")[0] if "_" in folder.name else folder.name,
+                    "company_name": None,
+                    "job_title": None,
+                    "backend": "unknown",
+                    "model": None,
+                    "timestamp": folder.stat().st_mtime,
+                    "ats_score": None,
+                    "status": "completed",
+                    "output_dir": str(folder),
+                    # Outcome tracking fields (defaults)
+                    "outcome_status": "draft",
+                    "submitted_at": None,
+                    "response_at": None,
+                    "outcome_at": None,
+                    "notes": None,
+                }
+
+                # Try to read metadata
+                if metadata_path.exists():
+                    try:
+                        with open(metadata_path) as f:
+                            metadata = json.load(f)
+                            app_info["company_name"] = metadata.get("company_name")
+                            app_info["backend"] = metadata.get("backend", {}).get("type", "unknown")
+                            app_info["model"] = metadata.get("backend", {}).get("model")
+                            app_info["ats_score"] = metadata.get("ats_score")
+                            app_info["timestamp"] = metadata.get("timestamp", app_info["timestamp"])
+
+                            # Try to get job_id from metadata
+                            if "job_id" in metadata:
+                                app_info["job_id"] = metadata["job_id"]
+                    except:
+                        pass
+
+                # Only include applications that belong to this user
+                # (must have a matching job_id in the user's database records)
+                db_job = job_map.get(app_info["job_id"])
+                if not db_job:
+                    # No database record for this user - skip it
+                    continue
+
+                # Merge data from database
+                app_info["company_name"] = db_job.get("company_name") or app_info["company_name"]
+                app_info["job_title"] = db_job.get("job_title")
+                app_info["outcome_status"] = db_job.get("outcome_status", "draft")
+                app_info["submitted_at"] = db_job.get("submitted_at")
+                app_info["response_at"] = db_job.get("response_at")
+                app_info["outcome_at"] = db_job.get("outcome_at")
+                app_info["notes"] = db_job.get("notes")
+
+                # Apply outcome_status filter if specified
+                if outcome_status and app_info["outcome_status"] != outcome_status:
+                    continue
+
+                applications.append(app_info)
+
+    # Sort by timestamp (newest first)
+    applications.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    return {"applications": applications[:limit], "total": len(applications)}
+
+
+# ============================================================================
+# CV Management Endpoints
+# ============================================================================
+
+@app.get("/api/cvs")
+async def list_cvs(user_id: str = Header(None, alias="X-User-ID")):
+    """List all stored CVs for the current user (without content)."""
+    user_id = user_id or "default"
+    cvs = cv_store.list_cvs(user_id=user_id)
+    return {"cvs": cvs, "total": len(cvs)}
+
+
+@app.post("/api/cvs")
+async def create_cv(
+    cv_file: UploadFile = File(...),
+    name: str = Form(...),
+    is_default: bool = Form(False),
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Upload and store a new CV for the current user."""
+    user_id = user_id or "default"
+    try:
+        # Read file content
+        content = await cv_file.read()
+        content_str = content.decode('utf-8')
+
+        # Create CV in store with user_id
+        cv = cv_store.create_cv(
+            name=name,
+            filename=cv_file.filename,
+            content=content_str,
+            user_id=user_id,
+            is_default=is_default
+        )
+
+        # Return without the full content
+        return {
+            "id": cv["id"],
+            "user_id": cv["user_id"],
+            "name": cv["name"],
+            "filename": cv["filename"],
+            "is_default": cv["is_default"],
+            "created_at": cv["created_at"],
+            "version_number": cv.get("version_number", 1),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/cvs/{cv_id}")
+async def get_cv(cv_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """Get a CV by ID (includes content). Verifies user ownership."""
+    user_id = user_id or "default"
+    cv = cv_store.get_cv(cv_id, user_id=user_id)
+    if not cv:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return cv
+
+
+@app.delete("/api/cvs/{cv_id}")
+async def delete_cv(cv_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """Delete a CV. Verifies user ownership."""
+    user_id = user_id or "default"
+    deleted = cv_store.delete_cv(cv_id, user_id=user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return {"message": f"CV {cv_id} deleted"}
+
+
+class CVRenameRequest(BaseModel):
+    """Request to rename a CV."""
+    name: str
+
+
+@app.put("/api/cvs/{cv_id}/name")
+async def rename_cv(cv_id: int, request: CVRenameRequest, user_id: str = Header(None, alias="X-User-ID")):
+    """Rename a CV. Verifies user ownership."""
+    user_id = user_id or "default"
+    if not request.name.strip():
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    updated = cv_store.update_cv(cv_id, user_id=user_id, name=request.name.strip())
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return updated
+
+
+@app.put("/api/cvs/{cv_id}/default")
+async def set_default_cv(cv_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """Set a CV as the default for the current user."""
+    user_id = user_id or "default"
+    updated = cv_store.set_default(cv_id, user_id=user_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return {"message": f"CV {cv_id} set as default"}
+
+
+@app.get("/api/cvs/default")
+async def get_default_cv(user_id: str = Header(None, alias="X-User-ID")):
+    """Get the default CV for the current user."""
+    user_id = user_id or "default"
+    cv = cv_store.get_default_cv(user_id=user_id)
+    if not cv:
+        raise HTTPException(status_code=404, detail="No default CV set")
+    # Return without full content for listing
+    return {
+        "id": cv["id"],
+        "user_id": cv["user_id"],
+        "name": cv["name"],
+        "filename": cv["filename"],
+        "is_default": cv["is_default"],
+        "created_at": cv["created_at"],
+        "version_number": cv.get("version_number", 1),
+    }
+
+
+# ============================================================================
+# CV Version Endpoints (Track 2.9.3)
+# ============================================================================
+
+@app.get("/api/cvs/{cv_id}/versions")
+async def list_cv_versions(cv_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """List all versions of a CV (metadata only, no content)."""
+    user_id = user_id or "default"
+    versions = cv_store.list_cv_versions(cv_id, user_id=user_id)
+    if versions is None:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return {"cv_id": cv_id, "versions": versions, "total": len(versions)}
+
+
+@app.get("/api/cvs/{cv_id}/versions/{version_id}")
+async def get_cv_version(cv_id: int, version_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """Get a specific CV version with full content."""
+    user_id = user_id or "default"
+    # Verify CV ownership first
+    versions = cv_store.list_cv_versions(cv_id, user_id=user_id)
+    if versions is None:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+
+    version = cv_store.get_cv_version(version_id)
+    if not version or version["cv_id"] != cv_id:
+        raise HTTPException(status_code=404, detail=f"Version {version_id} not found for CV {cv_id}")
+    return version
+
+
+@app.get("/api/cv-versions/{version_id}")
+async def get_cv_version_by_id(version_id: int, user_id: str = Header(None, alias="X-User-ID")):
+    """Get a CV version by version ID alone (without needing cv_id).
+
+    Jobs store only version_id, not cv_id, so this endpoint lets the
+    frontend fetch the version content directly.
+    """
+    user_id = user_id or "default"
+    version = cv_store.get_cv_version(version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail=f"CV version {version_id} not found")
+
+    # Verify user ownership via the parent CV
+    cv = cv_store.get_cv(version["cv_id"], user_id=user_id)
+    if not cv:
+        raise HTTPException(status_code=404, detail=f"CV version {version_id} not found")
+
+    return version
+
+
+@app.put("/api/cvs/{cv_id}/content")
+async def update_cv_content(
+    cv_id: int,
+    request: CVContentUpdateRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Update CV content, creating a new version.
+
+    Used by the in-app CV text editor after ATS analysis review.
+    """
+    user_id = user_id or "default"
+    updated = cv_store.update_cv(
+        cv_id,
+        user_id=user_id,
+        content=request.content,
+        change_summary=request.change_summary,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
+    return updated
+
+
+# ============================================================================
+# WebSocket Endpoint for Real-Time Job Progress
+# ============================================================================
+
+@app.websocket("/api/ws/jobs/{job_id}")
+async def websocket_job_progress(websocket: WebSocket, job_id: str):
+    """
+    WebSocket endpoint for real-time job progress updates.
+
+    Connect to this endpoint after creating a job to receive live updates
+    instead of polling the REST API.
+    """
+    await ws_manager.connect(websocket, job_id)
+
+    try:
+        # Send current job status immediately on connection
+        job = job_store.get_job(job_id)
+        if job:
+            await websocket.send_json(job)
+        else:
+            await websocket.send_json({"error": f"Job {job_id} not found"})
+
+        # Keep connection alive and listen for client messages
+        # (mainly just to detect disconnection)
+        while True:
+            try:
+                # Wait for any message from client (ping/keep-alive)
+                data = await websocket.receive_text()
+                # Echo back current status if client sends "status"
+                if data == "status":
+                    job = job_store.get_job(job_id)
+                    if job:
+                        await websocket.send_json(job)
+            except WebSocketDisconnect:
+                break
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        ws_manager.disconnect(websocket, job_id)
+
+
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    print(f"""
+╔══════════════════════════════════════════════════════════════╗
+║     Job Application Workflow - FastAPI Backend               ║
+║     Track 2: Local Web UI                                    ║
+╚══════════════════════════════════════════════════════════════╝
+
+Starting server at http://localhost:8000
+API docs available at http://localhost:8000/docs
+
+Directories:
+  - Project Root: {PROJECT_ROOT}
+  - Source:       {SRC_DIR}
+  - Inputs:       {settings.INPUTS_DIR}
+  - Outputs:      {settings.OUTPUTS_DIR}
+  - Uploads:      {settings.UPLOADS_DIR}
+
+Workflow Available: {WORKFLOW_AVAILABLE}
+""")
+    
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True  # Enable auto-reload for development
+    )

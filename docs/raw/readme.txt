@@ -1,0 +1,1 @@
+folder created on 25/01/2026 to store loose chats with various LLMs to get quick reviews and ideas. 

@@ -1,84 +1,48 @@
 # Job Application Workflow
 
-AI-powered tool that generates tailored CVs, cover letters, and ATS analysis for job applications.
+AI-powered tool that generates tailored CVs, cover letters, and ATS analysis using local LLMs.
 
-## Features
+## Setup
 
-- **Tailored CV Generation** - Creates job-specific CVs in DOCX format
-- **Cover Letter Generation** - Professional cover letters matched to job requirements
-- **ATS Scoring & Analysis** - Keyword matching, section-level analysis, gap identification
-- **Multi-Backend Support** - Ollama (local), Llama.cpp (local), or Gemini (cloud)
-- **Web UI** - Dashboard, real-time progress, file preview
-- **Multi-User Support** - Isolated profiles with separate CVs and job history
-- **Outcome Tracking** - Track application status from submission to offer
-
-## Quick Start
-
-### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- An LLM backend (Ollama recommended for local use)
-
-### Run the Web UI
-
-**Terminal 1 - Backend:**
 ```bash
-cd "path/to/job_applications"
+# Backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env  # Edit with your config
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-```
 
-**Terminal 2 - Frontend:**
-```bash
-cd "path/to/job_applications/frontend"
-npm install  # first time only
+# Frontend
+cd frontend
+npm install
 npm run dev
 ```
 
-**Access:** http://localhost:5173
+## Usage
 
-### Run CLI Only
-```bash
-python scripts/run_workflow.py \
-  --cv inputs/yourcv.txt \
-  --job inputs/job_description.txt \
-  --company "Company Name" \
-  --backend ollama
-```
+1. Start backend on port 8000
+2. Start frontend on port 5173
+3. Open http://localhost:5173
+4. Upload a job description, select a CV version, generate tailored output
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18, TypeScript, Vite, TailwindCSS |
-| Backend | Python, FastAPI, SQLite |
-| LLM | Ollama, Llama.cpp, Google Gemini |
-| Output | DOCX (python-docx) |
-
-## Project Structure
+## Architecture
 
 ```
 job_applications/
-├── backend/          # FastAPI REST API
-├── frontend/         # React web application
-├── src/              # Core Python modules (ATS, LLM, workflow)
-├── scripts/          # CLI entry points
-├── inputs/           # CV and job description files
-├── outputs/          # Generated applications
-└── docs/             # Documentation and journals
+├── backend/
+│   └── main.py          # FastAPI endpoints
+├── frontend/
+│   └── src/
+│       ├── api.ts       # All API calls
+│       ├── types.ts     # TypeScript types
+│       └── components/  # React components
+├── data/
+│   └── jobs.db          # SQLite database
+└── docs/                # Architecture, API docs, diary
 ```
 
-## Documentation
+## Key Docs
 
-- `MASTER_VISION.md` - Roadmap and strategic direction
-- `docs/journal/` - Development diary and progress history
-- `docs/API.md` - API endpoints and database schema
-
-## Current Status
-
-**Track 2.8 In Progress** - Hybrid Semantic ATS Scoring
-
-See `MASTER_VISION.md` for detailed roadmap.
-
-## License
-
-Private project - not for distribution.
+- `docs/ARCHITECTURE.md` — system overview
+- `docs/API.md` — endpoints and schema
+- `MASTER_VISION.md` — roadmap
