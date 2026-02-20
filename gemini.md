@@ -2,7 +2,7 @@
 
 **Role**: You (Gemini) are a **Secondary Agent** on this project. Claude Code is the **Lead Architect**.
 
-**Last Updated**: 3 February 2026
+**Last Updated**: 20 February 2026
 
 ---
 
@@ -12,7 +12,7 @@
 - **Read the latest `docs/journal/PROJECT_DIARY_*.md` Quick Resume section first** to orient yourself on current state
 - Follow all code style conventions defined below (established by Claude)
 - Read `MASTER_VISION.md` before starting any work to understand project status
-- Check `ideas.db` before implementing features: `python scripts/ideas.py list`
+- Check ideas backlog before implementing features (see Ideas Workflow below)
 - Update `ideas.db` status when starting/completing work (see workflow below)
 - Create a diary entry in `docs/journal/` for significant changes (must include Quick Resume section -- see template below)
 - Run `cd frontend && npx tsc --noEmit` after any TypeScript changes
@@ -93,7 +93,7 @@ User Browser (5173) --> Vite Dev Server --> FastAPI (8000) --> LLM Backends
 | `src/semantic_scorer.py` | Sentence-transformer embeddings + cosine similarity |
 | `src/document_parser.py` | Section detection + entity extraction from CVs/JDs |
 | `src/entity_taxonomy.py` | 250+ skills, certifications, methodologies taxonomy |
-| `ideas.db` | Feature backlog (SQLite) - 50+ ideas tracked |
+| programme `ideas.db` | Feature backlog (programme-level) - use CLI, not direct SQLite |
 
 ### Database (SQLite: `jobs.db`)
 
@@ -142,7 +142,7 @@ cd frontend && npm run dev
 cd frontend && npx tsc --noEmit
 
 # View ideas backlog
-python scripts/ideas.py list
+python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" list --project job_applications
 
 # Health check
 curl http://localhost:8000/api/health
@@ -150,29 +150,33 @@ curl http://localhost:8000/api/health
 
 ---
 
+## Accessing Gitignored Files
+
+`TODO.md`, `GEMINI.md`, and `CLAUDE.md` are gitignored. Your `read_file` and `write_file` tools **cannot access them**. Use `run_shell_command` instead:
+
+```bash
+# Reading
+cat TODO.md
+
+# Writing (e.g. ticking checkboxes)
+sed -i 's/- \[ \] Task 1/- [x] Task 1/' TODO.md
+```
+
+Do not attempt `read_file` or `write_file` on gitignored files — go straight to shell commands.
+
+---
+
 ## FEATURE DEVELOPMENT WORKFLOW
 
-1. **Check ideas.db** - `python scripts/ideas.py list` - find the relevant idea ID
-2. **Mark In Progress**:
-   ```python
-   python -c "
-   import sqlite3; from datetime import datetime
-   conn = sqlite3.connect('ideas.db')
-   conn.execute('UPDATE ideas SET status=?, updated_at=? WHERE id IN (ID1, ID2)', ('In Progress', datetime.now().isoformat()))
-   conn.commit(); conn.close()
-   "
-   ```
+```bash
+IDEAS='python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py"'
+```
+
+1. **Check backlog** - `$IDEAS list --project job_applications --status Idea` - find the relevant idea ID
+2. **Mark In Progress** - `$IDEAS update ID --status "In Progress"`
 3. **Implement** - follow code style above
 4. **Test** - verify manually and run `npx tsc --noEmit` for TS
-5. **Mark Done**:
-   ```python
-   python -c "
-   import sqlite3; from datetime import datetime
-   conn = sqlite3.connect('ideas.db')
-   conn.execute('UPDATE ideas SET status=?, updated_at=? WHERE id IN (ID1, ID2)', ('Done', datetime.now().isoformat()))
-   conn.commit(); conn.close()
-   "
-   ```
+5. **Mark Done** - `$IDEAS update ID --status "Done"` (do this *before or with* the commit)
 6. **Write diary entry** in `docs/journal/PROJECT_DIARY_NNN.md` (must include Quick Resume)
 
 ### Diary Entry Template

@@ -171,6 +171,12 @@ When delegating bug investigation to Gemini via TODO.md:
 
 ---
 
+## Programme Feedback Loop
+
+When you discover a workflow improvement, new convention, or fix a recurring problem — ask whether it applies beyond this project. If it does, flag it for programme-level update (templates, CLAUDE.md, GEMINI.md). New projects should inherit lessons from old ones, not rediscover them.
+
+---
+
 ## Reference Docs
 
 - `MASTER_VISION.md` - Strategic direction and roadmap
@@ -217,4 +223,4 @@ When delegating bug investigation to Gemini via TODO.md:
 - `GEMINI.md` - Gemini's project context (mirrors CLAUDE.md but scoped for secondary role)
 - `TODO.md` - Handover instructions and completion summaries between agents
 
-**Last Updated**: 30 January 2026
+**Last Updated**: 20 February 2026
