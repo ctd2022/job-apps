@@ -1,0 +1,304 @@
+Below is a **comprehensive UX research document** framework tailored to your list of platforms. It combines **patterns, flows, friction points, and concrete recommendations** you can use directly in your UI design. (You can later add annotated screenshots from each tool against this structure.)
+
+---
+
+# **UX Research: Job Platforms & Candidate-Matching Experiences**
+
+## **Platforms Reviewed**
+
+### **Job Boards & Applications**
+
+* LinkedIn
+* Indeed
+* Glassdoor
+* Reed
+* Totaljobs
+
+### **Candidate-Role Matching Platforms**
+
+* Hired
+* Otta
+* Wellfound (AngelList Talent)
+* Triplebyte
+* Cord
+* Talent.io
+* Honeypot
+
+### **ATS/Recruiting Tools (Candidate View)**
+
+* Workday
+* Greenhouse
+* Lever
+
+---
+
+# **1) Job Application Flows & Friction Points**
+
+## **Common Patterns**
+
+**Multi-stage flows**
+
+* Filter → Job card list → Job detail → Apply
+* Option to apply with saved CV/profile (one click)
+* Optional pre-screening questions
+
+**Application entry points**
+
+* From job list
+* From job detail page
+* Via recommendations (“role for you”)
+
+## **Friction Points**
+
+| Issue                                 | Platforms Seen   | UX Impact                 |
+| ------------------------------------- | ---------------- | ------------------------- |
+| Auto-redirect to external ATS         | LinkedIn, Indeed | User loses context        |
+| Required form fields without guidance | Most boards      | High abandonment          |
+| Multiple login/signup gates           | Otta, Talent.io  | Friction before discovery |
+| Resume upload resets form             | Glassdoor        | Re-entry frustration      |
+
+## **Patterns to Leverage**
+
+✔ Clear **progress indicators** (e.g., “Step 1 of 3”)
+✔ **Prefill data** from profile/CV to reduce typing
+✔ **Save progress** automatically mid-apply
+
+## **Recommendations**
+
+* Show **estimated time to complete** application upfront (e.g., “5 min to apply”)
+* Lock external redirects behind a modal warning + option to preview form step
+
+---
+
+# **2) CV/Profile Builders & Guided Input**
+
+## **Patterns**
+
+### **Text Driven Builders**
+
+* LinkedIn: Free-form headline, summary, experience
+* Totaljobs/Reed: Form fields for each section
+
+### **Guided Templates**
+
+* Hired/Otta: Structured profile prompts (skills, role preferences)
+* Wellfound: Guided startup-specific traits
+
+### **Real-time Feedback**
+
+* LinkedIn highlights profile completeness
+* Otta suggests missing preferences
+
+## **Friction Points**
+
+* Lack of **example content** for sections
+* No **progressive disclosure** (users overwhelmed by all fields at once)
+* Little help on **skill specificity** (e.g., “Java vs JavaScript”)
+
+## **Recommendations**
+
+* Use **smart defaults** and **inline help** with examples
+* Break builder into **micro-tasks** (Focus on one section at a time)
+* Add **completion meter + quality indicators** (e.g., “Add 3 skills to be 80% complete”)
+
+---
+
+# **3) Skills Assessment & Verification**
+
+## **Patterns**
+
+### **Self-declared Skills**
+
+* Most job boards allow keyword skills on profile
+
+### **Verified & Assessed Skills**
+
+* Triplebyte: Tech assessments
+* Hired: Optional technical screening
+* Wellfound: Question sets for product/design roles
+
+## **Friction Points**
+
+* Unclear **what standard** assessment means (no benchmark)
+* Frequent **drop-off mid-test**
+* Repetitive questions across platforms
+
+## **Recommendations**
+
+* Provide a **clear description** of what the assessment measures
+* Use **micro-assessments** (2-3 min tasks) — less intimidating, higher completion
+* Display **percentile or comparative score** (e.g., “Scored higher than 72% of applicants”) with context
+
+---
+
+# **4) Job Matching / Recommendation Algorithms**
+
+## **Patterns**
+
+### **Explicit Matching**
+
+* Otta: “Why this role fits you”
+* Wellfound: skills + location + interests
+
+### **Implicit Matching**
+
+* LinkedIn: suggested jobs based on profile activity
+* Indeed: “recommended for you”
+
+## **Friction Points**
+
+* **Opaque matches** with no explanation
+* Repeated irrelevant suggestions
+* Users cannot correct feedback (“Not relevant” doesn’t learn well)
+
+## **Good Explainability Examples**
+
+✔ Otta highlights *top match factors* (role type, stack, culture)
+✔ Hired shows *interest level + skill alignment score*
+
+## **Recommendations**
+
+* Show **Match Score** (e.g., 78%) with a breakdown:
+
+  * Skills fit
+  * Role preferences
+  * Past experience
+* Add **controls** for users:
+
+  * “Not interested because ___”
+  * “Improve recommendations”
+
+---
+
+# **5) Application Tracking Dashboards**
+
+## **Patterns**
+
+### **Status Overview**
+
+* Submitted
+* Viewed
+* Interviewing
+* Offer
+
+### **Timeline Visualization**
+
+* Simple list
+* Some with stages (LinkedIn)
+
+## **Friction Points**
+
+* Lack of clarity on **what next**
+* No guidance on next actions
+* Too many statuses without meaning
+
+## **Recommendations**
+
+* Use a **progress bar** or **Kanban style** with clear labels
+* Add **next suggested action**:
+
+  * “Follow up in X days”
+  * “Complete profile to improve matches”
+
+---
+
+# **6) Match Score Transparency**
+
+## **Patterns**
+
+* Many platforms show a % fit
+* Rarely show *why*
+
+## **Problems**
+
+* Scores appear **arbitrary**
+* No detail on **missing skills vs preferences**
+
+## **Recommendations**
+
+**Transparent scoring UI**
+Display three components side by side:
+
+* Skill match: **60%**
+* Experience fit: **70%**
+* Culture/role pref match: **85%**
+
+Tooltip or expandable area:
+
+* “You lack X skills that 85% of hires had”
+
+---
+
+# **7) “Why You’re a Good Fit” Features**
+
+## **Patterns**
+
+* Text explanations (Otta/Wellfound)
+* Highlight how many requirements you meet
+* Occasionally show what you’ve matched on
+
+## **Weaknesses**
+
+* Generic: “You meet most qualifications”
+* No personalization or guidance on improvement
+
+## **Examples of Good Micro-copy**
+
+* “You match 8/10 must-have skills”
+* “Your React experience aligns with role’s stack”
+
+## **Recommendations**
+
+* Show **specific matched items**:
+
+  * Skills
+  * Job requirements
+  * Culture fits
+* Visualize **gaps** and **suggest actions**:
+
+  * Add portfolio link?
+  * Take skill assessment?
+
+---
+
+# **Overall UX Patterns & Recommendations**
+
+### **Strong Patterns to Borrow**
+
+✅ Prefilled forms from profile
+✅ Immediate match reasoning
+✅ One-click apply (where possible)
+✅ Progress saved across sessions
+✅ Next-steps guidance on tracking dashboards
+
+### **Usability Issues Across Platforms**
+
+⚠ Opaque matching logic
+⚠ Overwhelming forms without examples
+⚠ External redirects breaking flow
+⚠ Poor mobile experience in complex ATS forms
+
+### **Design Principles for Your UI**
+
+* **Contextual clarity:** show why steps exist and what’s needed
+* **Reduce cognitive load:** micro-steps and inline help
+* **Actionable feedback:** explain match scores, next steps
+* **User control:** let users refine recommendations
+
+---
+
+# **Deliverables Checklist**
+
+Use this to annotate each platform with screenshots:
+
+☐ Job list → detail → apply (flow map)
+☐ Friction hotspots (annotated)
+☐ Profile builder UI patterns
+☐ Skills entry + assessment screens
+☐ Match score + explainability screens
+☐ Application tracking (dashboard)
+☐ Recommendations + rationale UI
+
+---
+
+If you want, I can **turn this into a slide deck** or **a UX research report PDF**, and help you annotate specific screenshots from each platform.
