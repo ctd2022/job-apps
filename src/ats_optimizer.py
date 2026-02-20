@@ -1042,6 +1042,55 @@ Generate the complete CV now:"""
 
         return self.backend.chat(messages, temperature=0.3, max_tokens=8192)
 
+    def incorporate_user_experiences(
+        self,
+        cv_text: str,
+        job_description: str,
+        user_answers: list[dict],  # [{skill, gap_type, user_content}]
+    ) -> str:
+        """Incorporate user-provided experiences into CV text via LLM.
+
+        Conservative prompt (temperature 0.3) — only incorporates what the
+        user explicitly provided, no fabrication. Returns CV text + ===CHANGELOG===.
+        """
+        answers_list = "\n".join(
+            f"- [{a['gap_type']}] {a['skill']}: \"{a['user_content']}\""
+            for a in user_answers
+        )
+
+        system_message = (
+            "You are an expert CV editor. The user has provided real experiences "
+            "they haven't yet documented. Incorporate these into the CV naturally "
+            "and concisely.\n\n"
+            "RULES:\n"
+            "- Only use content the user explicitly provided — do not invent details\n"
+            "- Preserve all existing content, structure, and formatting\n"
+            "- For evidence gaps: strengthen existing mentions with the user's specific examples\n"
+            "- For critical/semantic gaps: add to the most relevant section\n"
+            "- If user content is too vague to place naturally, skip that item\n\n"
+            "OUTPUT FORMAT (you MUST follow this exactly):\n"
+            "1. Output the COMPLETE updated CV text (no preamble, no commentary)\n"
+            "2. Then output a line containing ONLY: ===CHANGELOG===\n"
+            "3. Then list each change you made, one per line\n\n"
+            "Do NOT include ANY text before the CV. Start directly with "
+            "the first line of the CV."
+        )
+
+        prompt = (
+            f"CURRENT CV:\n{cv_text}\n\n"
+            f"JOB DESCRIPTION:\n{job_description}\n\n"
+            f"USER-PROVIDED EXPERIENCES:\n{answers_list}\n\n"
+            "Output the updated CV followed by ===CHANGELOG=== and the list "
+            "of changes. No preamble."
+        )
+
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": prompt},
+        ]
+
+        return self.backend.chat(messages, temperature=0.3, max_tokens=8192)
+
     def suggest_skills(self, cv_text: str, job_description: str) -> list[str]:
         """Use LLM to suggest skills to add to the CV."""
         system_message = (

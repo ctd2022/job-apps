@@ -12,10 +12,12 @@ import {
   Calendar,
   FileText,
   Edit3,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react';
 import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills } from '../api';
-import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry } from '../types';
+import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse } from '../types';
+import GapFillWizard from './GapFillWizard';
 import FilePreview from './FilePreview';
 import CVTextEditor from './CVTextEditor';
 import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
@@ -59,6 +61,7 @@ function JobDetail() {
 
   // CV Editor modal state
   const [showCVEditor, setShowCVEditor] = useState(false);
+  const [gapFillResult, setGapFillResult] = useState<ApplySuggestionsResponse | null>(null);
 
   // Skill Suggester state (Idea #56)
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
@@ -155,6 +158,11 @@ function JobDetail() {
 
   function handleDismissSuggestion(skill: string) {
     setSuggestedSkills(prev => prev.filter(s => s !== skill));
+  }
+
+  function handleGapFillRevised(result: ApplySuggestionsResponse) {
+    setGapFillResult(result);
+    setShowCVEditor(true);
   }
 
   if (loading) {
@@ -402,6 +410,17 @@ function JobDetail() {
                 )}
               </div>
             </CollapsibleSection>
+
+            {atsAnalysis?.gap_analysis && (
+              <CollapsibleSection title="Uncover Hidden Experience" icon={MessageSquare}>
+                <GapFillWizard
+                  jobId={job.id}
+                  cvVersionId={job.cv_version_id ?? null}
+                  gapAnalysis={atsAnalysis.gap_analysis}
+                  onRevised={handleGapFillRevised}
+                />
+              </CollapsibleSection>
+            )}
           </div>
         )}
 
@@ -471,9 +490,10 @@ function JobDetail() {
       {showCVEditor && job.cv_version_id && (
         <CVTextEditor
           cvVersionId={job.cv_version_id}
-          onClose={() => { setShowCVEditor(false); loadJob(); }}
+          onClose={() => { setShowCVEditor(false); setGapFillResult(null); loadJob(); }}
           onSaved={() => loadJob()}
           jobId={job.id}
+          initialContent={gapFillResult?.revised_cv}
         />
       )}
 

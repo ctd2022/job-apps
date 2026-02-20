@@ -14,6 +14,7 @@ interface CVTextEditorProps {
   onClose: () => void;
   onSaved: () => void;
   jobId?: string;
+  initialContent?: string;
 }
 
 function computeComparison(
@@ -70,7 +71,7 @@ function computeComparison(
   };
 }
 
-function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProps) {
+function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: CVTextEditorProps) {
   const [version, setVersion] = useState<CVVersion | null>(null);
   const [content, setContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
@@ -127,8 +128,14 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId }: CVTextEditorProp
       setError(null);
       const v = await getCVVersionById(cvVersionId);
       setVersion(v);
-      setContent(v.content || '');
-      setOriginalContent(v.content || '');
+      if (initialContent) {
+        // Pre-load from gap-fill result; mark dirty so user can save
+        setContent(initialContent);
+        setOriginalContent(v.content || '');
+      } else {
+        setContent(v.content || '');
+        setOriginalContent(v.content || '');
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to load CV version');
     } finally {

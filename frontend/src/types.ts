@@ -306,6 +306,21 @@ export interface ApplySuggestionsResponse {
   changelog: string;
 }
 
+// Gap-Fill Wizard types (Idea #82)
+export interface GapQuestion {
+  id: string;
+  gap_type: 'critical' | 'evidence' | 'semantic';
+  skill: string;
+  question: string;
+  section_hint: string;
+}
+
+export interface GapAnswer {
+  skill: string;
+  gap_type: string;
+  user_content: string;
+}
+
 export interface CategoryComparison {
   category: string;
   oldMatched: number;

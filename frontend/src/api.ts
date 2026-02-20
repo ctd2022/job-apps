@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer } from './types';
 
 const API_BASE = '/api';
 
@@ -298,6 +298,25 @@ export async function suggestSkills(jobId: string): Promise<string[]> {
     });
     const data = await handleResponse<{ suggestions: string[] }>(response);
     return data.suggestions;
+}
+
+// Gap-Fill Wizard (Idea #82)
+export async function gapFill(
+  jobId: string,
+  cvVersionId: number,
+  answers: GapAnswer[],
+  backendType?: string,
+  modelName?: string,
+): Promise<ApplySuggestionsResponse> {
+  const body: Record<string, unknown> = { cv_version_id: cvVersionId, answers };
+  if (backendType) body.backend_type = backendType;
+  if (modelName) body.model_name = modelName;
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/gap-fill`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(body),
+  });
+  return handleResponse(response);
 }
 
 // Applications (past outputs)
