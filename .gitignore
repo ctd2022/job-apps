@@ -41,6 +41,17 @@ frontend/dist/
 .env.local
 .env.*.local
 
+# Agent context and handover files (local-only, not for public repos)
+TODO.md
+CLAUDE.md
+GEMINI.md
+
+# Editor workspace files
+*.code-workspace
+
+# Root-level node_modules (separate from frontend/node_modules)
+node_modules/
+
 # General temporary files
 *.tmp
 *.temp
