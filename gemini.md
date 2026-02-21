@@ -1,3 +1,8 @@
+---
+inherits:
+  - ../../../GEMINI.md
+---
+
 # GEMINI.md - Secondary Agent Context
 
 **Role**: You (Gemini) are a **Secondary Agent** on this project. Claude Code is the **Lead Architect**.

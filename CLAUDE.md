@@ -1,3 +1,8 @@
+---
+inherits:
+  - ../CLAUDE.md
+---
+
 # CLAUDE.md - Job Application Workflow
 
 AI-powered tool that generates tailored CVs, cover letters, and ATS analysis.
