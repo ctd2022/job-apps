@@ -7,7 +7,7 @@ inherits:
 
 AI-powered tool that generates tailored CVs, cover letters, and ATS analysis.
 
-**Current Status**: Idea #58 COMPLETE - Keyword Priority Ranking | **Branch**: `track-jd-intelligence`
+**Current Status**: Idea #32 COMPLETE - JD Red-flag Detector | **Branch**: `track-jd-intelligence`
 
 ---
 

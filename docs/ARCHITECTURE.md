@@ -20,6 +20,7 @@ job_applications/
 │   ├── job_application_workflow.py  (Main workflow)
 │   ├── docx_templates.py            (DOCX generation)
 │   ├── ats_optimizer.py             (ATS + hybrid scoring)
+│   ├── jd_analyzer.py               (JD red-flag detector — Idea #32)
 │   ├── semantic_scorer.py           (Semantic embeddings)
 │   ├── document_parser.py           (Section/entity extraction)
 │   ├── entity_taxonomy.py           (Skills/certs taxonomy)
@@ -38,6 +39,7 @@ job_applications/
 │   │   │   ├── NewApplication.tsx
 │   │   │   ├── ApplicationHistory.tsx
 │   │   │   ├── JobDetail.tsx
+│   │   │   ├── JDRedFlagPanel.tsx       (JD analysis — Idea #32)
 │   │   │   └── FilePreview.tsx
 │   │   ├── api.ts           (API client + theme utilities)
 │   │   ├── types.ts         (TypeScript interfaces)
