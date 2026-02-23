@@ -10,12 +10,12 @@
 
 > **Read this first when returning to the project after a break.**
 
-- **Branch**: `track-jd-intelligence`
-- **Track**: JD Intelligence — #58 done, #32 done, #23 done
-- **Last session**: Shipped Idea #23 — Presentation Quality confidence score panel; all three ideas on this branch now complete
-- **Next steps**: Merge `track-jd-intelligence` to `main`, or pick next idea
+- **Branch**: `track-jd-intelligence` — ready to merge to `main`
+- **Track**: JD Intelligence — #58, #32, #23 all done
+- **Last session**: Shipped Idea #23; reviewed backlog and closed 4 stale ideas (#48, #79, #103, #119 → Done)
+- **Next steps**: Merge branch to `main`, then pick from #78, #100, #45, or #93
 - **Blocked/broken**: Nothing
-- **Ideas backlog**: Branch work complete; check ideas backlog for next priority
+- **Ideas backlog**: Cleaned — 4 already-implemented ideas marked Done
 
 ---
 
@@ -67,6 +67,20 @@ Appends an actionable hint for the weakest component if it scores below 75.
 
 ---
 
-## Commit
+## Backlog Review (same session)
+
+Reviewed all 25 open ideas and closed 4 that were already implemented:
+
+| ID | Title | Reason |
+|----|-------|--------|
+| #48 | Hard skills extractor | Fully delivered by Track 2.8 (`parsed_entities`, `ExtractedSkillsList`) |
+| #79 | Track 2.8.5: ATS Explainability UI | Fully delivered by `ATSExplainability.tsx` |
+| #103 | Programme-Level CLAUDE.md Hierarchy | Implemented and operational for months |
+| #119 | DevEx: token usage optimisation | Addressed by Token Efficiency section in programme CLAUDE.md |
+
+---
+
+## Commits
 
 `8837cff` — `feat: add ATS confidence score panel (Idea #23)`
+`86f9597` — `docs: add diary 045 and update CLAUDE.md for Idea #23 completion`
