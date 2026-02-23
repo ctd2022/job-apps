@@ -7,7 +7,7 @@ inherits:
 
 AI-powered tool that generates tailored CVs, cover letters, and ATS analysis.
 
-**Current Status**: Track 2.9.3 COMPLETE - CV Versioning | **Branch**: `track2.8-semantic-ats`
+**Current Status**: Idea #58 COMPLETE - Keyword Priority Ranking | **Branch**: `track-jd-intelligence`
 
 ---
 
@@ -160,6 +160,10 @@ When investigating backend errors, **always follow this order**:
 4. **Check health**: `curl http://localhost:8000/api/health`
 5. **Only then** investigate code/dependency issues if health still fails
 
+### Uvicorn --reload on Windows
+
+`--reload` silently fails to restart the worker on Windows — old code keeps serving while netstat shows the port as occupied. **Always start without `--reload` in development** and restart manually when needed. If code changes aren't taking effect: kill all python processes, wait for port to release, start fresh.
+
 ### Delegation Lessons
 
 When delegating bug investigation to Gemini via TODO.md:
@@ -228,4 +232,4 @@ When you discover a workflow improvement, new convention, or fix a recurring pro
 - `GEMINI.md` - Gemini's project context (mirrors CLAUDE.md but scoped for secondary role)
 - `TODO.md` - Handover instructions and completion summaries between agents
 
-**Last Updated**: 20 February 2026
+**Last Updated**: 23 February 2026
