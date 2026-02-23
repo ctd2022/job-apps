@@ -8,7 +8,21 @@ interface MissingKeywordsAlertProps {
 }
 
 function MissingKeywordsAlert({ analysis, defaultCollapsed }: MissingKeywordsAlertProps) {
-  const { scores_by_category } = analysis;
+  const { scores_by_category, keyword_priorities = {} } = analysis;
+
+  const priorityBadge = (keyword: string) => {
+    const p = keyword_priorities[keyword.toLowerCase()] ?? 'LOW';
+    const styles = {
+      HIGH: 'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200',
+      MEDIUM: 'bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200',
+      LOW: 'bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-300',
+    };
+    return (
+      <span className={`px-1 py-0.5 text-[10px] font-semibold rounded ${styles[p]}`}>
+        {p[0]}
+      </span>
+    );
+  };
 
   // Categorize missing keywords by priority
   const criticalMissing = scores_by_category.critical_keywords?.items_missing || [];
@@ -64,9 +78,10 @@ function MissingKeywordsAlert({ analysis, defaultCollapsed }: MissingKeywordsAle
               {criticalMissing.map((keyword, idx) => (
                 <span
                   key={idx}
-                  className="px-2 py-1 text-xs bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-200 rounded"
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-200 rounded"
                 >
                   {keyword}
+                  {priorityBadge(keyword)}
                 </span>
               ))}
             </div>
@@ -89,9 +104,10 @@ function MissingKeywordsAlert({ analysis, defaultCollapsed }: MissingKeywordsAle
               {requiredMissing.map((keyword, idx) => (
                 <span
                   key={idx}
-                  className="px-2 py-1 text-xs bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-200 rounded"
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-200 rounded"
                 >
                   {keyword}
+                  {priorityBadge(keyword)}
                 </span>
               ))}
             </div>
@@ -111,9 +127,10 @@ function MissingKeywordsAlert({ analysis, defaultCollapsed }: MissingKeywordsAle
               {hardSkillsMissing.map((keyword, idx) => (
                 <span
                   key={idx}
-                  className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-800 dark:text-yellow-200 rounded"
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-800 dark:text-yellow-200 rounded"
                 >
                   {keyword}
+                  {priorityBadge(keyword)}
                 </span>
               ))}
             </div>
@@ -133,9 +150,10 @@ function MissingKeywordsAlert({ analysis, defaultCollapsed }: MissingKeywordsAle
               {preferredMissing.map((keyword, idx) => (
                 <span
                   key={idx}
-                  className="px-2 py-1 text-xs bg-slate-100 text-slate-600 dark:bg-slate-600 dark:text-slate-300 rounded"
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-slate-100 text-slate-600 dark:bg-slate-600 dark:text-slate-300 rounded"
                 >
                   {keyword}
+                  {priorityBadge(keyword)}
                 </span>
               ))}
             </div>

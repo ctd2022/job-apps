@@ -277,6 +277,7 @@ export interface ATSAnalysisData {
   hybrid_scoring: HybridScoring;
   semantic_analysis: SemanticAnalysis;
   gap_analysis?: GapAnalysis;
+  keyword_priorities?: Record<string, 'HIGH' | 'MEDIUM' | 'LOW'>;
 }
 
 export interface ATSAnalysisResponse {

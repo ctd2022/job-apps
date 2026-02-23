@@ -689,6 +689,38 @@ PREFERRED: skill1, skill2, skill3"""
             'semantic_available': semantic_result.available,
         }
 
+    @staticmethod
+    def _compute_keyword_priority(
+        keyword: str,
+        jd_first_200_words: set[str],
+        jd_word_counts: dict[str, int],
+        category: str,
+    ) -> str:
+        CATEGORY_BASE: dict[str, str] = {
+            'critical_keywords': 'HIGH',
+            'required': 'MEDIUM',
+            'hard_skills': 'MEDIUM',
+            'soft_skills': 'LOW',
+            'preferred': 'LOW',
+            'frequency_keywords': 'LOW',
+        }
+        base = CATEGORY_BASE.get(category, 'LOW')
+        kw = keyword.lower().strip()
+
+        # Signal 1: appears in first 200 words → HIGH
+        if kw in jd_first_200_words or any(kw in w for w in jd_first_200_words):
+            return 'HIGH'
+
+        # Signal 2: high frequency → bump up one level
+        freq = jd_word_counts.get(kw, 0)
+        if freq >= 3:
+            if base == 'LOW':
+                return 'MEDIUM'
+            if base == 'MEDIUM':
+                return 'HIGH'
+
+        return base
+
     def calculate_ats_score(self, cv_text: str, job_description: str, key_requirements: str) -> dict:
         """
         Calculate how well the CV matches the job description.
@@ -792,6 +824,21 @@ PREFERRED: skill1, skill2, skill3"""
                 matched_bigrams.append(bigram)
             else:
                 missing_bigrams.append(bigram)
+
+        # Build keyword_priorities lookup (Idea #58)
+        jd_words = self._normalize_text(job_description).split()
+        jd_first_200_words = set(jd_words[:200])
+        jd_word_counts: dict[str, int] = {}
+        for w in jd_words:
+            jd_word_counts[w] = jd_word_counts.get(w, 0) + 1
+        keyword_priorities: dict[str, str] = {}
+        for category, data in scores.items():
+            for kw in data['matched'] + data['missing']:
+                kw_key = kw.lower().strip()
+                if kw_key not in keyword_priorities:
+                    keyword_priorities[kw_key] = self._compute_keyword_priority(
+                        kw, jd_first_200_words, jd_word_counts, category
+                    )
 
         # Calculate weighted score
         total_weight = 0
@@ -913,7 +960,9 @@ PREFERRED: skill1, skill2, skill3"""
                 'actionable_suggestions': self._generate_actionable_suggestions(
                     section_matches, semantic_result, scores
                 )
-            }
+            },
+            # Idea #58: Keyword priority ranking
+            'keyword_priorities': keyword_priorities,
         }
 
     def generate_ats_optimized_cv(self, base_cv: str, job_description: str, key_requirements: str) -> str:
