@@ -363,3 +363,29 @@ export interface MatchHistoryResponse {
   job_id: string;
   history: MatchHistoryEntry[];
 }
+
+// ============================================================================
+// JD Red-flag Analysis (Idea #32)
+// ============================================================================
+
+export interface JDRedFlag {
+  category: 'unrealistic_requirements' | 'culture_warning' | 'scope_overload' | 'transparency';
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  detail: string;
+  evidence?: string;
+}
+
+export interface JDGreenFlag {
+  category: string;
+  title: string;
+  detail: string;
+}
+
+export interface JDAnalysisData {
+  red_flags: JDRedFlag[];
+  green_flags: JDGreenFlag[];
+  overall_risk: 'low' | 'medium' | 'high' | 'critical';
+  summary: string;
+  total_red_flags: number;
+}

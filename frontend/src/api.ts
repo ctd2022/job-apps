@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, JDAnalysisData } from './types';
 
 const API_BASE = '/api';
 
@@ -279,6 +279,12 @@ export async function applySuggestions(
     headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
     body: JSON.stringify(body),
   });
+  return handleResponse(response);
+}
+
+// JD Red-flag Analysis (Idea #32)
+export async function getJDAnalysis(jobId: string): Promise<{ jd_analysis: JDAnalysisData | null }> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/jd-analysis`);
   return handleResponse(response);
 }
 

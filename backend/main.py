@@ -51,6 +51,7 @@ try:
     from job_application_workflow import JobApplicationWorkflow
     from llm_backend import LLMBackendFactory
     from ats_optimizer import ATSOptimizer
+    from jd_analyzer import JDAnalyzer
     WORKFLOW_AVAILABLE = True
     print(f"[OK] Successfully imported workflow modules from {SRC_DIR}")
 except ImportError as e:
@@ -485,7 +486,16 @@ async def process_job_application(
             await asyncio.sleep(0.1)
             
             tailored_cv = workflow.tailor_cv(base_cv, job_description)
-        
+
+        # JD Red-flag Analysis (Idea #32) — runs regardless of ATS setting
+        try:
+            jd_analyzer = JDAnalyzer(workflow.backend)
+            jd_result = jd_analyzer.analyze(job_description)
+            job_store.save_jd_analysis(job_id, jd_result)
+            print(f"[OK] JD analysis complete: {jd_result['total_red_flags']} red flags, risk={jd_result['overall_risk']}")
+        except Exception as jd_err:
+            print(f"[WARN] JD analysis failed (non-fatal): {jd_err}")
+
         await update_job_and_broadcast(
             job_id,
             progress=60,
@@ -1070,6 +1080,19 @@ async def get_ats_analysis(job_id: str):
         "analysis": None,
         "source": None,
         "message": "Detailed ATS analysis not available for this job (created before Track 2.9.2)"
+    }
+
+
+@app.get("/api/jobs/{job_id}/jd-analysis")
+async def get_jd_analysis(job_id: str):
+    """Get JD red-flag analysis for a job (Idea #32)."""
+    job = job_store.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    return {
+        "job_id": job_id,
+        "jd_analysis": job_store.get_jd_analysis(job_id),
     }
 
 

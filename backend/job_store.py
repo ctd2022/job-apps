@@ -162,6 +162,12 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Migration: Add jd_analysis column (Idea #32)
+    try:
+        cursor.execute("ALTER TABLE jobs ADD COLUMN jd_analysis TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     # Migration: Add user_id columns (for existing databases)
     for table in ["jobs", "cvs"]:
         try:
@@ -630,6 +636,31 @@ class JobStore:
                 pass
 
         return None
+
+    def save_jd_analysis(self, job_id: str, data: dict) -> None:
+        """Store JD red-flag analysis result for a job (Idea #32)."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE jobs SET jd_analysis = ? WHERE job_id = ?",
+            (json.dumps(data), job_id),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_jd_analysis(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve JD red-flag analysis for a job (Idea #32)."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT jd_analysis FROM jobs WHERE job_id = ?", (job_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row or not row["jd_analysis"]:
+            return None
+        try:
+            return json.loads(row["jd_analysis"])
+        except (json.JSONDecodeError, TypeError):
+            return None
 
     def get_pipeline_diagnosis(self, user_id: str = None) -> Dict[str, Any]:
         """Analyze the application funnel and provide a diagnosis."""

@@ -15,8 +15,8 @@ import {
   X,
   MessageSquare
 } from 'lucide-react';
-import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills } from '../api';
-import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse } from '../types';
+import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills, getJDAnalysis } from '../api';
+import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse, JDAnalysisData } from '../types';
 import GapFillWizard from './GapFillWizard';
 import FilePreview from './FilePreview';
 import CVTextEditor from './CVTextEditor';
@@ -27,6 +27,7 @@ import MissingKeywordsAlert from './MissingKeywordsAlert';
 import CVCompletenessMeter from './CVCompletenessMeter';
 import ATSExplainability from './ATSExplainability';
 import CollapsibleSection from './CollapsibleSection';
+import JDRedFlagPanel from './JDRedFlagPanel';
 import ExtractedSkillsList from './ExtractedSkillsList';
 import EvidenceStrengthPanel from './EvidenceStrengthPanel';
 import { BadgeCheck } from 'lucide-react';
@@ -56,6 +57,7 @@ function JobDetail() {
 
   // ATS Analysis state
   const [atsAnalysis, setAtsAnalysis] = useState<ATSAnalysisData | null>(null);
+  const [jdAnalysis, setJdAnalysis] = useState<JDAnalysisData | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([]);
 
@@ -89,18 +91,20 @@ function JobDetail() {
       setFiles(filesData);
       setError(null);
 
-      // Fetch ATS analysis and match history for completed jobs
-      if (jobData.status === 'completed' && jobData.enable_ats) {
+      // Fetch ATS analysis, match history, and JD analysis for completed jobs
+      if (jobData.status === 'completed') {
         setLoadingAnalysis(true);
         try {
-          const [atsResult, historyResult] = await Promise.all([
-            getATSAnalysis(id!),
+          const [atsResult, historyResult, jdResult] = await Promise.all([
+            jobData.enable_ats ? getATSAnalysis(id!) : Promise.resolve({ analysis: null }),
             getMatchHistory(id!).catch(() => ({ job_id: id!, history: [] })),
+            getJDAnalysis(id!).catch(() => ({ jd_analysis: null })),
           ]);
           setAtsAnalysis(atsResult.analysis);
           setMatchHistory(historyResult.history);
+          setJdAnalysis(jdResult.jd_analysis);
         } catch {
-          // ATS analysis is optional - don't fail the page
+          // Analysis is optional - don't fail the page
         } finally {
           setLoadingAnalysis(false);
         }
@@ -340,6 +344,13 @@ function JobDetail() {
         {matchHistory.length > 1 && (
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
             <MatchHistoryTable history={matchHistory} />
+          </div>
+        )}
+
+        {/* JD Red-flag Analysis (Idea #32) */}
+        {job.status === 'completed' && jdAnalysis && (
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
+            <JDRedFlagPanel analysis={jdAnalysis} />
           </div>
         )}
 
