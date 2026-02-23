@@ -261,6 +261,15 @@ export interface GapAnalysis {
   actionable_suggestions?: ActionableSuggestion[];
 }
 
+// Idea #23: ATS Confidence Score (Presentation Quality)
+export interface ConfidenceData {
+  confidence_score: number;
+  confidence_message: string;
+  evidence_component: number;
+  clarity_component: number;
+  coverage_component: number;
+}
+
 export interface ATSAnalysisData {
   score: number;
   matched: number;
@@ -278,6 +287,7 @@ export interface ATSAnalysisData {
   semantic_analysis: SemanticAnalysis;
   gap_analysis?: GapAnalysis;
   keyword_priorities?: Record<string, 'HIGH' | 'MEDIUM' | 'LOW'>;
+  confidence?: ConfidenceData;
 }
 
 export interface ATSAnalysisResponse {

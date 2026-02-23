@@ -28,6 +28,7 @@ import CVCompletenessMeter from './CVCompletenessMeter';
 import ATSExplainability from './ATSExplainability';
 import CollapsibleSection from './CollapsibleSection';
 import JDRedFlagPanel from './JDRedFlagPanel';
+import ConfidenceScorePanel from './ConfidenceScorePanel';
 import ExtractedSkillsList from './ExtractedSkillsList';
 import EvidenceStrengthPanel from './EvidenceStrengthPanel';
 import { BadgeCheck } from 'lucide-react';
@@ -351,6 +352,13 @@ function JobDetail() {
         {job.status === 'completed' && jdAnalysis && (
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
             <JDRedFlagPanel analysis={jdAnalysis} />
+          </div>
+        )}
+
+        {/* Presentation Quality (Idea #23) */}
+        {job.status === 'completed' && atsAnalysis?.confidence && (
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
+            <ConfidenceScorePanel confidence={atsAnalysis.confidence} />
           </div>
         )}
 

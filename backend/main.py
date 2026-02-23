@@ -1064,6 +1064,10 @@ async def get_ats_analysis(job_id: str):
                     for kw in data.get("items_matched", []) + data.get("items_missing", []):
                         kp.setdefault(kw.lower().strip(), base)
                 analysis["keyword_priorities"] = kp
+            # Backfill confidence score for cached results (Idea #23)
+            if "confidence" not in analysis:
+                from src.ats_optimizer import ATSOptimizer
+                analysis["confidence"] = ATSOptimizer.compute_confidence_score(analysis)
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),

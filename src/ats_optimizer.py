@@ -874,7 +874,7 @@ PREFERRED: skill1, skill2, skill3"""
         seen = set()
         unique_missing = [x for x in all_missing if not (x.lower() in seen or seen.add(x.lower()))]
 
-        return {
+        result = {
             'score': round(final_score, 1),
             'matched': len(unique_matched),
             'total': len(unique_matched) + len(unique_missing),
@@ -963,6 +963,58 @@ PREFERRED: skill1, skill2, skill3"""
             },
             # Idea #58: Keyword priority ranking
             'keyword_priorities': keyword_priorities,
+        }
+        result['confidence'] = self.compute_confidence_score(result)
+        return result
+
+    @staticmethod
+    def compute_confidence_score(analysis: dict) -> dict:
+        """Idea #23: Compute presentation quality confidence score from existing analysis data."""
+        hybrid = analysis.get('hybrid_scoring', {})
+        matched = analysis.get('matched', 0)
+        total = analysis.get('total', 1) or 1
+
+        # Evidence Quality (40%): normalise average_strength to 0-100
+        avg_strength = (analysis.get('evidence_analysis') or {}).get('average_strength', 0.5)
+        evidence = min(100.0, max(0.0, (avg_strength - 0.5) / 1.5 * 100))
+
+        # Communication Clarity (40%): semantic score if available, else lexical proxy
+        if hybrid.get('semantic_available'):
+            clarity = float(hybrid.get('semantic_score', 0)) * 100
+        else:
+            clarity = (matched / total) * 100
+
+        # Coverage (20%)
+        coverage = (matched / total) * 100
+
+        score = round(evidence * 0.4 + clarity * 0.4 + coverage * 0.2, 1)
+
+        if score >= 85:
+            narrative = "Your qualifications are well-presented for this role"
+        elif score >= 70:
+            narrative = "Your experience communicates well for this role"
+        elif score >= 55:
+            narrative = "Your qualifications come through moderately — there's room to improve"
+        else:
+            narrative = "Several key qualifications aren't clearly coming through in your CV"
+
+        # Append hint for the weakest component below 75
+        components = {'evidence': evidence, 'clarity': clarity, 'coverage': coverage}
+        weakest = min(components, key=lambda k: components[k])
+        hints = {
+            'evidence': "Add concrete examples and metrics to your experience descriptions",
+            'clarity': "Align your CV language more closely with the job description",
+            'coverage': "Several role requirements have limited coverage in your CV",
+        }
+        hint = hints[weakest] if components[weakest] < 75 else ''
+        message = f"{score:.0f}% — {narrative}. {hint}".rstrip('. ') + '.'
+
+        return {
+            'confidence_score': score,
+            'confidence_message': message,
+            'evidence_component': round(evidence, 1),
+            'clarity_component': round(clarity, 1),
+            'coverage_component': round(coverage, 1),
         }
 
     def generate_ats_optimized_cv(self, base_cv: str, job_description: str, key_requirements: str) -> str:
