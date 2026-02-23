@@ -1037,10 +1037,27 @@ async def get_ats_analysis(job_id: str):
 
     if ats_details:
         try:
+            analysis = json.loads(ats_details)
+            # Backfill keyword_priorities for cached results (Idea #58)
+            if "keyword_priorities" not in analysis:
+                category_base = {
+                    "critical_keywords": "HIGH",
+                    "required": "MEDIUM",
+                    "hard_skills": "MEDIUM",
+                    "soft_skills": "LOW",
+                    "preferred": "LOW",
+                    "frequency_keywords": "LOW",
+                }
+                kp: dict[str, str] = {}
+                for cat, data in (analysis.get("scores_by_category") or {}).items():
+                    base = category_base.get(cat, "LOW")
+                    for kw in data.get("items_matched", []) + data.get("items_missing", []):
+                        kp.setdefault(kw.lower().strip(), base)
+                analysis["keyword_priorities"] = kp
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),
-                "analysis": json.loads(ats_details),
+                "analysis": analysis,
                 "source": "database"
             }
         except json.JSONDecodeError:
