@@ -25,9 +25,20 @@ function App() {
     setThemeState(initialTheme);
   }, []);
 
-  // Load users on mount
+  // Load users on mount, retry up to 3 times if backend isn't ready yet
   useEffect(() => {
-    getUsers().then(setUsers).catch(console.error);
+    let cancelled = false;
+    const loadUsers = (retries = 3) => {
+      getUsers()
+        .then(u => { if (!cancelled) setUsers(u); })
+        .catch(() => {
+          if (!cancelled && retries > 0) {
+            setTimeout(() => loadUsers(retries - 1), 2000);
+          }
+        });
+    };
+    loadUsers();
+    return () => { cancelled = true; };
   }, []);
 
   // Handle theme toggle

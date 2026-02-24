@@ -106,7 +106,9 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
 
-  const isDirty = content !== originalContent;
+  // When opened from gap-fill (initialContent provided), treat as dirty until saved
+  const [hasPendingGapFill, setHasPendingGapFill] = useState(!!initialContent);
+  const isDirty = hasPendingGapFill || content !== originalContent;
 
   useEffect(() => {
     loadVersion();
@@ -173,6 +175,7 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
       setSavedVersionNumber(updated.version_number ?? null);
       setSavedNewVersionId(updated.current_version_id ?? null);
       setOriginalContent(content);
+      setHasPendingGapFill(false);
     } catch (err: any) {
       setError(err?.message || 'Failed to save CV');
     } finally {
