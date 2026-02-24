@@ -52,6 +52,9 @@ GEMINI.md
 # Root-level node_modules (separate from frontend/node_modules)
 node_modules/
 
+# Local startup script
+start.bat
+
 # General temporary files
 *.tmp
 *.temp

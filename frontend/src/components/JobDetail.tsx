@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   Loader2,
@@ -12,12 +12,12 @@ import {
   Calendar,
   FileText,
   Edit3,
-  X,
-  MessageSquare
+  X
 } from 'lucide-react';
 import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills } from '../api';
 import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse } from '../types';
 import GapFillWizard from './GapFillWizard';
+import GapAnalysis from './GapAnalysis';
 import FilePreview from './FilePreview';
 import CVTextEditor from './CVTextEditor';
 import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
@@ -47,7 +47,6 @@ const OUTCOME_OPTIONS: OutcomeStatus[] = [
 
 function JobDetail() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [job, setJob] = useState<Job | null>(null);
   const [files, setFiles] = useState<OutputFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -343,84 +342,93 @@ function JobDetail() {
           </div>
         )}
 
-        {/* ATS Analysis Details */}
+        {/* Zone 3: What to improve (always visible when ATS analysis present) */}
+        {job.status === 'completed' && atsAnalysis && atsAnalysis.gap_analysis && (
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
+            <div className="bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Next steps</h3>
+              <GapAnalysis
+                gapAnalysis={atsAnalysis.gap_analysis}
+                semanticAvailable={atsAnalysis.semantic_analysis?.available ?? false}
+              />
+              <GapFillWizard
+                jobId={job.id}
+                cvVersionId={job.cv_version_id ?? null}
+                gapAnalysis={atsAnalysis.gap_analysis}
+                onRevised={handleGapFillRevised}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Zone 4: Full Analysis (starts closed) */}
         {job.status === 'completed' && atsAnalysis && (
-          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600 space-y-3">
-            <MatchExplanationCard analysis={atsAnalysis} />
-            <ATSExplainability analysis={atsAnalysis} />
-            {atsAnalysis?.parsed_entities && (
-              <CollapsibleSection title="Extracted Hard Skills">
-                <ExtractedSkillsList parsedEntities={atsAnalysis.parsed_entities} />
-              </CollapsibleSection>
-            )}
-            {atsAnalysis?.evidence_analysis && (
-              <CollapsibleSection title="Evidence Strength" icon={BadgeCheck}>
-                <EvidenceStrengthPanel
-                  evidenceAnalysis={atsAnalysis.evidence_analysis}
-                  evidenceGaps={atsAnalysis.gap_analysis?.evidence_gaps}
-                />
-              </CollapsibleSection>
-            )}
-            <MissingKeywordsAlert analysis={atsAnalysis} />
-            <CVCompletenessMeter analysis={atsAnalysis} />
-
-            <CollapsibleSection title="AI Skill Suggester" icon={Sparkles}>
-              <div className="p-4 bg-slate-50 dark:bg-slate-700">
-                <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
-                  Get AI-powered suggestions for skills you might have missed, based on the job description.
-                </p>
-                <button
-                  onClick={handleSuggestSkills}
-                  disabled={loadingSuggestions}
-                  className="px-3 py-1.5 bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                >
-                  {loadingSuggestions && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{loadingSuggestions ? 'Analyzing...' : 'Suggest Skills'}</span>
-                </button>
-
-                {suggestionError && (
-                  <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-sm text-red-600 dark:text-red-400">
-                    {suggestionError}
-                  </div>
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
+            <CollapsibleSection title="Full Analysis">
+              <div className="space-y-3 pt-2">
+                <MatchExplanationCard analysis={atsAnalysis} />
+                <ATSExplainability analysis={atsAnalysis} hideGapAnalysis={true} />
+                {atsAnalysis?.parsed_entities && (
+                  <CollapsibleSection title="Extracted Hard Skills">
+                    <ExtractedSkillsList parsedEntities={atsAnalysis.parsed_entities} />
+                  </CollapsibleSection>
                 )}
-
-                {suggestedSkills.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Suggested Skills ({suggestedSkills.length})
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {suggestedSkills.map((skill) => (
-                        <div
-                          key={skill}
-                          className="flex items-center space-x-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-sm"
-                        >
-                          <span>{skill}</span>
-                          <button
-                            onClick={() => handleDismissSuggestion(skill)}
-                            className="p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800 rounded"
-                            title="Dismiss"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
+                {atsAnalysis?.evidence_analysis && (
+                  <CollapsibleSection title="Evidence Strength" icon={BadgeCheck}>
+                    <EvidenceStrengthPanel
+                      evidenceAnalysis={atsAnalysis.evidence_analysis}
+                      evidenceGaps={atsAnalysis.gap_analysis?.evidence_gaps}
+                    />
+                  </CollapsibleSection>
+                )}
+                <MissingKeywordsAlert analysis={atsAnalysis} />
+                <CVCompletenessMeter analysis={atsAnalysis} />
+                <CollapsibleSection title="AI Skill Suggester" icon={Sparkles}>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-700">
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+                      Get AI-powered suggestions for skills you might have missed, based on the job description.
+                    </p>
+                    <button
+                      onClick={handleSuggestSkills}
+                      disabled={loadingSuggestions}
+                      className="px-3 py-1.5 bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                    >
+                      {loadingSuggestions && <Loader2 className="w-4 h-4 animate-spin" />}
+                      <span>{loadingSuggestions ? 'Analyzing...' : 'Suggest Skills'}</span>
+                    </button>
+                    {suggestionError && (
+                      <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-sm text-red-600 dark:text-red-400">
+                        {suggestionError}
+                      </div>
+                    )}
+                    {suggestedSkills.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Suggested Skills ({suggestedSkills.length})
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {suggestedSkills.map((skill) => (
+                            <div
+                              key={skill}
+                              className="flex items-center space-x-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-sm"
+                            >
+                              <span>{skill}</span>
+                              <button
+                                onClick={() => handleDismissSuggestion(skill)}
+                                className="p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800 rounded"
+                                title="Dismiss"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                )}
+                </CollapsibleSection>
               </div>
             </CollapsibleSection>
-
-            {atsAnalysis?.gap_analysis && (
-              <CollapsibleSection title="Uncover Hidden Experience" icon={MessageSquare}>
-                <GapFillWizard
-                  jobId={job.id}
-                  cvVersionId={job.cv_version_id ?? null}
-                  gapAnalysis={atsAnalysis.gap_analysis}
-                  onRevised={handleGapFillRevised}
-                />
-              </CollapsibleSection>
-            )}
           </div>
         )}
 
@@ -469,21 +477,6 @@ function JobDetail() {
           </div>
         )}
 
-        {/* Footer Actions */}
-        <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700 border-t border-slate-200 dark:border-slate-600 flex space-x-3">
-          <button
-            onClick={() => navigate('/new')}
-            className="flex-1 px-4 py-2 bg-white dark:bg-slate-600 border border-slate-300 dark:border-slate-500 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-500"
-          >
-            New Application
-          </button>
-          <button
-            onClick={() => navigate('/history')}
-            className="flex-1 px-4 py-2 bg-slate-800 text-white text-sm font-medium hover:bg-slate-900"
-          >
-            View All Applications
-          </button>
-        </div>
       </div>
 
       {/* CV Text Editor Modal */}
