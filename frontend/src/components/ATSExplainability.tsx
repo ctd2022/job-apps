@@ -6,6 +6,7 @@ import GapAnalysis from './GapAnalysis';
 
 interface ATSExplainabilityProps {
   analysis: ATSAnalysisData;
+  hideGapAnalysis?: boolean;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -20,7 +21,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 
-function ATSExplainability({ analysis }: ATSExplainabilityProps) {
+function ATSExplainability({ analysis, hideGapAnalysis }: ATSExplainabilityProps) {
   const { hybrid_scoring, scores_by_category, section_analysis, semantic_analysis, gap_analysis } = analysis;
 
   // Score breakdown
@@ -190,7 +191,7 @@ function ATSExplainability({ analysis }: ATSExplainabilityProps) {
       )}
 
       {/* Gap Analysis */}
-      {gap_analysis && (
+      {!hideGapAnalysis && gap_analysis && (
         <GapAnalysis
           gapAnalysis={gap_analysis}
           semanticAvailable={semantic_analysis?.available ?? false}
