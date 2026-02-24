@@ -47,6 +47,21 @@ The backend does **not** auto-save — the gap-fill endpoint returns `revised_cv
 
 ---
 
+## Branch Cleanup
+
+Merged `streamline-ux` into `main` and deleted all stale merged branches:
+
+| Branch | Action |
+|--------|--------|
+| `streamline-ux` | Merged to main, deleted local + remote |
+| `track2-web-ui` | Already merged, deleted local + remote |
+| `track2.8-semantic-ats` | Already merged, deleted local + remote |
+| `status` | Already merged (local only), deleted |
+
+Remaining branches: `main`, `track-jd-intelligence` (local + remote), `docxprod` (remote only).
+
+---
+
 ## Files Changed
 
 | File | Change |
