@@ -141,6 +141,7 @@ When starting a new session, read the **latest diary entry's Quick Resume** firs
 | Ollama not responding | Run `ollama list`, then `ollama serve` |
 | Unicode/emoji errors | Use text labels `[OK]` not emojis (Windows cp1252) |
 | Job stuck at % | LLM generating - check llama-server console |
+| "Apply Selected" shows no changes / keyword verification all ✗ | **Local LLMs (Ollama llama3.1:8b) are unreliable for keyword injection.** They return the unchanged CV and fabricate the changelog. Switch to Gemini in the backend selector. See `MASTER_VISION.md` → LLM Backend Capability Notes. |
 | `workflow_available: false` | **First** check for stale processes: `netstat -ano \| findstr :8000` then kill zombie PIDs with `taskkill /F /PID <pid>`. Only investigate imports after confirming a fresh process is serving. |
 | Backend restart seems to have no effect | Uvicorn child processes survive parent kill on Windows. Always verify port is free before restarting. |
 | "Was working before, now broken" | Suspect stale processes or port conflicts before assuming missing dependencies. Run `tasklist \| findstr python` to find zombies. |

@@ -97,6 +97,11 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
   // Apply suggestions state (#122)
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [appliedKeywords, setAppliedKeywords] = useState<string[]>([]);
+  const [applyChangelog, setApplyChangelog] = useState<string>('');
+  const [showHighlightView, setShowHighlightView] = useState(false);
+  const [preApplyContent, setPreApplyContent] = useState<string>('');
+  const [keywordVerification, setKeywordVerification] = useState<Array<{keyword: string; found: boolean; wasPresent: boolean}>>([]);
 
   // Backend picker state (#123)
   const [backends, setBackends] = useState<Backend[]>([]);
@@ -176,6 +181,11 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
       setSavedNewVersionId(updated.current_version_id ?? null);
       setOriginalContent(content);
       setHasPendingGapFill(false);
+      setShowHighlightView(false);
+      setAppliedKeywords([]);
+      setApplyChangelog('');
+      setPreApplyContent('');
+      setKeywordVerification([]);
     } catch (err: any) {
       setError(err?.message || 'Failed to save CV');
     } finally {
@@ -226,8 +236,21 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
     try {
       setApplying(true);
       setApplyError(null);
+      setPreApplyContent(content);
       const result = await applySuggestions(jobId, versionId, keywords, weakSkills, backendType, modelName);
       setContent(result.revised_cv);
+      // Show highlighted view with injected keywords
+      const allApplied = [...keywords, ...(weakSkills || [])];
+      setAppliedKeywords(allApplied);
+      setApplyChangelog(result.changelog || '');
+      setShowHighlightView(true);
+      // Verify each keyword against the revised text (content = pre-apply here)
+      const verification = allApplied.map(kw => ({
+        keyword: kw,
+        wasPresent: content.toLowerCase().includes(kw.toLowerCase()),
+        found: result.revised_cv.toLowerCase().includes(kw.toLowerCase()),
+      }));
+      setKeywordVerification(verification);
       if (result.changelog) {
         setChangeSummary(`LLM (${result.model_name}):\n${result.changelog}`);
       } else {
@@ -261,6 +284,43 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
 
   function handleDismissSuggestion(skill: string) {
     setSuggestedSkills(prev => prev.filter(s => s !== skill));
+  }
+
+  function renderHighlightedCV(newText: string, oldText: string, keywords: string[]) {
+    const oldLineSet = new Set(oldText.split('\n'));
+    const newLines = newText.split('\n');
+
+    // Build keyword regex for bolding within changed lines
+    const kwPattern = keywords.length
+      ? new RegExp(`(${keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
+      : null;
+    const kwSet = new Set(keywords.map(k => k.toLowerCase()));
+
+    function highlightKeywordsInLine(line: string) {
+      if (!kwPattern) return line;
+      const parts = line.split(kwPattern);
+      return parts.map((part, i) =>
+        kwSet.has(part.toLowerCase())
+          ? <strong key={i} className="font-bold text-yellow-800 dark:text-yellow-200">{part}</strong>
+          : part
+      );
+    }
+
+    return (
+      <>
+        {newLines.map((line, i) => {
+          const isNew = !oldLineSet.has(line);
+          return (
+            <div
+              key={i}
+              className={isNew && line.trim() ? 'bg-yellow-100 dark:bg-yellow-900/40 rounded-sm -mx-1 px-1' : ''}
+            >
+              {isNew && line.trim() ? highlightKeywordsInLine(line) : (line || '\u00a0')}
+            </div>
+          );
+        })}
+      </>
+    );
   }
 
   return (
@@ -396,13 +456,65 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
                   </div>
                 )}
 
-                {/* Textarea */}
-                <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="w-full min-h-[300px] h-96 font-mono text-sm p-3 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  spellCheck={false}
-                />
+                {/* CV text: highlighted view or editable textarea */}
+                {showHighlightView ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-2 rounded text-sm">
+                      <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                        <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                        <span className="font-medium">LLM complete — changed lines highlighted in yellow</span>
+                      </div>
+                      <button
+                        onClick={() => setShowHighlightView(false)}
+                        className="ml-3 text-xs text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0"
+                      >
+                        Edit manually
+                      </button>
+                    </div>
+                    {keywordVerification.length > 0 && (
+                      <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded px-3 py-2 text-xs space-y-1">
+                        <p className="font-medium text-slate-700 dark:text-slate-200 mb-1.5">Keyword verification:</p>
+                        {keywordVerification.map(({ keyword, found, wasPresent }) => (
+                          <div key={keyword} className="flex items-center gap-2">
+                            {!found ? (
+                              <span className="text-red-500 font-bold w-3">✗</span>
+                            ) : wasPresent ? (
+                              <span className="text-slate-400 font-bold w-3">~</span>
+                            ) : (
+                              <span className="text-green-600 font-bold w-3">✓</span>
+                            )}
+                            <span className={`${!found ? 'text-slate-400 line-through' : 'text-slate-700 dark:text-slate-200'}`}>
+                              {keyword}
+                            </span>
+                            {!found && <span className="text-red-400 italic">not added by LLM</span>}
+                            {found && wasPresent && <span className="text-slate-400 italic">already present</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {applyChangelog && (
+                      <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded px-3 py-2 text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
+                        <p className="font-medium text-slate-600 dark:text-slate-300 mb-1">LLM changelog (may contain inaccuracies):</p>
+                        {applyChangelog.split('\n').filter(Boolean).map((line, i) => (
+                          <p key={i}>{line}</p>
+                        ))}
+                      </div>
+                    )}
+                    <div
+                      className="w-full min-h-[300px] h-96 font-mono text-sm p-3 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded overflow-auto"
+                      style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                    >
+                      {renderHighlightedCV(content, preApplyContent, appliedKeywords)}
+                    </div>
+                  </div>
+                ) : (
+                  <textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className="w-full min-h-[300px] h-96 font-mono text-sm p-3 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    spellCheck={false}
+                  />
+                )}
 
                 <FormattingTipsPanel content={content} />
 

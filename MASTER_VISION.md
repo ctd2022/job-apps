@@ -1,7 +1,7 @@
 # MASTER VISION - Job Application Workflow
 
-**Last Updated**: 26 January 2026
-**Current Status**: Track 2.9.1 COMPLETE - Quick Wins
+**Last Updated**: 25 February 2026
+**Current Status**: Track 2.9.3 COMPLETE - CV Versioning + Keyword Injection fixes
 **Branch**: `track2.8-semantic-ats`
 **Next Phase**: Track 2.9.2 Core UX - Match Explanation Cards
 
@@ -194,6 +194,31 @@ Final Score = (Lexical × 0.55) + (Semantic × 0.35) + (Evidence × 0.10)
 - Character limits without real-time feedback
 
 **Privacy Differentiator**: "Your CV never leaves this PC" - key advantage vs cloud platforms.
+
+---
+
+## ⚠️ **LLM BACKEND CAPABILITY NOTES**
+
+Not all LLM backends are equal across features. This matters for feature recommendations and future work.
+
+### Keyword Injection (`POST /api/jobs/{id}/apply-suggestions`)
+
+This is a **multi-constraint structured editing task**: the model must simultaneously preserve all existing content, insert keywords naturally or into skills sections, avoid fabricating experience, output the complete revised document, and write an accurate changelog. This is hard for small models.
+
+| Backend | Model | Keyword Injection | Notes |
+|---------|-------|-------------------|-------|
+| Gemini | gemini-2.0-flash | ✅ Reliable | 4/5 keywords verified in testing |
+| Ollama | llama3.1:8b | ❌ Unreliable | Returns unchanged CV, fabricates changelog |
+| Ollama | larger models | Unknown | Not tested |
+| Llama.cpp | gemma-3-27B | Unknown | Not tested |
+
+**Recommendation**: Use Gemini for `apply-suggestions`. The UI has a backend selector — users should choose Gemini for this feature. Local models may work for the initial CV/cover letter generation (simpler task) but fail at in-place editing.
+
+**Why local models fail**: The 8B parameter class is too small for multi-constraint instruction following. The model reads "do not fabricate" and over-applies it, returning the original unchanged. It then generates a plausible-sounding but fabricated changelog. This was discovered via client-side keyword verification (introduced 25 Feb 2026).
+
+### CV/Cover Letter Generation (`POST /api/jobs`)
+
+Local models (Ollama llama3.1:8b, Llama.cpp) work adequately for initial generation. Output quality is lower than Gemini but acceptable for a first draft.
 
 ---
 
