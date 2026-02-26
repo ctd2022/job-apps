@@ -100,8 +100,11 @@ class BackendType(str, Enum):
 # Handle both direct run and uvicorn import contexts
 try:
     from job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore, MatchHistoryStore, ProfileStore
+    import cv_assembler
+    import pii_scrubber
 except ImportError:
     from backend.job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore, MatchHistoryStore, ProfileStore
+    from backend import cv_assembler, pii_scrubber
 
 
 class BackendConfig(BaseModel):
@@ -281,6 +284,10 @@ class JobHistoryUpdate(BaseModel):
 
 class ReorderRequest(BaseModel):
     ordered_ids: List[int]
+
+
+class SyncFromCVRequest(BaseModel):
+    cv_text: str
 
 
 class UserCreateRequest(BaseModel):
@@ -2116,6 +2123,35 @@ async def delete_job_history(
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Job history record {job_id} not found")
     return {"status": "deleted"}
+
+
+@app.get("/api/profile/assemble-cv")
+async def assemble_cv(user_id: str = Header(None, alias="X-User-ID")):
+    """Render structured job history into CV EXPERIENCE section text."""
+    user_id = user_id or "default"
+    job_history = profile_store.list_job_history(user_id)
+    experience_text = cv_assembler.assemble_experience_section(job_history)
+    return {"experience_text": experience_text}
+
+
+@app.post("/api/profile/sync-from-cv")
+async def sync_from_cv(
+    request: SyncFromCVRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Parse <!-- JOB:id --> markers in CV text and update job history details."""
+    user_id = user_id or "default"
+    updates = cv_assembler.parse_experience_section(request.cv_text)
+    updated_count = 0
+    for update in updates:
+        job_id = update["id"]
+        # Verify this job belongs to the user before updating
+        jobs = profile_store.list_job_history(user_id)
+        job_ids = {j["id"] for j in jobs}
+        if job_id in job_ids:
+            profile_store.update_job_details(job_id, update["details"], update["tags"])
+            updated_count += 1
+    return {"updated_count": updated_count}
 
 
 # ============================================================================
