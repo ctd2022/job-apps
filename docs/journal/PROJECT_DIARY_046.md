@@ -13,9 +13,13 @@
 - **Branch**: `main`
 - **Track**: Track 3.0 — post-CV Coach feature work
 - **Last session**: Implemented Idea #233 in full across 7 commits. Profile page is live at `/profile`. PII scrubber is wired to all LLM endpoints. Next idea is #234 (Profile page UI polish — currently too narrow).
-- **Next steps**: Idea #234 — widen the Profile page layout, review spacing and card design
+- **Next steps**: Pick from #234, #235, #236, #237 — all small/low complexity, good for a focused session
 - **Blocked/broken**: Nothing
-- **Ideas backlog**: #234 (Profile UI polish, Low complexity, next priority)
+- **Ideas backlog**:
+  - #234 — Profile page UI/UX polish (too narrow, widen layout)
+  - #235 — Fix misleading footer privacy claim ("CV never leaves this PC" is false with Gemini)
+  - #236 — Pull from Profile: inject contact header into CV text (fixes CV Coach false positives) ← HIGH IMPACT, do first
+  - #237 — CV Coach: cross-reference Profile for contact detail checks (contextual tip if email in Profile but not in CV)
 
 ---
 
