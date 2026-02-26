@@ -242,6 +242,10 @@ class PipelineDiagnosisResponse(BaseModel):
     metrics: Dict[str, Any]
 
 
+class CVCoachAssessRequest(BaseModel):
+    cv_text: str
+
+
 class UserCreateRequest(BaseModel):
     """Request to create a new user"""
     name: str
@@ -1859,6 +1863,100 @@ async def update_cv_content(
     if not updated:
         raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
     return updated
+
+
+# ============================================================================
+# CV Coach Endpoint
+# ============================================================================
+
+def _generate_coach_suggestions(
+    has_skills: bool, has_experience: bool, has_education: bool,
+    has_projects: bool, weak_entities: list, cv_text: str,
+) -> list[dict]:
+    import re
+    suggestions = []
+    if not has_experience:
+        suggestions.append({"priority": "high", "category": "completeness",
+            "message": "No Work Experience section detected. Add EXPERIENCE with role, company, dates and bullet points.", "section_hint": "experience"})
+    if len(weak_entities) > 3:
+        suggestions.append({"priority": "high", "category": "evidence",
+            "message": f"{len(weak_entities)} skills lack quantified evidence. Add metrics (e.g. 'reduced load time by 40%') to experience bullets.", "section_hint": "experience"})
+    if not has_skills:
+        suggestions.append({"priority": "high", "category": "completeness",
+            "message": "No Skills section detected. Add a SKILLS section listing your technical and soft skills explicitly.", "section_hint": "skills"})
+    if not re.search(r'@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', cv_text):
+        suggestions.append({"priority": "high", "category": "formatting",
+            "message": "No email address detected. Ensure contact details appear at the top.", "section_hint": "contact"})
+    if not has_projects:
+        suggestions.append({"priority": "medium", "category": "completeness",
+            "message": "No Projects section detected. Adding one demonstrates practical skills beyond job history.", "section_hint": "projects"})
+    if not has_education:
+        suggestions.append({"priority": "medium", "category": "completeness",
+            "message": "No Education section detected. Add degrees, diplomas, or certifications.", "section_hint": "education"})
+    if len(cv_text) < 500:
+        suggestions.append({"priority": "high", "category": "length",
+            "message": "CV is very short. Aim for 400-500+ words for ATS to parse effectively.", "section_hint": "general"})
+    elif len(cv_text) > 8000:
+        suggestions.append({"priority": "low", "category": "length",
+            "message": "CV is quite long. Consider condensing to 2 pages.", "section_hint": "general"})
+    return suggestions[:8]
+
+
+@app.post("/api/cv-coach/assess")
+async def assess_cv_coach(request: CVCoachAssessRequest):
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Workflow modules not available")
+    cv_text = request.cv_text.strip()
+    if not cv_text:
+        raise HTTPException(status_code=400, detail="cv_text must not be empty")
+    try:
+        from document_parser import DocumentParser
+        parser = DocumentParser()
+        parsed_cv = parser.parse_cv(cv_text)
+        hard_skills = list(parsed_cv.get_hard_skills())
+        soft_skills = list(parsed_cv.get_soft_skills())
+        section_names = [s.section_type.value for s in parsed_cv.sections]
+        experience_skills = [e.text for e in parsed_cv.entities if e.section and "experience" in e.section.lower()]
+        project_skills = [e.text for e in parsed_cv.entities if e.section and "project" in e.section.lower()]
+        skills_listed = [e.text for e in parsed_cv.entities if e.section and "skill" in e.section.lower()]
+        strong, moderate, weak = [], [], []
+        for entity in parsed_cv.entities:
+            if entity.evidence_strength > 1.3:
+                strong.append(entity)
+            elif entity.evidence_strength >= 1.0:
+                moderate.append(entity)
+            else:
+                weak.append(entity)
+        avg_strength = round(sum(e.evidence_strength for e in parsed_cv.entities) / len(parsed_cv.entities), 2) if parsed_cv.entities else 0.0
+        has_skills = len(hard_skills) > 0
+        has_experience = len(experience_skills) > 0
+        has_education = any("education" in n for n in section_names)
+        has_projects = len(project_skills) > 0
+        completeness = (25 if has_skills else 0) + (30 if has_experience else 0) + (15 if has_education else 0) + (15 if has_projects else 0) + (15 if len(strong) > 0 else 0)
+        quality_score = min(100, completeness + min(10, int(avg_strength * 5)))
+        return {
+            "quality_score": quality_score,
+            "parsed_entities": {
+                "cv_hard_skills": hard_skills[:15], "cv_soft_skills": soft_skills[:10],
+                "jd_required_skills": [], "jd_preferred_skills": [],
+                "cv_years_experience": parsed_cv.years_experience, "jd_years_required": None,
+            },
+            "section_analysis": {
+                "experience_matches": experience_skills[:10], "skills_matches": skills_listed[:10],
+                "projects_matches": project_skills[:5], "not_found_in_cv": [],
+                "cv_sections_detected": len(parsed_cv.sections), "jd_sections_detected": 0,
+            },
+            "evidence_analysis": {
+                "strong_evidence_count": len(strong), "moderate_evidence_count": len(moderate),
+                "weak_evidence_count": len(weak), "average_strength": avg_strength,
+                "strong_skills": [e.text for e in strong[:5]], "weak_skills": [e.text for e in weak[:5]],
+            },
+            "coaching_suggestions": _generate_coach_suggestions(has_skills, has_experience, has_education, has_projects, weak, cv_text),
+            "sections_detected": section_names,
+            "cv_char_count": len(cv_text),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Assessment failed: {str(e)}")
 
 
 # ============================================================================

@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment } from './types';
 
 const API_BASE = '/api';
 
@@ -600,6 +600,15 @@ export async function updateCVContent(
     body: JSON.stringify(update),
   });
   return handleResponse(response);
+}
+
+export async function assessCVCoach(cvText: string): Promise<CVCoachAssessment> {
+  const response = await fetch(`${API_BASE}/cv-coach/assess`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ cv_text: cvText }),
+  });
+  return handleResponse<CVCoachAssessment>(response);
 }
 
 export { ApiError };

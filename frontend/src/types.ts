@@ -362,3 +362,21 @@ export interface MatchHistoryResponse {
   job_id: string;
   history: MatchHistoryEntry[];
 }
+
+// Idea #229: CV Coach
+export interface CoachingSuggestion {
+  priority: 'high' | 'medium' | 'low';
+  category: 'evidence' | 'completeness' | 'formatting' | 'length';
+  message: string;
+  section_hint: string;
+}
+
+export interface CVCoachAssessment {
+  quality_score: number;
+  parsed_entities: ParsedEntities;
+  section_analysis: SectionAnalysis;
+  evidence_analysis: EvidenceAnalysis;
+  coaching_suggestions: CoachingSuggestion[];
+  sections_detected: string[];
+  cv_char_count: number;
+}

@@ -34,6 +34,8 @@ job_applications/
 ├── frontend/                ← React Web UI
 │   ├── src/
 │   │   ├── components/
+│   │   │   ├── CvCoach.tsx          (CV coaching page — live score, suggestions, version history)
+│   │   │   ├── CVManager.tsx        (CV library — upload, rename, version browser)
 │   │   │   ├── Dashboard.tsx
 │   │   │   ├── NewApplication.tsx
 │   │   │   ├── ApplicationHistory.tsx
@@ -69,6 +71,22 @@ job_applications/
 | `frontend/src/api.ts` | Frontend API client |
 | `frontend/src/App.tsx` | Main app with routing |
 | `ideas.db` | Feature tracking database |
+
+## Key API Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/health` | Health check |
+| GET | `/api/users` | List users |
+| GET/POST | `/api/cvs` | List / upload CVs |
+| GET | `/api/cvs/{id}` | Get CV with content |
+| PUT | `/api/cvs/{id}/content` | Save edited CV (creates new version) |
+| GET | `/api/cvs/{id}/versions` | List CV versions |
+| GET | `/api/cv-versions/{id}` | Get single version with content |
+| POST | `/api/cv-coach/assess` | Job-agnostic CV quality assessment (Track 3.0) |
+| POST | `/api/jobs` | Create job application |
+| GET | `/api/jobs/{id}/ats` | ATS score against JD |
+| POST | `/api/jobs/{id}/apply-suggestions` | Inject keywords into CV via LLM |
 
 ## LLM Backends
 
