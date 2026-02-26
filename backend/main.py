@@ -99,9 +99,9 @@ class BackendType(str, Enum):
 # Import from job_store module
 # Handle both direct run and uvicorn import contexts
 try:
-    from job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore, MatchHistoryStore
+    from job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore, MatchHistoryStore, ProfileStore
 except ImportError:
-    from backend.job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore, MatchHistoryStore
+    from backend.job_store import JobStore, JobStatus, CVStore, OutcomeStatus, UserStore, MatchHistoryStore, ProfileStore
 
 
 class BackendConfig(BaseModel):
@@ -246,6 +246,43 @@ class CVCoachAssessRequest(BaseModel):
     cv_text: str
 
 
+# Idea #233: Candidate Profile models
+class ProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    location: Optional[str] = None
+    linkedin: Optional[str] = None
+    website: Optional[str] = None
+    headline: Optional[str] = None
+
+
+class JobHistoryCreate(BaseModel):
+    employer: str
+    title: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    is_current: bool = False
+    details: Optional[str] = None
+    display_order: int = 0
+    tags: List[str] = []
+
+
+class JobHistoryUpdate(BaseModel):
+    employer: Optional[str] = None
+    title: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    is_current: Optional[bool] = None
+    details: Optional[str] = None
+    display_order: Optional[int] = None
+    tags: Optional[List[str]] = None
+
+
+class ReorderRequest(BaseModel):
+    ordered_ids: List[int]
+
+
 class UserCreateRequest(BaseModel):
     """Request to create a new user"""
     name: str
@@ -279,6 +316,7 @@ job_store = JobStore()
 cv_store = CVStore()
 user_store = UserStore()
 match_history_store = MatchHistoryStore()
+profile_store = ProfileStore()
 
 
 # ============================================================================
@@ -1999,6 +2037,85 @@ async def websocket_job_progress(websocket: WebSocket, job_id: str):
         pass
     finally:
         ws_manager.disconnect(websocket, job_id)
+
+
+# ============================================================================
+# Candidate Profile Endpoints (Idea #233)
+# ============================================================================
+
+@app.get("/api/profile")
+async def get_profile(user_id: str = Header(None, alias="X-User-ID")):
+    """Get or create candidate profile for current user."""
+    user_id = user_id or "default"
+    return profile_store.get_or_create_profile(user_id)
+
+
+@app.put("/api/profile")
+async def update_profile(
+    request: ProfileUpdate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Update candidate personal info."""
+    user_id = user_id or "default"
+    # Ensure profile exists before updating
+    profile_store.get_or_create_profile(user_id)
+    return profile_store.update_profile(user_id, request.model_dump(exclude_none=True))
+
+
+@app.get("/api/profile/job-history")
+async def list_job_history(user_id: str = Header(None, alias="X-User-ID")):
+    """List all job history records for current user."""
+    user_id = user_id or "default"
+    return profile_store.list_job_history(user_id)
+
+
+@app.post("/api/profile/job-history", status_code=201)
+async def create_job_history(
+    request: JobHistoryCreate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Create a new job history record."""
+    user_id = user_id or "default"
+    data = request.model_dump()
+    return profile_store.create_job(user_id, data)
+
+
+@app.put("/api/profile/job-history/reorder")
+async def reorder_job_history(
+    request: ReorderRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Set display order for job history records."""
+    user_id = user_id or "default"
+    profile_store.reorder_jobs(user_id, request.ordered_ids)
+    return {"status": "ok"}
+
+
+@app.put("/api/profile/job-history/{job_id}")
+async def update_job_history(
+    job_id: int,
+    request: JobHistoryUpdate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Update a job history record."""
+    user_id = user_id or "default"
+    result = profile_store.update_job(job_id, user_id, request.model_dump(exclude_unset=True))
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Job history record {job_id} not found")
+    return result
+
+
+@app.delete("/api/profile/job-history/{job_id}")
+async def delete_job_history(
+    job_id: int,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Delete a job history record."""
+    user_id = user_id or "default"
+    deleted = profile_store.delete_job(job_id, user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Job history record {job_id} not found")
+    return {"status": "deleted"}
 
 
 # ============================================================================
