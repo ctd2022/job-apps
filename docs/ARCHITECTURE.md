@@ -37,7 +37,7 @@ job_applications/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── CandidateProfile.tsx  (Profile CRUD page — personal info + job history)
-│   │   │   ├── CvCoach.tsx           (CV coaching — live score, suggestions, version history)
+│   │   │   ├── CvCoach.tsx           (CV coaching — live score, suggestions, version history, Pull from Profile)
 │   │   │   ├── CVManager.tsx         (CV library — upload, rename, version browser)
 │   │   │   ├── CVTextEditor.tsx      (Inline CV editor + ATS feedback + Pull from Profile)
 │   │   │   ├── Dashboard.tsx
@@ -72,7 +72,7 @@ job_applications/
 | `MASTER_VISION.md` | Strategic direction and roadmap |
 | `backend/main.py` | API endpoints |
 | `backend/job_store.py` | SQLite persistence (users, jobs, CVs, candidate profiles, job history) |
-| `backend/cv_assembler.py` | Render job history into CV text; parse `<!-- JOB:id -->` markers back |
+| `backend/cv_assembler.py` | Render job history into CV text; format contact header; parse `<!-- JOB:id -->` markers back |
 | `backend/pii_scrubber.py` | Strip employer names + PII before LLM; restore in response |
 | `frontend/src/api.ts` | Frontend API client |
 | `frontend/src/App.tsx` | Main app with routing |
@@ -97,7 +97,7 @@ job_applications/
 | GET/POST | `/api/profile/job-history` | List / create job history records |
 | PUT/DELETE | `/api/profile/job-history/{id}` | Update / delete job history record |
 | PUT | `/api/profile/job-history/reorder` | Reorder job history |
-| GET | `/api/profile/assemble-cv` | Render job history as CV EXPERIENCE text |
+| GET | `/api/profile/assemble-cv` | Render job history as CV EXPERIENCE text + formatted contact header |
 | POST | `/api/profile/sync-from-cv` | Parse JOB markers from CV and update job history details |
 
 ## LLM Backends
