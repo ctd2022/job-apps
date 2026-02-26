@@ -2,7 +2,7 @@
 
 AI-powered tool that generates tailored CVs, cover letters, and ATS analysis.
 
-**Current Status**: Track 2.9.3 COMPLETE - CV Versioning | **Branch**: `track2.8-semantic-ats`
+**Current Status**: Track 3.0 COMPLETE - CV Coach | **Branch**: `main`
 
 ---
 
