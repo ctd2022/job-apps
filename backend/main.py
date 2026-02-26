@@ -413,7 +413,8 @@ async def process_job_application(
     enable_ats: bool,
     backend_type: str,
     backend_config: dict,
-    custom_questions: Optional[str] = None
+    custom_questions: Optional[str] = None,
+    user_id: str = "default",
 ):
     """
     Background task to process a job application.
@@ -463,7 +464,13 @@ async def process_job_application(
         # Read inputs
         base_cv = workflow.read_cv(cv_path)
         job_description = workflow.read_text_file(job_desc_path)
-        
+
+        # PII scrubbing — strip employer names and personal info before LLM calls
+        _pii_profile = profile_store.get_or_create_profile(user_id)
+        _pii_job_history = profile_store.list_job_history(user_id)
+        _scrub = pii_scrubber.scrub(base_cv, _pii_profile, _pii_job_history)
+        scrubbed_cv = _scrub.scrubbed_text
+
         await update_job_and_broadcast(
             job_id,
             progress=15,
@@ -521,9 +528,10 @@ async def process_job_application(
 
             await asyncio.sleep(0.1)
 
-            tailored_cv = ats_optimizer.generate_ats_optimized_cv(
-                base_cv, job_description, key_requirements
+            raw_tailored = ats_optimizer.generate_ats_optimized_cv(
+                scrubbed_cv, job_description, key_requirements
             )
+            tailored_cv = pii_scrubber.restore(raw_tailored, _scrub.replacements)
         else:
             await update_job_and_broadcast(
                 job_id,
@@ -532,9 +540,10 @@ async def process_job_application(
                 message="Creating customized CV..."
             )
             await asyncio.sleep(0.1)
-            
-            tailored_cv = workflow.tailor_cv(base_cv, job_description)
-        
+
+            raw_tailored = workflow.tailor_cv(scrubbed_cv, job_description)
+            tailored_cv = pii_scrubber.restore(raw_tailored, _scrub.replacements)
+
         await update_job_and_broadcast(
             job_id,
             progress=60,
@@ -542,11 +551,12 @@ async def process_job_application(
             message="Writing personalized cover letter..."
         )
         await asyncio.sleep(0.1)
-        
-        cover_letter = workflow.generate_cover_letter(
-            base_cv, job_description, company_name or "the company"
+
+        raw_cover = workflow.generate_cover_letter(
+            scrubbed_cv, job_description, company_name or "the company"
         )
-        
+        cover_letter = pii_scrubber.restore(raw_cover, _scrub.replacements)
+
         # Answer custom questions if provided
         answers = None
         if custom_questions:
@@ -557,10 +567,11 @@ async def process_job_application(
                 message="Generating responses to questions..."
             )
             await asyncio.sleep(0.1)
-            
-            answers = workflow.answer_application_questions(
-                base_cv, job_description, custom_questions
+
+            raw_answers = workflow.answer_application_questions(
+                scrubbed_cv, job_description, custom_questions
             )
+            answers = pii_scrubber.restore(raw_answers, _scrub.replacements)
         
         await update_job_and_broadcast(
             job_id,
@@ -915,7 +926,8 @@ async def create_job(
             enable_ats=enable_ats,
             backend_type=backend_type,
             backend_config=backend_config,
-            custom_questions=custom_questions
+            custom_questions=custom_questions,
+            user_id=user_id,
         )
         
         return JobResponse(
@@ -1267,15 +1279,23 @@ async def apply_suggestions(
 
     model_name = backend_config.get("model_name", backend_type)
 
+    # PII scrubbing: strip employer names and personal info before LLM call
+    profile = profile_store.get_or_create_profile(user_id)
+    job_history = profile_store.list_job_history(user_id)
+    scrub_result = pii_scrubber.scrub(cv_content, profile, job_history)
+
     loop = asyncio.get_event_loop()
-    revised_cv = await loop.run_in_executor(
+    raw_revised = await loop.run_in_executor(
         None,
         ats_optimizer.incorporate_keywords,
-        cv_content,
+        scrub_result.scrubbed_text,
         job_description,
         request.selected_keywords,
         request.weak_skills,
     )
+
+    # Restore PII in LLM output
+    revised_cv = pii_scrubber.restore(raw_revised, scrub_result.replacements)
 
     # Split CV text from changelog (LLM outputs ===CHANGELOG=== separator)
     changelog = ""
@@ -1367,13 +1387,19 @@ async def suggest_skills(
         backend=backend, company_name=job.get("company_name")
     )
 
+    # PII scrubbing: strip employer names and personal info before LLM call
+    profile = profile_store.get_or_create_profile(user_id)
+    job_history_records = profile_store.list_job_history(user_id)
+    scrub_result = pii_scrubber.scrub(cv_content, profile, job_history_records)
+
     loop = asyncio.get_event_loop()
     suggestions = await loop.run_in_executor(
         None,
         ats_optimizer.suggest_skills,
-        cv_content,
+        scrub_result.scrubbed_text,
         job_description,
     )
+    # No restore needed — response is a skills list, not CV text
 
     return {"suggestions": suggestions}
 
@@ -1443,14 +1469,22 @@ async def gap_fill(
 
     model_name = backend_config.get("model_name", backend_type)
 
+    # PII scrubbing: strip employer names and personal info before LLM call
+    profile = profile_store.get_or_create_profile(user_id)
+    job_history_records = profile_store.list_job_history(user_id)
+    scrub_result = pii_scrubber.scrub(cv_content, profile, job_history_records)
+
     loop = asyncio.get_event_loop()
-    revised_cv = await loop.run_in_executor(
+    raw_revised = await loop.run_in_executor(
         None,
         ats_optimizer.incorporate_user_experiences,
-        cv_content,
+        scrub_result.scrubbed_text,
         job_description,
         filled_answers,
     )
+
+    # Restore PII in LLM output
+    revised_cv = pii_scrubber.restore(raw_revised, scrub_result.replacements)
 
     changelog = ""
     if "===CHANGELOG===" in revised_cv:
