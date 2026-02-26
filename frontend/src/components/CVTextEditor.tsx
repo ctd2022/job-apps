@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw, Wand2, Sparkles } from 'lucide-react';
-import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis, applySuggestions, getBackends, suggestSkills } from '../api';
+import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw, Wand2, Sparkles, Download } from 'lucide-react';
+import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis, applySuggestions, getBackends, suggestSkills, assembleCV, syncFromCV } from '../api';
 import type { CVVersion, RematchResponse, ATSAnalysisData, ATSComparisonData, CategoryComparison, Backend } from '../types';
 import SuggestionChecklist from './SuggestionChecklist';
 import CVCompletenessMeter from './CVCompletenessMeter';
@@ -115,6 +115,10 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
   const [hasPendingGapFill, setHasPendingGapFill] = useState(!!initialContent);
   const isDirty = hasPendingGapFill || content !== originalContent;
 
+  // Pull from Profile state (Idea #233)
+  const [pullingProfile, setPullingProfile] = useState(false);
+  const [profileSyncToast, setProfileSyncToast] = useState<string | null>(null);
+
   useEffect(() => {
     loadVersion();
   }, [cvVersionId]);
@@ -186,10 +190,59 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
       setApplyChangelog('');
       setPreApplyContent('');
       setKeywordVerification([]);
+
+      // Save-back: sync profile job details from JOB: markers in CV (Idea #233)
+      if (content.includes('<!-- JOB:')) {
+        try {
+          const result = await syncFromCV(content);
+          if (result.updated_count > 0) {
+            setProfileSyncToast('Profile updated from CV edits');
+            setTimeout(() => setProfileSyncToast(null), 3000);
+          }
+        } catch {
+          // Non-critical
+        }
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to save CV');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePullFromProfile() {
+    setPullingProfile(true);
+    try {
+      const { experience_text } = await assembleCV();
+      if (!experience_text) return;
+
+      const expPattern = /^#{1,3}\s*(work\s+)?experience\s*$/i;
+      const lines = content.split('\n');
+      const expIdx = lines.findIndex(l => expPattern.test(l.trim()));
+
+      let newContent: string;
+      if (expIdx === -1) {
+        newContent = content.trimEnd() + '\n\n## Experience\n\n' + experience_text;
+      } else {
+        // Find the next section header after expIdx
+        let nextSection = lines.length;
+        for (let i = expIdx + 1; i < lines.length; i++) {
+          if (/^#{1,3}\s/.test(lines[i])) {
+            nextSection = i;
+            break;
+          }
+        }
+        const before = lines.slice(0, expIdx + 1);
+        const after = lines.slice(nextSection);
+        newContent = [...before, '', experience_text, '', ...after].join('\n');
+      }
+
+      setContent(newContent);
+      setHasPendingGapFill(true); // mark dirty so Save is enabled
+    } catch {
+      // Silent — non-critical
+    } finally {
+      setPullingProfile(false);
     }
   }
 
@@ -289,6 +342,7 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
   function renderHighlightedCV(newText: string, oldText: string, keywords: string[]) {
     const oldLineSet = new Set(oldText.split('\n'));
     const newLines = newText.split('\n');
+    const jobMarkerPattern = /^<!--\s*JOB:\d+\s*-->$/;
 
     // Build keyword regex for bolding within changed lines
     const kwPattern = keywords.length
@@ -306,16 +360,34 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
       );
     }
 
+    let nextLineIsProfiled = false;
+
     return (
       <>
         {newLines.map((line, i) => {
+          // Hide JOB: comment markers — they're internal markers not for display
+          if (jobMarkerPattern.test(line.trim())) {
+            nextLineIsProfiled = true;
+            return null;
+          }
+
+          const isProfiled = nextLineIsProfiled;
+          nextLineIsProfiled = false;
+
           const isNew = !oldLineSet.has(line);
           return (
             <div
               key={i}
-              className={isNew && line.trim() ? 'bg-yellow-100 dark:bg-yellow-900/40 rounded-sm -mx-1 px-1' : ''}
+              className={`flex items-start gap-2 ${isNew && line.trim() ? 'bg-yellow-100 dark:bg-yellow-900/40 rounded-sm -mx-1 px-1' : ''}`}
             >
-              {isNew && line.trim() ? highlightKeywordsInLine(line) : (line || '\u00a0')}
+              <span className="flex-1">
+                {isNew && line.trim() ? highlightKeywordsInLine(line) : (line || '\u00a0')}
+              </span>
+              {isProfiled && line.trim() && (
+                <span className="flex-shrink-0 text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded px-1 py-0.5 leading-tight">
+                  Profile
+                </span>
+              )}
             </div>
           );
         })}
@@ -445,6 +517,14 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
                   <div className="flex items-center space-x-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-2 rounded text-sm text-red-700 dark:text-red-300">
                     <AlertCircle className="w-4 h-4" />
                     <span>{applyError}</span>
+                  </div>
+                )}
+
+                {/* Profile sync toast (Idea #233) */}
+                {profileSyncToast && (
+                  <div className="flex items-center space-x-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded text-sm text-blue-700 dark:text-blue-300">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>{profileSyncToast}</span>
                   </div>
                 )}
 
@@ -628,25 +708,41 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end space-x-3">
+        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <button
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+            onClick={handlePullFromProfile}
+            disabled={pullingProfile}
+            className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-50"
+            title="Pull structured job history from your Profile into the EXPERIENCE section"
           >
-            Close
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!isDirty || saving}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? (
+            {pullingProfile ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Save className="w-4 h-4" />
+              <Download className="w-4 h-4" />
             )}
-            <span>Save New Version</span>
+            <span>Pull from Profile</span>
           </button>
+
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+            >
+              Close
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!isDirty || saving}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              <span>Save New Version</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

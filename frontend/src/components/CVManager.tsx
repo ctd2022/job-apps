@@ -11,6 +11,7 @@ import {
   Loader2,
   FileText,
   Plus,
+  Download,
 } from 'lucide-react';
 import {
   getCVs,
@@ -21,6 +22,7 @@ import {
   getCVVersions,
   getCV,
   updateCVContent,
+  assembleCV,
 } from '../api';
 import type { StoredCV, CVVersion } from '../types';
 
@@ -56,6 +58,7 @@ function CVManager() {
   const [editorSummary, setEditorSummary] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadingEditor, setLoadingEditor] = useState(false);
+  const [pullingProfile, setPullingProfile] = useState(false);
 
   useEffect(() => {
     loadCVs();
@@ -153,6 +156,39 @@ function CVManager() {
       setEditorCvId(null);
     } finally {
       setLoadingEditor(false);
+    }
+  }
+
+  async function handlePullFromProfile() {
+    setPullingProfile(true);
+    try {
+      const { experience_text } = await assembleCV();
+      if (!experience_text) return;
+
+      const expPattern = /^#{1,3}\s*(work\s+)?experience\s*$/i;
+      const lines = editorContent.split('\n');
+      const expIdx = lines.findIndex(l => expPattern.test(l.trim()));
+
+      let newContent: string;
+      if (expIdx === -1) {
+        newContent = editorContent.trimEnd() + '\n\n## Experience\n\n' + experience_text;
+      } else {
+        let nextSection = lines.length;
+        for (let i = expIdx + 1; i < lines.length; i++) {
+          if (/^#{1,3}\s/.test(lines[i])) {
+            nextSection = i;
+            break;
+          }
+        }
+        const before = lines.slice(0, expIdx + 1);
+        const after = lines.slice(nextSection);
+        newContent = [...before, '', experience_text, '', ...after].join('\n');
+      }
+      setEditorContent(newContent);
+    } catch {
+      // Silent — non-critical
+    } finally {
+      setPullingProfile(false);
     }
   }
 
@@ -346,28 +382,39 @@ function CVManager() {
                   onChange={(e) => setEditorContent(e.target.value)}
                   className="flex-1 min-h-[400px] p-4 font-mono text-sm text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 resize-none focus:outline-none"
                 />
-                <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center space-x-3">
-                  <input
-                    type="text"
-                    value={editorSummary}
-                    onChange={(e) => setEditorSummary(e.target.value)}
-                    placeholder="Change summary (optional)"
-                    className="flex-1 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
+                <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
                   <button
-                    onClick={() => setEditorCvId(null)}
-                    className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md"
+                    onClick={handlePullFromProfile}
+                    disabled={pullingProfile}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md disabled:opacity-50"
+                    title="Pull structured job history from your Profile into the EXPERIENCE section"
                   >
-                    Cancel
+                    {pullingProfile ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    <span>Pull from Profile</span>
                   </button>
-                  <button
-                    onClick={handleSaveContent}
-                    disabled={editorContent === editorOriginal || saving}
-                    className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-1"
-                  >
-                    {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    <span>Save as New Version</span>
-                  </button>
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="text"
+                      value={editorSummary}
+                      onChange={(e) => setEditorSummary(e.target.value)}
+                      placeholder="Change summary (optional)"
+                      className="w-48 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={() => setEditorCvId(null)}
+                      className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveContent}
+                      disabled={editorContent === editorOriginal || saving}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-1"
+                    >
+                      {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <span>Save as New Version</span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}
