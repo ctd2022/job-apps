@@ -166,14 +166,25 @@ function App() {
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-2">
-          <p className="text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center space-x-1">
-            <Shield className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-            <span>100% Local</span>
-            <span>•</span>
-            <span>Your CV never leaves this PC</span>
-            <span>•</span>
-            <span>{currentUserName}</span>
-          </p>
+          {(localStorage.getItem('llm_backend') || 'ollama') === 'gemini' ? (
+            <p className="text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center space-x-1">
+              <Shield className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+              <span>Local storage</span>
+              <span>•</span>
+              <span>PII scrubbed before Gemini cloud call</span>
+              <span>•</span>
+              <span>{currentUserName}</span>
+            </p>
+          ) : (
+            <p className="text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center space-x-1">
+              <Shield className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+              <span>100% Local</span>
+              <span>•</span>
+              <span>Your data never leaves this PC</span>
+              <span>•</span>
+              <span>{currentUserName}</span>
+            </p>
+          )}
         </div>
       </footer>
 
