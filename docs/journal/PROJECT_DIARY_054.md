@@ -67,3 +67,17 @@ A "Generate Summary" button in the CV Coach footer that calls a new `/api/cv-coa
 
 - TypeScript check: `npx tsc --noEmit` — passed clean
 - Idea #55 marked Done in ideas.db
+
+---
+
+## PII Audit (post-implementation review)
+
+Reviewed `pii_scrubber.py` and the new endpoint against the existing pattern. Confirmed:
+
+- CV text is scrubbed (name, email, phone, location, employer names) before the LLM call ✓
+- Only `scrub_result.scrubbed_text` is passed to `generate_summary()` — not raw CV ✓
+- `pii_scrubber.restore()` is called on the raw LLM output before returning ✓
+- `job_description` is passed to the LLM un-scrubbed — intentional; JDs are public documents containing no candidate PII ✓
+- `linkedin`/`website` are not scrubbed — consistent with existing design; they're public identifiers and won't appear in generated prose ✓
+- The first-person prompt instruction ("I bring...", "With X years...") means the LLM is unlikely to reference the candidate by name at all; scrub/restore is a safety net rather than a critical path dependency ✓
+- Pre-existing limitation (not introduced here): scrubber uses exact string match, so name variations not caught if CV differs from profile field — consistent across all endpoints, not a regression

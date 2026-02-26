@@ -26,6 +26,42 @@ All endpoints (except `/api/users` and `/api/health`) support `X-User-ID` header
 | GET | `/api/applications` | List past applications (supports `?outcome_status=` filter) |
 | GET | `/api/metrics` | Get application funnel metrics |
 | GET | `/api/health` | Health check |
+| PUT | `/api/cvs/{id}/content` | Save edited CV text (creates new version) |
+| GET | `/api/cvs/{id}/versions` | List CV version history |
+| GET | `/api/cv-versions/{id}` | Get a specific version with content |
+| POST | `/api/cv-coach/assess` | Job-agnostic CV quality score + coaching suggestions (no LLM) |
+| POST | `/api/cv-coach/generate-summary` | LLM-generated professional summary from CV text, PII-scrubbed; optional `job_description` to tailor to a role (Idea #55) |
+| GET | `/api/jobs/{id}/ats-analysis` | Full ATS details + gap analysis + keyword placement + evidence gap details |
+| POST | `/api/jobs/{id}/apply-suggestions` | Inject selected keywords into CV via LLM |
+| GET/PUT | `/api/profile` | Get / update candidate personal info |
+| GET/POST | `/api/profile/job-history` | List / create job history records |
+| PUT/DELETE | `/api/profile/job-history/{id}` | Update / delete a job history record |
+| PUT | `/api/profile/job-history/reorder` | Reorder job history entries |
+| GET | `/api/profile/assemble-cv` | Render job history as CV EXPERIENCE text + formatted contact header |
+| POST | `/api/profile/sync-from-cv` | Parse `<!-- JOB:id -->` markers from CV text and update job history |
+
+## CV Coach — Generate Summary
+
+**POST** `/api/cv-coach/generate-summary`
+
+Request body:
+```json
+{
+  "cv_text": "string (required)",
+  "job_description": "string (optional — tailors summary to role)",
+  "backend_type": "gemini | ollama | llamacpp (default: gemini)",
+  "model_name": "string (optional, uses backend default)"
+}
+```
+
+Response:
+```json
+{ "summary": "3-4 sentence professional summary as plain text" }
+```
+
+- CV text is PII-scrubbed (name, email, phone, location, employer names) before the LLM call
+- Real values are restored from the LLM output before returning
+- Requires `X-User-ID` header for PII profile lookup
 
 ## Frontend Routes
 

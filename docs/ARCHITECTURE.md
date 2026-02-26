@@ -37,7 +37,7 @@ job_applications/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── CandidateProfile.tsx  (Profile CRUD page — personal info + job history)
-│   │   │   ├── CvCoach.tsx           (CV coaching — live score, suggestions, version history, Pull from Profile)
+│   │   │   ├── CvCoach.tsx           (CV coaching — live score, suggestions, version history, Pull from Profile, Generate Summary (Idea #55))
 │   │   │   ├── CVManager.tsx         (CV library — upload, rename, version browser)
 │   │   │   ├── CVTextEditor.tsx      (Inline CV editor + ATS feedback + Pull from Profile)
 │   │   │   ├── GapAnalysis.tsx       (Evidence/critical/semantic/experience gap cards + section badges)
@@ -91,6 +91,7 @@ job_applications/
 | GET | `/api/cvs/{id}/versions` | List CV versions |
 | GET | `/api/cv-versions/{id}` | Get single version with content |
 | POST | `/api/cv-coach/assess` | Job-agnostic CV quality assessment (Track 3.0) |
+| POST | `/api/cv-coach/generate-summary` | LLM-generated 3-4 sentence professional summary, PII-scrubbed, optionally tailored to a JD (Idea #55) |
 | POST | `/api/jobs` | Create job application |
 | GET | `/api/jobs/{id}/ats` | ATS score against JD |
 | GET | `/api/jobs/{id}/ats-analysis` | Full ATS details: hybrid scoring, gap analysis, keyword placement suggestions (Idea #100), evidence gap details with section badges (Idea #78) |
