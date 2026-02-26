@@ -8,6 +8,7 @@ enabling a web-based interface while keeping everything local.
 """
 
 import os
+import re
 import sys
 import json
 import uuid
@@ -1949,7 +1950,6 @@ async def update_cv_content(
 # ============================================================================
 
 def _extract_experience_bullets(cv_text: str) -> list[str]:
-    import re
     lines = cv_text.splitlines()
     bullets = []
     in_experience = False
@@ -1971,11 +1971,90 @@ def _extract_experience_bullets(cv_text: str) -> list[str]:
     return bullets
 
 
+_PASSIVE_PHRASES = re.compile(
+    r'\b(responsible for|involved in|tasked with|worked on|helped to|assisted with|participated in|was responsible|were responsible|was involved|were involved)\b',
+    re.IGNORECASE,
+)
+
+_BUZZWORDS = [
+    "team player", "synergy", "synergies", "think outside the box",
+    "results-driven", "results driven", "self-starter", "self starter",
+    "go-getter", "detail-oriented", "detail oriented", "proactive",
+    "passionate", "hardworking", "hard-working", "motivated", "dynamic",
+    "forward-thinking", "forward thinking", "thought leader", "guru",
+    "ninja", "rockstar", "rock star", "wizard", "evangelist",
+    "game changer", "game-changer", "disruptive", "cutting-edge",
+    "cutting edge", "world-class", "world class", "innovative thinker",
+    "excellent communication skills", "strong communication skills",
+    "outside the box", "value-add", "value add", "deep dive",
+]
+
+_STOP_WORDS = {
+    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "was", "are", "were", "be", "been",
+    "being", "have", "has", "had", "do", "does", "did", "will", "would",
+    "could", "should", "may", "might", "shall", "can", "not", "no",
+    "i", "my", "me", "we", "our", "you", "your", "it", "its", "this",
+    "that", "these", "those", "as", "up", "out", "which", "who", "all",
+    "more", "also", "into", "than", "so", "if", "they", "their", "its",
+    "about", "over", "after", "before", "during", "within", "across",
+    "each", "such", "both", "when", "where", "while", "through",
+}
+
+
+def _check_active_voice(cv_text: str) -> list[dict]:
+    matches = _PASSIVE_PHRASES.findall(cv_text)
+    count = len(matches)
+    if count >= 4:
+        priority = "high" if count >= 6 else "medium"
+        return [{"priority": priority, "category": "style",
+                 "message": f"{count} passive/weak phrases detected (e.g. 'responsible for', 'worked on'). "
+                            "Start bullets with strong action verbs: Led, Built, Delivered, Reduced.",
+                 "section_hint": "experience"}]
+    if count >= 2:
+        return [{"priority": "low", "category": "style",
+                 "message": "Some passive phrases detected (e.g. 'responsible for'). "
+                            "Prefer active verbs: Led, Built, Delivered, Reduced.",
+                 "section_hint": "experience"}]
+    return []
+
+
+def _check_buzzwords(cv_text: str) -> list[dict]:
+    text_lower = cv_text.lower()
+    found = [phrase for phrase in _BUZZWORDS if phrase in text_lower]
+    if not found:
+        return []
+    examples = ", ".join(f'"{w}"' for w in found[:3])
+    if len(found) >= 3:
+        priority = "high" if len(found) >= 5 else "medium"
+        return [{"priority": priority, "category": "style",
+                 "message": f"Overused buzzwords detected: {examples}. Replace with specific, measurable achievements.",
+                 "section_hint": "general"}]
+    return [{"priority": "low", "category": "style",
+             "message": f"Buzzwords detected: {examples}. Prefer concrete examples over generic phrases.",
+             "section_hint": "general"}]
+
+
+def _check_word_repetition(cv_text: str) -> list[dict]:
+    words = re.findall(r'\b[a-zA-Z]{4,}\b', cv_text.lower())
+    freq: dict[str, int] = {}
+    for w in words:
+        if w not in _STOP_WORDS:
+            freq[w] = freq.get(w, 0) + 1
+    repeated = sorted([(w, c) for w, c in freq.items() if c >= 5], key=lambda x: -x[1])
+    if len(repeated) >= 2:
+        examples = ", ".join(f'"{w}" ({c}x)' for w, c in repeated[:3])
+        priority = "medium" if repeated[0][1] >= 8 else "low"
+        return [{"priority": priority, "category": "style",
+                 "message": f"Repetitive vocabulary: {examples}. Vary your language to avoid sounding formulaic.",
+                 "section_hint": "general"}]
+    return []
+
+
 def _generate_coach_suggestions(
     has_skills: bool, has_experience: bool, has_education: bool,
-    has_projects: bool, weak_entities: list, cv_text: str,
+    has_projects: bool, has_summary: bool, weak_entities: list, cv_text: str,
 ) -> list[dict]:
-    import re
     suggestions = []
     if not has_experience:
         suggestions.append({"priority": "high", "category": "completeness",
@@ -1989,6 +2068,9 @@ def _generate_coach_suggestions(
     if not re.search(r'@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', cv_text):
         suggestions.append({"priority": "high", "category": "formatting",
             "message": "No email address detected. Ensure contact details appear at the top.", "section_hint": "contact"})
+    if not has_summary:
+        suggestions.append({"priority": "medium", "category": "completeness",
+            "message": "No Summary or Profile section detected. A 2-3 sentence professional summary helps ATS and recruiters quickly assess your fit.", "section_hint": "summary"})
     if not has_projects:
         suggestions.append({"priority": "medium", "category": "completeness",
             "message": "No Projects section detected. Adding one demonstrates practical skills beyond job history.", "section_hint": "projects"})
@@ -2015,7 +2097,10 @@ def _generate_coach_suggestions(
             ),
             'section_hint': 'experience',
         })
-    return suggestions[:8]
+    suggestions.extend(_check_active_voice(cv_text))
+    suggestions.extend(_check_buzzwords(cv_text))
+    suggestions.extend(_check_word_repetition(cv_text))
+    return suggestions[:10]
 
 
 @app.post("/api/cv-coach/assess")
@@ -2048,6 +2133,7 @@ async def assess_cv_coach(request: CVCoachAssessRequest):
         has_experience = len(experience_skills) > 0
         has_education = any("education" in n for n in section_names)
         has_projects = len(project_skills) > 0
+        has_summary = any("summary" in n.lower() or "profile" in n.lower() or "objective" in n.lower() for n in section_names)
         completeness = (25 if has_skills else 0) + (30 if has_experience else 0) + (15 if has_education else 0) + (15 if has_projects else 0) + (15 if len(strong) > 0 else 0)
         quality_score = min(100, completeness + min(10, int(avg_strength * 5)))
         return {
@@ -2067,7 +2153,7 @@ async def assess_cv_coach(request: CVCoachAssessRequest):
                 "weak_evidence_count": len(weak), "average_strength": avg_strength,
                 "strong_skills": [e.text for e in strong[:5]], "weak_skills": [e.text for e in weak[:5]],
             },
-            "coaching_suggestions": _generate_coach_suggestions(has_skills, has_experience, has_education, has_projects, weak, cv_text),
+            "coaching_suggestions": _generate_coach_suggestions(has_skills, has_experience, has_education, has_projects, has_summary, weak, cv_text),
             "sections_detected": section_names,
             "cv_char_count": len(cv_text),
         }

@@ -400,7 +400,7 @@ export type JobHistoryUpdate = Partial<JobHistoryCreate>;
 // Idea #229: CV Coach
 export interface CoachingSuggestion {
   priority: 'high' | 'medium' | 'low';
-  category: 'evidence' | 'completeness' | 'formatting' | 'length' | 'impact';
+  category: 'evidence' | 'completeness' | 'formatting' | 'length' | 'impact' | 'style';
   message: string;
   section_hint: string;
 }
