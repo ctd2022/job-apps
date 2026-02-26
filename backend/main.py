@@ -250,6 +250,13 @@ class CVCoachAssessRequest(BaseModel):
     cv_text: str
 
 
+class GenerateSummaryRequest(BaseModel):
+    cv_text: str
+    job_description: Optional[str] = None
+    backend_type: Optional[str] = None
+    model_name: Optional[str] = None
+
+
 # Idea #233: Candidate Profile models
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -2270,6 +2277,49 @@ async def assess_cv_coach(request: CVCoachAssessRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Assessment failed: {str(e)}")
+
+
+@app.post("/api/cv-coach/generate-summary")
+async def generate_summary_endpoint(
+    request: GenerateSummaryRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Generate a professional summary from CV text (Idea #55)."""
+    user_id = user_id or "default"
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Workflow modules not available")
+    cv_text = request.cv_text.strip()
+    if not cv_text:
+        raise HTTPException(status_code=400, detail="cv_text must not be empty")
+
+    backend_type = request.backend_type or "gemini"
+    backend_config: Dict[str, Any] = {}
+    if backend_type == "ollama":
+        backend_config["model_name"] = request.model_name or "llama3.1:8b"
+    elif backend_type == "llamacpp":
+        backend_config["model_name"] = request.model_name or "gemma-3-27B"
+        backend_config["base_url"] = "http://localhost:8080"
+    elif backend_type == "gemini":
+        backend_config["model_name"] = request.model_name or "gemini-2.0-flash"
+        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+
+    backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
+    optimizer = ATSOptimizer(backend=backend)
+
+    profile = profile_store.get_or_create_profile(user_id)
+    job_history_records = profile_store.list_job_history(user_id)
+    scrub_result = pii_scrubber.scrub(cv_text, profile, job_history_records)
+
+    loop = asyncio.get_event_loop()
+    raw_summary = await loop.run_in_executor(
+        None,
+        optimizer.generate_summary,
+        scrub_result.scrubbed_text,
+        request.job_description,
+    )
+
+    summary = pii_scrubber.restore(raw_summary, scrub_result.replacements)
+    return {"summary": summary}
 
 
 # ============================================================================

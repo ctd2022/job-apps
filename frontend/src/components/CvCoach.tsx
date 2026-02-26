@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { GraduationCap, RefreshCw, Save, CheckCircle, AlertCircle, ChevronRight, History, RotateCcw, Download } from 'lucide-react';
+import { GraduationCap, RefreshCw, Save, CheckCircle, AlertCircle, ChevronRight, History, RotateCcw, Download, Wand2 } from 'lucide-react';
 import type { StoredCV, CVVersion, CVCoachAssessment, CoachingSuggestion } from '../types';
-import { getCVs, getCV, getCVVersions, getCVVersionById, updateCVContent, assessCVCoach, assembleCV } from '../api';
+import { getCVs, getCV, getCVVersions, getCVVersionById, updateCVContent, assessCVCoach, assembleCV, generateSummary } from '../api';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -11,6 +11,32 @@ function formatVersionDate(iso: string): string {
 
 function firstLine(s: string | undefined): string {
   return (s ?? '').split('\n')[0].trim();
+}
+
+const SUMMARY_HEADER_RE = /^#{1,3}\s*(professional\s+summary|summary|profile|personal\s+statement|personal\s+profile|career\s+summary|career\s+profile|executive\s+summary|about\s+me|overview|objective|career\s+objective|professional\s+profile)\s*$/i;
+
+function insertSummaryIntoCv(cvText: string, summary: string): string {
+  const lines = cvText.split('\n');
+  const headerIdx = lines.findIndex(l => SUMMARY_HEADER_RE.test(l.trim()));
+
+  if (headerIdx !== -1) {
+    let nextSectionIdx = lines.length;
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      if (/^#{1,3}\s/.test(lines[i])) { nextSectionIdx = i; break; }
+    }
+    return [...lines.slice(0, headerIdx + 1), '', summary, '', ...lines.slice(nextSectionIdx)].join('\n');
+  }
+
+  const contactEndIdx = lines.findIndex(l => l.trim() === '<!-- CONTACT_END -->');
+  if (contactEndIdx !== -1) {
+    return [
+      ...lines.slice(0, contactEndIdx + 1),
+      '', '## Professional Summary', '', summary, '',
+      ...lines.slice(contactEndIdx + 1),
+    ].join('\n');
+  }
+
+  return `## Professional Summary\n\n${summary}\n\n${cvText}`;
 }
 
 // ── Animated score hook ──────────────────────────────────────────────────────
@@ -159,6 +185,10 @@ export default function CvCoach() {
   const [pullingProfile, setPullingProfile] = useState(false);
   const [changeSummary, setChangeSummary] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [summaryJdExpanded, setSummaryJdExpanded] = useState(false);
+  const [summaryJdText, setSummaryJdText] = useState('');
+  const [summaryFeedback, setSummaryFeedback] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -309,6 +339,26 @@ export default function CvCoach() {
       // Silent — non-critical
     } finally {
       setPullingProfile(false);
+    }
+  };
+
+  // ── Generate Summary ────────────────────────────────────────────────────────
+
+  const handleGenerateSummary = async () => {
+    if (!cvText.trim()) return;
+    setGeneratingSummary(true);
+    setSummaryFeedback(false);
+    try {
+      const { summary } = await generateSummary(cvText, summaryJdText.trim() || undefined);
+      const newText = insertSummaryIntoCv(cvText, summary);
+      handleTextChange(newText);
+      setSummaryFeedback(true);
+      setSummaryJdExpanded(false);
+      setTimeout(() => setSummaryFeedback(false), 2500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Summary generation failed');
+    } finally {
+      setGeneratingSummary(false);
     }
   };
 
@@ -516,31 +566,72 @@ export default function CvCoach() {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center gap-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-        <button
-          onClick={handlePullFromProfile}
-          disabled={pullingProfile}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg disabled:opacity-50 transition-colors"
-          title="Pull contact info and job history from your Profile"
-        >
-          {pullingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          Pull from Profile
-        </button>
-        <input
-          type="text"
-          value={changeSummary}
-          onChange={e => setChangeSummary(e.target.value)}
-          placeholder="Change summary (optional)…"
-          className="flex-1 px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <button
-          onClick={handleSave}
-          disabled={saving || !isDirty || !selectedCvId}
-          className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <Save className="w-4 h-4" />
-          {saving ? 'Saving…' : isDirty ? 'Save' : 'Saved'}
-        </button>
+      <div className="flex flex-col gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-3 flex-wrap">
+
+          {/* Generate Summary */}
+          <button
+            onClick={() => summaryJdExpanded ? handleGenerateSummary() : setSummaryJdExpanded(true)}
+            disabled={generatingSummary || !cvText.trim()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 rounded-lg disabled:opacity-50 transition-colors"
+            title="Generate a professional summary from your CV"
+          >
+            {generatingSummary
+              ? <RefreshCw className="w-4 h-4 animate-spin" />
+              : summaryFeedback
+                ? <CheckCircle className="w-4 h-4" />
+                : <Wand2 className="w-4 h-4" />}
+            {generatingSummary ? 'Generating…' : summaryFeedback ? 'Inserted' : summaryJdExpanded ? 'Generate' : 'Generate Summary'}
+          </button>
+          {summaryJdExpanded && (
+            <button onClick={() => setSummaryJdExpanded(false)} className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+              Cancel
+            </button>
+          )}
+
+          {/* Pull from Profile */}
+          <button
+            onClick={handlePullFromProfile}
+            disabled={pullingProfile}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg disabled:opacity-50 transition-colors"
+            title="Pull contact info and job history from your Profile"
+          >
+            {pullingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Pull from Profile
+          </button>
+
+          <input
+            type="text"
+            value={changeSummary}
+            onChange={e => setChangeSummary(e.target.value)}
+            placeholder="Change summary (optional)…"
+            className="flex-1 px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={handleSave}
+            disabled={saving || !isDirty || !selectedCvId}
+            className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Save className="w-4 h-4" />
+            {saving ? 'Saving…' : isDirty ? 'Save' : 'Saved'}
+          </button>
+        </div>
+
+        {/* Inline JD textarea (shown when expanded) */}
+        {summaryJdExpanded && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-500 dark:text-slate-400">
+              Optional: paste a job description to tailor the summary to that role
+            </label>
+            <textarea
+              value={summaryJdText}
+              onChange={e => setSummaryJdText(e.target.value)}
+              placeholder="Paste job description here, or leave blank for a general summary…"
+              className="w-full h-24 text-xs font-mono p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              spellCheck={false}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

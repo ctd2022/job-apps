@@ -1128,6 +1128,58 @@ Generate the complete CV now:"""
         skills = [skill.strip() for skill in response.split(',') if skill.strip()]
         return skills
 
+    def generate_summary(
+        self,
+        cv_text: str,
+        job_description: str | None = None,
+    ) -> str:
+        """Generate a 3-4 sentence professional summary from CV text.
+
+        If job_description is provided, tailors the summary to that role.
+        Returns plain text only — no heading, no bullet points.
+        """
+        jd_instruction = ""
+        jd_section = ""
+        if job_description and job_description.strip():
+            jd_instruction = (
+                " Where a job description is supplied, open the summary by "
+                "referencing the role title or domain from that description "
+                "and emphasise the 2-3 skills most relevant to it."
+            )
+            jd_section = f"\n\nJOB DESCRIPTION:\n{job_description.strip()}"
+
+        system_message = (
+            "You are an expert CV writer. Write a professional summary for the "
+            "candidate described in the CV below.\n\n"
+            "RULES:\n"
+            "- Write exactly 3-4 sentences.\n"
+            "- Use first person (e.g. 'I bring...', 'With X years...').\n"
+            "- State the candidate's seniority level and core domain in sentence 1.\n"
+            "- Highlight the 2-3 strongest, most evidenced skills in sentence 2.\n"
+            "- Close with a value proposition or career focus in the final sentence.\n"
+            "- Use active, specific language grounded only in the CV content.\n"
+            "- NEVER use: passionate, dynamic, results-driven, dedicated, motivated, "
+            "self-starter, go-getter, team player, synergy, leverage, stakeholder.\n"
+            "- Do NOT start any sentence with 'I am a'.\n"
+            "- Output ONLY the summary text — no heading, no bullet points, "
+            "no preamble, no commentary, no quotation marks."
+            + jd_instruction
+        )
+
+        prompt = (
+            f"CV:\n{cv_text}"
+            f"{jd_section}\n\n"
+            "Write the professional summary now."
+        )
+
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": prompt},
+        ]
+
+        response = self.backend.chat(messages, temperature=0.5, max_tokens=300)
+        return response.strip()
+
     def generate_ats_report(self, cv_text: str, job_description: str) -> tuple:
         """Generate a comprehensive ATS analysis report"""
 

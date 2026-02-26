@@ -432,3 +432,8 @@ export interface CVCoachAssessment {
   sections_detected: string[];
   cv_char_count: number;
 }
+
+// Idea #55: Professional Summary Generator
+export interface SummaryGenerationResponse {
+  summary: string;
+}

@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse } from './types';
 
 const API_BASE = '/api';
 
@@ -609,6 +609,24 @@ export async function assessCVCoach(cvText: string): Promise<CVCoachAssessment> 
     body: JSON.stringify({ cv_text: cvText }),
   });
   return handleResponse<CVCoachAssessment>(response);
+}
+
+export async function generateSummary(
+  cvText: string,
+  jobDescription?: string,
+  backendType?: string,
+  modelName?: string,
+): Promise<SummaryGenerationResponse> {
+  const body: Record<string, unknown> = { cv_text: cvText };
+  if (jobDescription) body.job_description = jobDescription;
+  if (backendType) body.backend_type = backendType;
+  if (modelName) body.model_name = modelName;
+  const response = await fetch(`${API_BASE}/cv-coach/generate-summary`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(body),
+  });
+  return handleResponse<SummaryGenerationResponse>(response);
 }
 
 // ============================================================================
