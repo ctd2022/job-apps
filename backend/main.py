@@ -2163,9 +2163,11 @@ async def delete_job_history(
 async def assemble_cv(user_id: str = Header(None, alias="X-User-ID")):
     """Render structured job history into CV EXPERIENCE section text."""
     user_id = user_id or "default"
+    profile = profile_store.get_or_create_profile(user_id)
     job_history = profile_store.list_job_history(user_id)
+    contact_header = cv_assembler.format_contact_header(profile)
     experience_text = cv_assembler.assemble_experience_section(job_history)
-    return {"experience_text": experience_text}
+    return {"contact_header": contact_header, "experience_text": experience_text}
 
 
 @app.post("/api/profile/sync-from-cv")

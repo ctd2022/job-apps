@@ -210,31 +210,41 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
     }
   }
 
+  function stripContactHeader(text: string): string {
+    return text.replace(/<!-- CONTACT_START -->[\s\S]*?<!-- CONTACT_END -->\n?/, '');
+  }
+
   async function handlePullFromProfile() {
     setPullingProfile(true);
     try {
-      const { experience_text } = await assembleCV();
-      if (!experience_text) return;
+      const { experience_text, contact_header } = await assembleCV();
+
+      let newContent = stripContactHeader(content); // idempotent
 
       const expPattern = /^#{1,3}\s*(work\s+)?experience\s*$/i;
-      const lines = content.split('\n');
+      const lines = newContent.split('\n');
       const expIdx = lines.findIndex(l => expPattern.test(l.trim()));
 
-      let newContent: string;
-      if (expIdx === -1) {
-        newContent = content.trimEnd() + '\n\n## Experience\n\n' + experience_text;
-      } else {
-        // Find the next section header after expIdx
-        let nextSection = lines.length;
-        for (let i = expIdx + 1; i < lines.length; i++) {
-          if (/^#{1,3}\s/.test(lines[i])) {
-            nextSection = i;
-            break;
+      if (experience_text) {
+        if (expIdx === -1) {
+          newContent = newContent.trimEnd() + '\n\n## Experience\n\n' + experience_text;
+        } else {
+          // Find the next section header after expIdx
+          let nextSection = lines.length;
+          for (let i = expIdx + 1; i < lines.length; i++) {
+            if (/^#{1,3}\s/.test(lines[i])) {
+              nextSection = i;
+              break;
+            }
           }
+          const before = lines.slice(0, expIdx + 1);
+          const after = lines.slice(nextSection);
+          newContent = [...before, '', experience_text, '', ...after].join('\n');
         }
-        const before = lines.slice(0, expIdx + 1);
-        const after = lines.slice(nextSection);
-        newContent = [...before, '', experience_text, '', ...after].join('\n');
+      }
+
+      if (contact_header) {
+        newContent = contact_header + '\n\n' + newContent.trimStart();
       }
 
       setContent(newContent);

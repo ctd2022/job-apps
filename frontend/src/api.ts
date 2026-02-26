@@ -673,11 +673,11 @@ export async function reorderJobHistory(orderedIds: number[]): Promise<void> {
   await handleResponse(response);
 }
 
-export async function assembleCV(): Promise<{ experience_text: string }> {
+export async function assembleCV(): Promise<{ experience_text: string; contact_header: string }> {
   const response = await fetch(`${API_BASE}/profile/assemble-cv`, {
     headers: { ...getUserHeaders() },
   });
-  return handleResponse<{ experience_text: string }>(response);
+  return handleResponse<{ experience_text: string; contact_header: string }>(response);
 }
 
 export async function syncFromCV(cvText: string): Promise<{ updated_count: number }> {

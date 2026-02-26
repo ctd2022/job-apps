@@ -44,6 +44,36 @@ def assemble_experience_section(job_history: list[dict[str, Any]]) -> str:
     return "\n".join(lines).rstrip()
 
 
+def format_contact_header(profile: dict) -> str:
+    """Format CandidateProfile personal info as a plain-text CV header block.
+
+    Wrapped in <!-- CONTACT_START --> / <!-- CONTACT_END --> markers so the
+    frontend can detect and replace it idempotently on re-pull.
+    Returns empty string if no personal info is present.
+    """
+    name = (profile.get("full_name") or "").strip()
+    email = (profile.get("email") or "").strip()
+    phone = (profile.get("phone") or "").strip()
+    location = (profile.get("location") or "").strip()
+    linkedin = (profile.get("linkedin") or "").strip()
+    website = (profile.get("website") or "").strip()
+
+    if not any([name, email, phone, location, linkedin, website]):
+        return ""
+
+    lines: list[str] = ["<!-- CONTACT_START -->"]
+    if name:
+        lines.append(name)
+    detail_parts = [p for p in [email, phone, location] if p]
+    if detail_parts:
+        lines.append(" | ".join(detail_parts))
+    link_parts = [p for p in [linkedin, website] if p]
+    if link_parts:
+        lines.append(" | ".join(link_parts))
+    lines.append("<!-- CONTACT_END -->")
+    return "\n".join(lines)
+
+
 def parse_experience_section(cv_text: str) -> list[dict[str, Any]]:
     """Extract job updates from CV text containing <!-- JOB:id --> markers.
 

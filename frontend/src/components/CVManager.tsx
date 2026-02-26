@@ -159,31 +159,42 @@ function CVManager() {
     }
   }
 
+  function stripContactHeader(text: string): string {
+    return text.replace(/<!-- CONTACT_START -->[\s\S]*?<!-- CONTACT_END -->\n?/, '');
+  }
+
   async function handlePullFromProfile() {
     setPullingProfile(true);
     try {
-      const { experience_text } = await assembleCV();
-      if (!experience_text) return;
+      const { experience_text, contact_header } = await assembleCV();
+
+      let newContent = stripContactHeader(editorContent); // idempotent
 
       const expPattern = /^#{1,3}\s*(work\s+)?experience\s*$/i;
-      const lines = editorContent.split('\n');
+      const lines = newContent.split('\n');
       const expIdx = lines.findIndex(l => expPattern.test(l.trim()));
 
-      let newContent: string;
-      if (expIdx === -1) {
-        newContent = editorContent.trimEnd() + '\n\n## Experience\n\n' + experience_text;
-      } else {
-        let nextSection = lines.length;
-        for (let i = expIdx + 1; i < lines.length; i++) {
-          if (/^#{1,3}\s/.test(lines[i])) {
-            nextSection = i;
-            break;
+      if (experience_text) {
+        if (expIdx === -1) {
+          newContent = newContent.trimEnd() + '\n\n## Experience\n\n' + experience_text;
+        } else {
+          let nextSection = lines.length;
+          for (let i = expIdx + 1; i < lines.length; i++) {
+            if (/^#{1,3}\s/.test(lines[i])) {
+              nextSection = i;
+              break;
+            }
           }
+          const before = lines.slice(0, expIdx + 1);
+          const after = lines.slice(nextSection);
+          newContent = [...before, '', experience_text, '', ...after].join('\n');
         }
-        const before = lines.slice(0, expIdx + 1);
-        const after = lines.slice(nextSection);
-        newContent = [...before, '', experience_text, '', ...after].join('\n');
       }
+
+      if (contact_header) {
+        newContent = contact_header + '\n\n' + newContent.trimStart();
+      }
+
       setEditorContent(newContent);
     } catch {
       // Silent — non-critical
