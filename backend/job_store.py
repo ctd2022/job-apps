@@ -170,6 +170,44 @@ def init_db():
             # Column already exists, ignore
             pass
 
+    # Candidate profiles table (Idea #233)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS candidate_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'default',
+            full_name TEXT, email TEXT, phone TEXT,
+            location TEXT, linkedin TEXT, website TEXT, headline TEXT,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+            UNIQUE(user_id)
+        )
+    ''')
+
+    # Job history table (Idea #233) — employer stays local, NEVER sent to LLM
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS job_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'default',
+            employer TEXT NOT NULL,
+            title TEXT NOT NULL,
+            start_date TEXT,
+            end_date TEXT,
+            is_current INTEGER DEFAULT 0,
+            details TEXT,
+            display_order INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+        )
+    ''')
+
+    # Profile tags table (Idea #233)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS profile_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_history_id INTEGER NOT NULL,
+            tag TEXT NOT NULL,
+            FOREIGN KEY (job_history_id) REFERENCES job_history(id) ON DELETE CASCADE
+        )
+    ''')
+
     # Create indexes for migrated columns (must come AFTER migration)
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_jobs_outcome_status ON jobs(outcome_status)
@@ -1115,6 +1153,187 @@ class CVStore:
             result["version_count"] = version_count
 
         return result
+
+
+class ProfileStore:
+    """SQLite-backed store for candidate profile and job history (Idea #233)."""
+
+    def __init__(self) -> None:
+        init_db()
+
+    def get_or_create_profile(self, user_id: str) -> Dict[str, Any]:
+        """Return profile for user, creating a blank one if absent."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM candidate_profiles WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        if row is None:
+            now = datetime.now().isoformat()
+            cursor.execute(
+                "INSERT INTO candidate_profiles (user_id, created_at, updated_at) VALUES (?, ?, ?)",
+                (user_id, now, now),
+            )
+            conn.commit()
+            cursor.execute("SELECT * FROM candidate_profiles WHERE user_id = ?", (user_id,))
+            row = cursor.fetchone()
+        conn.close()
+        return dict(row)
+
+    def update_profile(self, user_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+        """Update personal info fields. Returns updated profile."""
+        allowed = {"full_name", "email", "phone", "location", "linkedin", "website", "headline"}
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if not updates:
+            return self.get_or_create_profile(user_id)
+        updates["updated_at"] = datetime.now().isoformat()
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [user_id]
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"UPDATE candidate_profiles SET {set_clause} WHERE user_id = ?", values)
+        conn.commit()
+        conn.close()
+        return self.get_or_create_profile(user_id)
+
+    def _row_to_job(self, row: sqlite3.Row, tags: List[str]) -> Dict[str, Any]:
+        d = dict(row)
+        d["is_current"] = bool(d.get("is_current"))
+        d["tags"] = tags
+        return d
+
+    def list_job_history(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return all job history records for user, ordered by display_order."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM job_history WHERE user_id = ? ORDER BY display_order ASC, id ASC",
+            (user_id,),
+        )
+        rows = cursor.fetchall()
+        result = []
+        for row in rows:
+            cursor.execute("SELECT tag FROM profile_tags WHERE job_history_id = ?", (row["id"],))
+            tags = [r["tag"] for r in cursor.fetchall()]
+            result.append(self._row_to_job(row, tags))
+        conn.close()
+        return result
+
+    def create_job(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert a new job history record. Returns the created record."""
+        now = datetime.now().isoformat()
+        tags = data.pop("tags", [])
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO job_history
+               (user_id, employer, title, start_date, end_date, is_current, details, display_order, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                user_id,
+                data.get("employer", ""),
+                data.get("title", ""),
+                data.get("start_date"),
+                data.get("end_date"),
+                1 if data.get("is_current") else 0,
+                data.get("details"),
+                data.get("display_order", 0),
+                now,
+                now,
+            ),
+        )
+        job_id = cursor.lastrowid
+        for tag in tags:
+            if tag.strip():
+                cursor.execute(
+                    "INSERT INTO profile_tags (job_history_id, tag) VALUES (?, ?)",
+                    (job_id, tag.strip()),
+                )
+        conn.commit()
+        cursor.execute("SELECT * FROM job_history WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        cursor.execute("SELECT tag FROM profile_tags WHERE job_history_id = ?", (job_id,))
+        stored_tags = [r["tag"] for r in cursor.fetchall()]
+        conn.close()
+        return self._row_to_job(row, stored_tags)
+
+    def update_job(self, job_id: int, user_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update a job history record. Returns updated record or None if not found."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM job_history WHERE id = ? AND user_id = ?", (job_id, user_id))
+        if not cursor.fetchone():
+            conn.close()
+            return None
+        allowed = {"employer", "title", "start_date", "end_date", "is_current", "details", "display_order"}
+        updates: Dict[str, Any] = {k: v for k, v in data.items() if k in allowed}
+        if "is_current" in updates:
+            updates["is_current"] = 1 if updates["is_current"] else 0
+        tags = data.get("tags")
+        updates["updated_at"] = datetime.now().isoformat()
+        if updates:
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            values = list(updates.values()) + [job_id, user_id]
+            cursor.execute(
+                f"UPDATE job_history SET {set_clause} WHERE id = ? AND user_id = ?", values
+            )
+        if tags is not None:
+            cursor.execute("DELETE FROM profile_tags WHERE job_history_id = ?", (job_id,))
+            for tag in tags:
+                if tag.strip():
+                    cursor.execute(
+                        "INSERT INTO profile_tags (job_history_id, tag) VALUES (?, ?)",
+                        (job_id, tag.strip()),
+                    )
+        conn.commit()
+        cursor.execute("SELECT * FROM job_history WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        cursor.execute("SELECT tag FROM profile_tags WHERE job_history_id = ?", (job_id,))
+        stored_tags = [r["tag"] for r in cursor.fetchall()]
+        conn.close()
+        return self._row_to_job(row, stored_tags)
+
+    def delete_job(self, job_id: int, user_id: str) -> bool:
+        """Delete a job history record. Returns True if deleted, False if not found."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM job_history WHERE id = ? AND user_id = ?", (job_id, user_id)
+        )
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def reorder_jobs(self, user_id: str, ordered_ids: List[int]) -> None:
+        """Set display_order for each job in the given order."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        for idx, job_id in enumerate(ordered_ids):
+            cursor.execute(
+                "UPDATE job_history SET display_order = ? WHERE id = ? AND user_id = ?",
+                (idx, job_id, user_id),
+            )
+        conn.commit()
+        conn.close()
+
+    def update_job_details(self, job_id: int, details: str, tags: List[str]) -> None:
+        """Update only details and tags (used for save-back from CV text)."""
+        now = datetime.now().isoformat()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE job_history SET details = ?, updated_at = ? WHERE id = ?",
+            (details, now, job_id),
+        )
+        cursor.execute("DELETE FROM profile_tags WHERE job_history_id = ?", (job_id,))
+        for tag in tags:
+            if tag.strip():
+                cursor.execute(
+                    "INSERT INTO profile_tags (job_history_id, tag) VALUES (?, ?)",
+                    (job_id, tag.strip()),
+                )
+        conn.commit()
+        conn.close()
 
 
 class MatchHistoryStore:
