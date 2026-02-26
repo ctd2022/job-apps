@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { GraduationCap, RefreshCw, Save, CheckCircle, AlertCircle, ChevronRight, History, RotateCcw } from 'lucide-react';
+import { GraduationCap, RefreshCw, Save, CheckCircle, AlertCircle, ChevronRight, History, RotateCcw, Download } from 'lucide-react';
 import type { StoredCV, CVVersion, CVCoachAssessment, CoachingSuggestion } from '../types';
-import { getCVs, getCV, getCVVersions, getCVVersionById, updateCVContent, assessCVCoach } from '../api';
+import { getCVs, getCV, getCVVersions, getCVVersionById, updateCVContent, assessCVCoach, assembleCV } from '../api';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -156,6 +156,7 @@ export default function CvCoach() {
   const [assessment, setAssessment] = useState<CVCoachAssessment | null>(null);
   const [assessing, setAssessing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pullingProfile, setPullingProfile] = useState(false);
   const [changeSummary, setChangeSummary] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -266,6 +267,49 @@ export default function CvCoach() {
     setOriginalText(text);
     setChangeSummary(`Restored from v${ver.version_number}`);
     runAssess(text);
+  };
+
+  // ── Pull from Profile ───────────────────────────────────────────────────────
+
+  function stripContactHeader(text: string): string {
+    return text.replace(/<!-- CONTACT_START -->[\s\S]*?<!-- CONTACT_END -->\n?/, '');
+  }
+
+  const handlePullFromProfile = async () => {
+    setPullingProfile(true);
+    try {
+      const { experience_text, contact_header } = await assembleCV();
+
+      let newContent = stripContactHeader(cvText); // idempotent
+
+      const expPattern = /^#{1,3}\s*(work\s+)?experience\s*$/i;
+      const lines = newContent.split('\n');
+      const expIdx = lines.findIndex(l => expPattern.test(l.trim()));
+
+      if (experience_text) {
+        if (expIdx === -1) {
+          newContent = newContent.trimEnd() + '\n\n## Experience\n\n' + experience_text;
+        } else {
+          let nextSection = lines.length;
+          for (let i = expIdx + 1; i < lines.length; i++) {
+            if (/^#{1,3}\s/.test(lines[i])) { nextSection = i; break; }
+          }
+          const before = lines.slice(0, expIdx + 1);
+          const after = lines.slice(nextSection);
+          newContent = [...before, '', experience_text, '', ...after].join('\n');
+        }
+      }
+
+      if (contact_header) {
+        newContent = contact_header + '\n\n' + newContent.trimStart();
+      }
+
+      handleTextChange(newContent); // triggers debounced re-assess
+    } catch {
+      // Silent — non-critical
+    } finally {
+      setPullingProfile(false);
+    }
   };
 
   // ── Save / Restore ─────────────────────────────────────────────────────────
@@ -473,6 +517,15 @@ export default function CvCoach() {
 
       {/* Footer */}
       <div className="flex items-center gap-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+        <button
+          onClick={handlePullFromProfile}
+          disabled={pullingProfile}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg disabled:opacity-50 transition-colors"
+          title="Pull contact info and job history from your Profile"
+        >
+          {pullingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          Pull from Profile
+        </button>
         <input
           type="text"
           value={changeSummary}
