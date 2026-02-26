@@ -261,6 +261,15 @@ export interface GapAnalysis {
   actionable_suggestions?: ActionableSuggestion[];
 }
 
+// Idea #100: Keyword placement suggestions — surface real experience that is buried/underselling
+export interface PlacementSuggestion {
+  type: 'skills_only' | 'projects_not_experience' | 'weak_evidence';
+  priority: 'high' | 'medium' | 'low';
+  skill: string;
+  message: string;
+  section_hint: string;
+}
+
 export interface ATSAnalysisData {
   score: number;
   matched: number;
@@ -277,6 +286,7 @@ export interface ATSAnalysisData {
   hybrid_scoring: HybridScoring;
   semantic_analysis: SemanticAnalysis;
   gap_analysis?: GapAnalysis;
+  keyword_placement?: PlacementSuggestion[];
 }
 
 export interface ATSAnalysisResponse {

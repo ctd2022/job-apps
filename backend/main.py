@@ -1074,6 +1074,69 @@ async def get_job_description(job_id: str):
     }
 
 
+def _generate_placement_suggestions(ats: dict) -> list[dict]:
+    """Idea #100: Surface where existing CV content maps to JD requirements but is buried or underselling.
+
+    Three suggestion types:
+    - skills_only: skill listed in Skills section but not demonstrated in Experience
+    - projects_not_experience: skill shown in Projects but absent from Experience
+    - weak_evidence: skill exists but lacks quantified context
+    """
+    section = ats.get("section_analysis", {})
+    gap = ats.get("gap_analysis", {})
+    entities = ats.get("parsed_entities", {})
+
+    experience_set = {s.lower() for s in section.get("experience_matches", [])}
+    skills_set = {s.lower() for s in section.get("skills_matches", [])}
+    projects_set = {s.lower() for s in section.get("projects_matches", [])}
+    jd_required = {s.lower() for s in entities.get("jd_required_skills", [])}
+    weak_evidence = {s.lower() for s in gap.get("evidence_gaps", {}).get("weak_evidence_skills", [])}
+
+    suggestions: list[dict] = []
+
+    # Type 1: In Skills section only — not backed by any experience or project
+    skills_only = skills_set - experience_set - projects_set
+    for skill in sorted(skills_only & jd_required)[:4]:
+        suggestions.append({
+            "type": "skills_only", "priority": "high", "skill": skill,
+            "message": f'"{skill}" is listed in your Skills section but not demonstrated in any Experience bullet. '
+                       f"Add an achievement that shows {skill} in practice to boost evidence scoring.",
+            "section_hint": "experience",
+        })
+    for skill in sorted(skills_only - jd_required)[:3]:
+        suggestions.append({
+            "type": "skills_only", "priority": "medium", "skill": skill,
+            "message": f'"{skill}" appears in Skills only. Adding a supporting experience bullet strengthens ATS evidence.',
+            "section_hint": "experience",
+        })
+
+    # Type 2: Demonstrated in Projects but not in Experience — promote it
+    projects_not_exp = projects_set - experience_set
+    for skill in sorted(projects_not_exp & jd_required)[:3]:
+        suggestions.append({
+            "type": "projects_not_experience", "priority": "medium", "skill": skill,
+            "message": f'"{skill}" appears in your Projects but not in Experience. '
+                       f"If you used {skill} in a work role, add it to an Experience bullet — experience carries more ATS weight.",
+            "section_hint": "experience",
+        })
+
+    # Type 3: Weak evidence — skill is present but lacks quantified context; deduplicate with above
+    already_flagged = {s["skill"] for s in suggestions}
+    for skill in sorted(weak_evidence & jd_required)[:4]:
+        if skill not in already_flagged:
+            suggestions.append({
+                "type": "weak_evidence", "priority": "medium", "skill": skill,
+                "message": f'"{skill}" is mentioned but lacks context. Strengthen it with a metric or outcome '
+                           f'(e.g. "Built X using {skill}, reducing Y by 30%").',
+                "section_hint": "experience",
+            })
+
+    # Sort: high before medium, then alphabetically by skill
+    priority_order = {"high": 0, "medium": 1, "low": 2}
+    suggestions.sort(key=lambda s: (priority_order.get(s["priority"], 9), s["skill"]))
+    return suggestions[:10]
+
+
 @app.get("/api/jobs/{job_id}/ats-analysis")
 async def get_ats_analysis(job_id: str):
     """
@@ -1085,6 +1148,7 @@ async def get_ats_analysis(job_id: str):
     - Section-level analysis
     - Semantic matching details
     - Parsed entities from CV and JD
+    - Keyword placement suggestions (Idea #100)
     """
     job = job_store.get_job(job_id)
 
@@ -1099,10 +1163,12 @@ async def get_ats_analysis(job_id: str):
 
     if ats_details:
         try:
+            analysis = json.loads(ats_details)
+            analysis["keyword_placement"] = _generate_placement_suggestions(analysis)
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),
-                "analysis": json.loads(ats_details),
+                "analysis": analysis,
                 "source": "database"
             }
         except json.JSONDecodeError:
@@ -1205,6 +1271,7 @@ async def rematch_ats(
         missing_count=len(ats_score_dict.get('missing_keywords', [])),
     )
 
+    ats_score_dict["keyword_placement"] = _generate_placement_suggestions(ats_score_dict)
     return {
         "job_id": job_id,
         "old_score": old_score,

@@ -25,6 +25,7 @@ import MatchExplanationCard from './MatchExplanationCard';
 import MatchHistoryTable from './MatchHistoryTable';
 import MissingKeywordsAlert from './MissingKeywordsAlert';
 import CVCompletenessMeter from './CVCompletenessMeter';
+import KeywordPlacementSuggestions from './KeywordPlacementSuggestions';
 import ATSExplainability from './ATSExplainability';
 import CollapsibleSection from './CollapsibleSection';
 import ExtractedSkillsList from './ExtractedSkillsList';
@@ -381,6 +382,7 @@ function JobDetail() {
                     />
                   </CollapsibleSection>
                 )}
+                <KeywordPlacementSuggestions analysis={atsAnalysis} />
                 <MissingKeywordsAlert analysis={atsAnalysis} />
                 <CVCompletenessMeter analysis={atsAnalysis} />
                 <CollapsibleSection title="AI Skill Suggester" icon={Sparkles}>
