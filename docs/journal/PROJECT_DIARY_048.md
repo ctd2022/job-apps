@@ -12,9 +12,9 @@
 - **Branch**: `main`
 - **Track**: 3.0 COMPLETE — CV Coach
 - **Last session**: Added "Pull from Profile" button to CV Coach; fixed space-in-LinkedIn-URL bug (two-layer: output normalisation + save-time normalisation); cleaned stored value in DB directly.
-- **Next steps**: Consider ideas backlog for next priority.
+- **Next steps**: Start **Idea #45 — Quantified Impact Checker** (medium complexity, fits into CV Coach as a new coaching suggestion category). #100 Auto-Suggest Keywords is higher priority but high complexity — consider after #45.
 - **Blocked/broken**: Nothing.
-- **Ideas backlog**: Nothing notable.
+- **Ideas backlog**: #100 (Pri 5, High) — auto-suggest keywords from ATS; #45 (Pri 4, Medium) — quantified impact checker; #55 (Pri 4, Medium) — summary generator.
 
 ---
 
