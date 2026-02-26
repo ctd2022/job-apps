@@ -1137,6 +1137,49 @@ def _generate_placement_suggestions(ats: dict) -> list[dict]:
     return suggestions[:10]
 
 
+def _enrich_evidence_gaps(ats: dict) -> list[dict]:
+    """Idea #78: Add section badges and specific advice to each weak-evidence skill card.
+
+    Reads already-stored section_analysis data to determine where each weak-evidence
+    skill appears and what the user should do about it.
+    """
+    section = ats.get("section_analysis", {})
+    gap = ats.get("gap_analysis", {})
+
+    experience_set = {s.lower() for s in section.get("experience_matches", [])}
+    skills_set = {s.lower() for s in section.get("skills_matches", [])}
+    projects_set = {s.lower() for s in section.get("projects_matches", [])}
+    weak_skills = gap.get("evidence_gaps", {}).get("weak_evidence_skills", [])
+
+    result: list[dict] = []
+    for skill in weak_skills:
+        skill_lower = skill.lower()
+        in_experience = skill_lower in experience_set
+        in_skills = skill_lower in skills_set
+        in_projects = skill_lower in projects_set
+
+        found_in: list[str] = []
+        if in_experience:
+            found_in.append("experience")
+        if in_skills:
+            found_in.append("skills")
+        if in_projects:
+            found_in.append("projects")
+
+        if in_skills and not in_experience and not in_projects:
+            advice = "Listed in Skills only — add an Experience bullet showing how you applied it"
+        elif in_projects and not in_experience:
+            advice = "Demonstrated in Projects — promote to Experience for higher ATS weight"
+        elif in_experience:
+            advice = "In Experience but lacks metrics — add quantified results"
+        else:
+            advice = "Add this skill with concrete examples to your Experience section"
+
+        result.append({"skill": skill, "found_in": found_in, "advice": advice})
+
+    return result
+
+
 @app.get("/api/jobs/{job_id}/ats-analysis")
 async def get_ats_analysis(job_id: str):
     """
@@ -1165,6 +1208,7 @@ async def get_ats_analysis(job_id: str):
         try:
             analysis = json.loads(ats_details)
             analysis["keyword_placement"] = _generate_placement_suggestions(analysis)
+            analysis["evidence_gap_details"] = _enrich_evidence_gaps(analysis)
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),

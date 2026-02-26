@@ -351,6 +351,7 @@ function JobDetail() {
               <GapAnalysis
                 gapAnalysis={atsAnalysis.gap_analysis}
                 semanticAvailable={atsAnalysis.semantic_analysis?.available ?? false}
+                evidenceGapDetails={atsAnalysis.evidence_gap_details}
               />
               <GapFillWizard
                 jobId={job.id}

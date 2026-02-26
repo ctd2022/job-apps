@@ -261,6 +261,13 @@ export interface GapAnalysis {
   actionable_suggestions?: ActionableSuggestion[];
 }
 
+// Idea #78: Evidence gap enrichment — section badges + specific advice per weak-evidence skill
+export interface EvidenceGapDetail {
+  skill: string;
+  found_in: string[];  // e.g. ["skills"], ["experience", "skills"]
+  advice: string;
+}
+
 // Idea #100: Keyword placement suggestions — surface real experience that is buried/underselling
 export interface PlacementSuggestion {
   type: 'skills_only' | 'projects_not_experience' | 'weak_evidence';
@@ -287,6 +294,7 @@ export interface ATSAnalysisData {
   semantic_analysis: SemanticAnalysis;
   gap_analysis?: GapAnalysis;
   keyword_placement?: PlacementSuggestion[];
+  evidence_gap_details?: EvidenceGapDetail[];
 }
 
 export interface ATSAnalysisResponse {

@@ -1,10 +1,11 @@
 import { AlertTriangle, ArrowRight, Lightbulb, Target, UserCheck, Zap } from 'lucide-react';
-import type { ActionableSuggestion, GapAnalysis as GapAnalysisData } from '../types';
+import type { ActionableSuggestion, EvidenceGapDetail, GapAnalysis as GapAnalysisData } from '../types';
 import CollapsibleSection from './CollapsibleSection';
 
 interface GapAnalysisProps {
   gapAnalysis: GapAnalysisData;
   semanticAvailable?: boolean;
+  evidenceGapDetails?: EvidenceGapDetail[];
 }
 
 // Priority badge styling
@@ -38,7 +39,16 @@ function getPriorityLabel(priority: ActionableSuggestion['priority']) {
   }
 }
 
-function GapAnalysis({ gapAnalysis, semanticAvailable = true }: GapAnalysisProps) {
+function getSectionBadgeStyle(section: string): string {
+  switch (section) {
+    case 'experience': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+    case 'skills':     return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
+    case 'projects':   return 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300';
+    default:           return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+  }
+}
+
+function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails }: GapAnalysisProps) {
   const { critical_gaps, evidence_gaps, semantic_gaps, experience_gaps, actionable_suggestions } = gapAnalysis;
 
   // Merged, deduplicated list of missing critical + required skills
@@ -96,16 +106,46 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true }: GapAnalysisProps
                 <div className="flex-shrink-0">
                   <UserCheck className="h-5 w-5 text-yellow-500" />
                 </div>
-                <div className="ml-3">
+                <div className="ml-3 w-full">
                   <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Evidence Gaps</h3>
-                  <div className="mt-2 text-xs text-yellow-700 dark:text-yellow-400 space-y-1">
-                    <p>The following skills are mentioned in your CV but may lack strong evidence (e.g., metrics, specific examples):</p>
-                    <ul className="list-disc list-inside">
-                      {evidence_gaps.weak_evidence_skills.map(skill => (
-                        <li key={skill}>{skill}</li>
+                  {evidenceGapDetails && evidenceGapDetails.length > 0 ? (
+                    <div className="mt-2 space-y-2">
+                      {evidenceGapDetails.map(detail => (
+                        <div
+                          key={detail.skill}
+                          className="rounded px-2 py-1.5 bg-white dark:bg-gray-800 border border-yellow-200 dark:border-yellow-800 text-xs"
+                        >
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-gray-800 dark:text-gray-200">{detail.skill}</span>
+                            {detail.found_in.length === 0 ? (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                not found
+                              </span>
+                            ) : (
+                              detail.found_in.map(section => (
+                                <span
+                                  key={section}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getSectionBadgeStyle(section)}`}
+                                >
+                                  {section}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                          <p className="mt-1 text-yellow-700 dark:text-yellow-400">{detail.advice}</p>
+                        </div>
                       ))}
-                    </ul>
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs text-yellow-700 dark:text-yellow-400 space-y-1">
+                      <p>The following skills are mentioned in your CV but may lack strong evidence (e.g., metrics, specific examples):</p>
+                      <ul className="list-disc list-inside">
+                        {evidence_gaps.weak_evidence_skills.map(skill => (
+                          <li key={skill}>{skill}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
