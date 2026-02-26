@@ -55,8 +55,8 @@ def format_contact_header(profile: dict) -> str:
     email = (profile.get("email") or "").strip()
     phone = (profile.get("phone") or "").strip()
     location = (profile.get("location") or "").strip()
-    linkedin = (profile.get("linkedin") or "").strip()
-    website = (profile.get("website") or "").strip()
+    linkedin = re.sub(r"\s+", "", profile.get("linkedin") or "")
+    website = re.sub(r"\s+", "", profile.get("website") or "")
 
     if not any([name, email, phone, location, linkedin, website]):
         return ""

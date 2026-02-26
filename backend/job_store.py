@@ -1182,7 +1182,11 @@ class ProfileStore:
     def update_profile(self, user_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         """Update personal info fields. Returns updated profile."""
         allowed = {"full_name", "email", "phone", "location", "linkedin", "website", "headline"}
-        updates = {k: v for k, v in fields.items() if k in allowed}
+        url_fields = {"linkedin", "website"}
+        updates = {
+            k: (v.replace(" ", "") if k in url_fields and isinstance(v, str) else v)
+            for k, v in fields.items() if k in allowed
+        }
         if not updates:
             return self.get_or_create_profile(user_id)
         updates["updated_at"] = datetime.now().isoformat()
