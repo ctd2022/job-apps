@@ -2210,7 +2210,7 @@ def _generate_coach_suggestions(
             'priority': priority,
             'category': 'impact',
             'message': (
-                f"{count} bullet{'s' if count != 1 else ''} lack measurable impact. "
+                f"{count} achievement line{'s' if count != 1 else ''} lack measurable impact. "
                 f"e.g. '{example}' — add numbers, percentages or outcomes."
             ),
             'section_hint': 'experience',
