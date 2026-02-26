@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate } from './types';
 
 const API_BASE = '/api';
 
@@ -609,6 +609,84 @@ export async function assessCVCoach(cvText: string): Promise<CVCoachAssessment> 
     body: JSON.stringify({ cv_text: cvText }),
   });
   return handleResponse<CVCoachAssessment>(response);
+}
+
+// ============================================================================
+// Candidate Profile API (Idea #233)
+// ============================================================================
+
+export async function getProfile(): Promise<CandidateProfile> {
+  const response = await fetch(`${API_BASE}/profile`, {
+    headers: { ...getUserHeaders() },
+  });
+  return handleResponse<CandidateProfile>(response);
+}
+
+export async function updateProfile(data: ProfileUpdate): Promise<CandidateProfile> {
+  const response = await fetch(`${API_BASE}/profile`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<CandidateProfile>(response);
+}
+
+export async function listJobHistory(): Promise<JobHistoryRecord[]> {
+  const response = await fetch(`${API_BASE}/profile/job-history`, {
+    headers: { ...getUserHeaders() },
+  });
+  return handleResponse<JobHistoryRecord[]>(response);
+}
+
+export async function createJobHistoryRecord(data: JobHistoryCreate): Promise<JobHistoryRecord> {
+  const response = await fetch(`${API_BASE}/profile/job-history`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<JobHistoryRecord>(response);
+}
+
+export async function updateJobHistoryRecord(id: number, data: JobHistoryUpdate): Promise<JobHistoryRecord> {
+  const response = await fetch(`${API_BASE}/profile/job-history/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<JobHistoryRecord>(response);
+}
+
+export async function deleteJobHistoryRecord(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/profile/job-history/${id}`, {
+    method: 'DELETE',
+    headers: { ...getUserHeaders() },
+  });
+  await handleResponse(response);
+}
+
+export async function reorderJobHistory(orderedIds: number[]): Promise<void> {
+  const response = await fetch(`${API_BASE}/profile/job-history/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ ordered_ids: orderedIds }),
+  });
+  await handleResponse(response);
+}
+
+export async function assembleCV(): Promise<{ experience_text: string }> {
+  const response = await fetch(`${API_BASE}/profile/assemble-cv`, {
+    headers: { ...getUserHeaders() },
+  });
+  return handleResponse<{ experience_text: string }>(response);
+}
+
+export async function syncFromCV(cvText: string): Promise<{ updated_count: number }> {
+  const response = await fetch(`${API_BASE}/profile/sync-from-cv`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ cv_text: cvText }),
+  });
+  return handleResponse<{ updated_count: number }>(response);
 }
 
 export { ApiError };

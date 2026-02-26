@@ -363,6 +363,40 @@ export interface MatchHistoryResponse {
   history: MatchHistoryEntry[];
 }
 
+// Idea #233: Candidate Profile + PII Privacy Layer
+export interface CandidateProfile {
+  id: number;
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  linkedin: string | null;
+  website: string | null;
+  headline: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JobHistoryRecord {
+  id: number;
+  user_id: string;
+  employer: string;
+  title: string;
+  start_date: string | null;
+  end_date: string | null;
+  is_current: boolean;
+  details: string | null;
+  display_order: number;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProfileUpdate = Partial<Omit<CandidateProfile, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
+export type JobHistoryCreate = Omit<JobHistoryRecord, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
+export type JobHistoryUpdate = Partial<JobHistoryCreate>;
+
 // Idea #229: CV Coach
 export interface CoachingSuggestion {
   priority: 'high' | 'medium' | 'low';
