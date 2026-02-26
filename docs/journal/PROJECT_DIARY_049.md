@@ -65,6 +65,13 @@ No component changes required — suggestion cards render `category` as plain te
 
 - TypeScript check (`npx tsc --noEmit`): clean, exit 0.
 - Idea #45 marked Done in `ideas.db`.
+- Live API tested against running backend (`workflow_available: true`).
+
+**Test 1 — vague bullets (no numbers):**
+5-bullet CV with no metrics → `impact` suggestion fires, priority `high`, example bullet shown correctly.
+
+**Test 2 — quantified bullets:**
+Same CV with numbers added to every bullet → `impact` suggestion absent, all other suggestions unchanged.
 
 ---
 
@@ -73,3 +80,4 @@ No component changes required — suggestion cards render `category` as plain te
 | Hash | Message |
 |------|---------|
 | `4925464` | `feat: add Quantified Impact Checker to CV Coach (Idea #45)` |
+| `5f2e65c` | `docs: add diary 049 — Quantified Impact Checker (Idea #45)` |
