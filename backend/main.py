@@ -1948,6 +1948,29 @@ async def update_cv_content(
 # CV Coach Endpoint
 # ============================================================================
 
+def _extract_experience_bullets(cv_text: str) -> list[str]:
+    import re
+    lines = cv_text.splitlines()
+    bullets = []
+    in_experience = False
+    section_header_re = re.compile(r'^[A-Z][A-Z\s]{3,}$')
+    experience_re = re.compile(r'EXPERIENCE|Work Experience|Employment', re.IGNORECASE)
+    date_re = re.compile(r'\b(19|20)\d{2}\b.*\b(19|20)\d{2}\b|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec', re.IGNORECASE)
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if experience_re.search(stripped):
+            in_experience = True
+            continue
+        if in_experience and section_header_re.match(stripped) and not experience_re.search(stripped):
+            break
+        if in_experience:
+            if stripped[0] in '-•*–' or (len(stripped.split()) >= 5 and not date_re.search(stripped)):
+                bullets.append(stripped)
+    return bullets
+
+
 def _generate_coach_suggestions(
     has_skills: bool, has_experience: bool, has_education: bool,
     has_projects: bool, weak_entities: list, cv_text: str,
@@ -1978,6 +2001,20 @@ def _generate_coach_suggestions(
     elif len(cv_text) > 8000:
         suggestions.append({"priority": "low", "category": "length",
             "message": "CV is quite long. Consider condensing to 2 pages.", "section_hint": "general"})
+    vague_bullets = [b for b in _extract_experience_bullets(cv_text) if not re.search(r'\d', b)]
+    if len(vague_bullets) >= 2:
+        example = vague_bullets[0][:60]
+        count = len(vague_bullets)
+        priority = 'high' if count >= 4 else 'medium'
+        suggestions.append({
+            'priority': priority,
+            'category': 'impact',
+            'message': (
+                f"{count} bullet{'s' if count != 1 else ''} lack measurable impact. "
+                f"e.g. '{example}' — add numbers, percentages or outcomes."
+            ),
+            'section_hint': 'experience',
+        })
     return suggestions[:8]
 
 
