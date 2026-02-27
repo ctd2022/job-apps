@@ -471,3 +471,29 @@ export interface CVCoachAssessment {
 export interface SummaryGenerationResponse {
   summary: string;
 }
+
+// ── Position Profiling (Idea #242) ──────────────────────────────────────────
+
+export interface SkillFrequency {
+  skill: string;
+  frequency: number;
+  frequency_pct: number;
+  matched_count: number;
+  match_rate: number;
+}
+
+export interface CorpusJob {
+  job_id: string;
+  company_name: string | null;
+  job_title: string | null;
+  ats_score: number | null;
+}
+
+export interface PositionProfileData {
+  job_count: number;
+  skill_frequency: SkillFrequency[];
+  consistent_gaps: SkillFrequency[];
+  strengths: SkillFrequency[];
+  role_distribution: { title: string; count: number }[];
+  corpus_jobs: CorpusJob[];
+}

@@ -357,6 +357,13 @@ export async function toggleProfileInclude(jobId: string, include: boolean): Pro
   await handleResponse<any>(response);
 }
 
+export async function getPositionProfile(): Promise<import('./types').PositionProfileData> {
+  const response = await fetch(`${API_BASE}/position-profile`, {
+    headers: getUserHeaders(),
+  });
+  return handleResponse<import('./types').PositionProfileData>(response);
+}
+
 // Metrics
 export async function getMetrics(): Promise<Metrics> {
   const response = await fetch(`${API_BASE}/metrics`, {
