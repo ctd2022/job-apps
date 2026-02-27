@@ -162,6 +162,12 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Migration: Add description column to job_history table
+    try:
+        cursor.execute("ALTER TABLE job_history ADD COLUMN description TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     # Migration: Add user_id columns (for existing databases)
     for table in ["jobs", "cvs"]:
         try:
@@ -192,6 +198,7 @@ def init_db():
             start_date TEXT,
             end_date TEXT,
             is_current INTEGER DEFAULT 0,
+            description TEXT,
             details TEXT,
             display_order INTEGER DEFAULT 0,
             created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -205,6 +212,37 @@ def init_db():
             job_history_id INTEGER NOT NULL,
             tag TEXT NOT NULL,
             FOREIGN KEY (job_history_id) REFERENCES job_history(id) ON DELETE CASCADE
+        )
+    ''')
+
+    # Certifications table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS certifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'default',
+            name TEXT NOT NULL,
+            issuing_org TEXT NOT NULL,
+            date_obtained TEXT,
+            no_expiry INTEGER DEFAULT 0,
+            expiry_date TEXT,
+            credential_id TEXT,
+            credential_url TEXT,
+            display_order INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    ''')
+
+    # Skills table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS skills (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'default',
+            name TEXT NOT NULL,
+            category TEXT,
+            display_order INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
         )
     ''')
 
@@ -1230,8 +1268,8 @@ class ProfileStore:
         cursor = conn.cursor()
         cursor.execute(
             """INSERT INTO job_history
-               (user_id, employer, title, start_date, end_date, is_current, details, display_order, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (user_id, employer, title, start_date, end_date, is_current, description, details, display_order, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 user_id,
                 data.get("employer", ""),
@@ -1239,6 +1277,7 @@ class ProfileStore:
                 data.get("start_date"),
                 data.get("end_date"),
                 1 if data.get("is_current") else 0,
+                data.get("description"),
                 data.get("details"),
                 data.get("display_order", 0),
                 now,
@@ -1268,7 +1307,7 @@ class ProfileStore:
         if not cursor.fetchone():
             conn.close()
             return None
-        allowed = {"employer", "title", "start_date", "end_date", "is_current", "details", "display_order"}
+        allowed = {"employer", "title", "start_date", "end_date", "is_current", "description", "details", "display_order"}
         updates: Dict[str, Any] = {k: v for k, v in data.items() if k in allowed}
         if "is_current" in updates:
             updates["is_current"] = 1 if updates["is_current"] else 0
@@ -1338,6 +1377,179 @@ class ProfileStore:
                 )
         conn.commit()
         conn.close()
+
+    # ── Certifications ──────────────────────────────────────────────────────
+
+    def _row_to_cert(self, row: sqlite3.Row) -> Dict[str, Any]:
+        d = dict(row)
+        d["no_expiry"] = bool(d.get("no_expiry"))
+        return d
+
+    def list_certifications(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return all certifications for user, ordered by display_order."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM certifications WHERE user_id = ? ORDER BY display_order ASC, id ASC",
+            (user_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [self._row_to_cert(r) for r in rows]
+
+    def create_certification(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert a new certification. Returns the created record."""
+        now = datetime.now().isoformat()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO certifications
+               (user_id, name, issuing_org, date_obtained, no_expiry, expiry_date,
+                credential_id, credential_url, display_order, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                user_id,
+                data.get("name", ""),
+                data.get("issuing_org", ""),
+                data.get("date_obtained"),
+                1 if data.get("no_expiry") else 0,
+                data.get("expiry_date"),
+                data.get("credential_id"),
+                data.get("credential_url"),
+                data.get("display_order", 0),
+                now,
+                now,
+            ),
+        )
+        cert_id = cursor.lastrowid
+        conn.commit()
+        cursor.execute("SELECT * FROM certifications WHERE id = ?", (cert_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return self._row_to_cert(row)
+
+    def update_certification(self, cert_id: int, user_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update a certification record. Returns updated record or None."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM certifications WHERE id = ? AND user_id = ?", (cert_id, user_id))
+        if not cursor.fetchone():
+            conn.close()
+            return None
+        allowed = {"name", "issuing_org", "date_obtained", "no_expiry", "expiry_date",
+                   "credential_id", "credential_url", "display_order"}
+        updates: Dict[str, Any] = {k: v for k, v in data.items() if k in allowed}
+        if "no_expiry" in updates:
+            updates["no_expiry"] = 1 if updates["no_expiry"] else 0
+        updates["updated_at"] = datetime.now().isoformat()
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [cert_id, user_id]
+        cursor.execute(
+            f"UPDATE certifications SET {set_clause} WHERE id = ? AND user_id = ?", values
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM certifications WHERE id = ?", (cert_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return self._row_to_cert(row)
+
+    def delete_certification(self, cert_id: int, user_id: str) -> bool:
+        """Delete a certification. Returns True if deleted."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM certifications WHERE id = ? AND user_id = ?", (cert_id, user_id)
+        )
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def reorder_certifications(self, user_id: str, ordered_ids: List[int]) -> None:
+        """Set display_order for each certification in the given order."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        for idx, cert_id in enumerate(ordered_ids):
+            cursor.execute(
+                "UPDATE certifications SET display_order = ? WHERE id = ? AND user_id = ?",
+                (idx, cert_id, user_id),
+            )
+        conn.commit()
+        conn.close()
+
+    # ── Skills ──────────────────────────────────────────────────────────────
+
+    def list_skills(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return all skills for user, ordered by category then display_order."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM skills WHERE user_id = ? ORDER BY category ASC, display_order ASC, id ASC",
+            (user_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def create_skill(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert a new skill. Returns the created record."""
+        now = datetime.now().isoformat()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO skills (user_id, name, category, display_order, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                user_id,
+                data.get("name", ""),
+                data.get("category") or None,
+                data.get("display_order", 0),
+                now,
+                now,
+            ),
+        )
+        skill_id = cursor.lastrowid
+        conn.commit()
+        cursor.execute("SELECT * FROM skills WHERE id = ?", (skill_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row)
+
+    def update_skill(self, skill_id: int, user_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update a skill record. Returns updated record or None."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM skills WHERE id = ? AND user_id = ?", (skill_id, user_id))
+        if not cursor.fetchone():
+            conn.close()
+            return None
+        allowed = {"name", "category", "display_order"}
+        updates: Dict[str, Any] = {k: v for k, v in data.items() if k in allowed}
+        if "category" in updates and updates["category"] == "":
+            updates["category"] = None
+        updates["updated_at"] = datetime.now().isoformat()
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [skill_id, user_id]
+        cursor.execute(
+            f"UPDATE skills SET {set_clause} WHERE id = ? AND user_id = ?", values
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM skills WHERE id = ?", (skill_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row)
+
+    def delete_skill(self, skill_id: int, user_id: str) -> bool:
+        """Delete a skill. Returns True if deleted."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM skills WHERE id = ? AND user_id = ?", (skill_id, user_id)
+        )
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
 
 
 class MatchHistoryStore:

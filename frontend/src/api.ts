@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate } from './types';
 
 const API_BASE = '/api';
 
@@ -691,11 +691,11 @@ export async function reorderJobHistory(orderedIds: number[]): Promise<void> {
   await handleResponse(response);
 }
 
-export async function assembleCV(): Promise<{ experience_text: string; contact_header: string }> {
+export async function assembleCV(): Promise<{ experience_text: string; contact_header: string; certifications_text: string; skills_text: string }> {
   const response = await fetch(`${API_BASE}/profile/assemble-cv`, {
     headers: { ...getUserHeaders() },
   });
-  return handleResponse<{ experience_text: string; contact_header: string }>(response);
+  return handleResponse<{ experience_text: string; contact_header: string; certifications_text: string; skills_text: string }>(response);
 }
 
 export async function syncFromCV(cvText: string): Promise<{ updated_count: number }> {
@@ -705,6 +705,85 @@ export async function syncFromCV(cvText: string): Promise<{ updated_count: numbe
     body: JSON.stringify({ cv_text: cvText }),
   });
   return handleResponse<{ updated_count: number }>(response);
+}
+
+// ── Certifications ────────────────────────────────────────────────────────────
+
+export async function listCertifications(): Promise<Certification[]> {
+  const response = await fetch(`${API_BASE}/profile/certifications`, {
+    headers: { ...getUserHeaders() },
+  });
+  return handleResponse<Certification[]>(response);
+}
+
+export async function createCertification(data: CertificationCreate): Promise<Certification> {
+  const response = await fetch(`${API_BASE}/profile/certifications`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<Certification>(response);
+}
+
+export async function updateCertification(id: number, data: CertificationUpdate): Promise<Certification> {
+  const response = await fetch(`${API_BASE}/profile/certifications/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<Certification>(response);
+}
+
+export async function deleteCertification(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/profile/certifications/${id}`, {
+    method: 'DELETE',
+    headers: { ...getUserHeaders() },
+  });
+  await handleResponse(response);
+}
+
+export async function reorderCertifications(orderedIds: number[]): Promise<void> {
+  const response = await fetch(`${API_BASE}/profile/certifications/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ ordered_ids: orderedIds }),
+  });
+  await handleResponse(response);
+}
+
+// ── Skills ────────────────────────────────────────────────────────────────────
+
+export async function listSkills(): Promise<Skill[]> {
+  const response = await fetch(`${API_BASE}/profile/skills`, {
+    headers: { ...getUserHeaders() },
+  });
+  return handleResponse<Skill[]>(response);
+}
+
+export async function createSkill(data: SkillCreate): Promise<Skill> {
+  const response = await fetch(`${API_BASE}/profile/skills`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<Skill>(response);
+}
+
+export async function updateSkill(id: number, data: SkillUpdate): Promise<Skill> {
+  const response = await fetch(`${API_BASE}/profile/skills/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<Skill>(response);
+}
+
+export async function deleteSkill(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/profile/skills/${id}`, {
+    method: 'DELETE',
+    headers: { ...getUserHeaders() },
+  });
+  await handleResponse(response);
 }
 
 export { ApiError };

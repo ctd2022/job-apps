@@ -74,6 +74,76 @@ def format_contact_header(profile: dict) -> str:
     return "\n".join(lines)
 
 
+def assemble_certifications_section(certifications: list[dict[str, Any]]) -> str:
+    """Render certifications into a plain-text CERTIFICATIONS section.
+
+    Format per entry:
+        Name | Issuing Org | date_obtained – expiry_date (or No Expiry) | ID: credential_id
+    Wrapped in <!-- CERT:id --> markers for future sync.
+    """
+    if not certifications:
+        return ""
+
+    lines: list[str] = ["CERTIFICATIONS"]
+    for cert in certifications:
+        cert_id = cert["id"]
+        name = cert.get("name") or ""
+        org = cert.get("issuing_org") or ""
+        obtained = cert.get("date_obtained") or ""
+        no_expiry = cert.get("no_expiry") or False
+        expiry = cert.get("expiry_date") or ""
+        cred_id = cert.get("credential_id") or ""
+        cred_url = cert.get("credential_url") or ""
+
+        date_part = obtained
+        if obtained and (no_expiry or expiry):
+            date_part += " \u2013 " + ("No Expiry" if no_expiry else expiry)
+
+        parts = [p for p in [name, org, date_part] if p]
+        if cred_id:
+            parts.append(f"ID: {cred_id}")
+        if cred_url:
+            parts.append(cred_url)
+
+        lines.append(f"<!-- CERT:{cert_id} -->")
+        lines.append(" | ".join(parts))
+
+    return "\n".join(lines)
+
+
+def assemble_skills_section(skills: list[dict[str, Any]]) -> str:
+    """Render skills into a plain-text SKILLS section, grouped by category.
+
+    Format:
+        SKILLS
+        Languages: Python, TypeScript, SQL
+        Cloud: AWS, GCP
+        (Uncategorised skills listed individually)
+    """
+    if not skills:
+        return ""
+
+    from collections import defaultdict
+    grouped: dict[str, list[str]] = defaultdict(list)
+    uncategorised: list[str] = []
+
+    for skill in skills:
+        name = skill.get("name") or ""
+        category = (skill.get("category") or "").strip()
+        if category:
+            grouped[category].append(name)
+        else:
+            uncategorised.append(name)
+
+    lines: list[str] = ["SKILLS"]
+    for category, names in grouped.items():
+        lines.append(f"{category}: {', '.join(names)}")
+    for name in uncategorised:
+        lines.append(name)
+
+    return "\n".join(lines)
+
+
 def parse_experience_section(cv_text: str) -> list[dict[str, Any]]:
     """Extract job updates from CV text containing <!-- JOB:id --> markers.
 

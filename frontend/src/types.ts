@@ -404,6 +404,7 @@ export interface JobHistoryRecord {
   start_date: string | null;
   end_date: string | null;
   is_current: boolean;
+  description: string | null;
   details: string | null;
   display_order: number;
   tags: string[];
@@ -414,6 +415,37 @@ export interface JobHistoryRecord {
 export type ProfileUpdate = Partial<Omit<CandidateProfile, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
 export type JobHistoryCreate = Omit<JobHistoryRecord, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
 export type JobHistoryUpdate = Partial<JobHistoryCreate>;
+
+// Certifications (new section)
+export interface Certification {
+  id: number;
+  user_id: string;
+  name: string;
+  issuing_org: string;
+  date_obtained: string | null;
+  no_expiry: boolean;
+  expiry_date: string | null;
+  credential_id: string | null;
+  credential_url: string | null;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+export type CertificationCreate = Omit<Certification, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
+export type CertificationUpdate = Partial<CertificationCreate>;
+
+// Skills (new section)
+export interface Skill {
+  id: number;
+  user_id: string;
+  name: string;
+  category: string | null;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+export type SkillCreate = Omit<Skill, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
+export type SkillUpdate = Partial<SkillCreate>;
 
 // Idea #229: CV Coach
 export interface CoachingSuggestion {

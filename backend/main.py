@@ -274,6 +274,7 @@ class JobHistoryCreate(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     is_current: bool = False
+    description: Optional[str] = None
     details: Optional[str] = None
     display_order: int = 0
     tags: List[str] = []
@@ -285,9 +286,44 @@ class JobHistoryUpdate(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     is_current: Optional[bool] = None
+    description: Optional[str] = None
     details: Optional[str] = None
     display_order: Optional[int] = None
     tags: Optional[List[str]] = None
+
+
+class CertificationCreate(BaseModel):
+    name: str
+    issuing_org: str
+    date_obtained: Optional[str] = None
+    no_expiry: bool = False
+    expiry_date: Optional[str] = None
+    credential_id: Optional[str] = None
+    credential_url: Optional[str] = None
+    display_order: int = 0
+
+
+class CertificationUpdate(BaseModel):
+    name: Optional[str] = None
+    issuing_org: Optional[str] = None
+    date_obtained: Optional[str] = None
+    no_expiry: Optional[bool] = None
+    expiry_date: Optional[str] = None
+    credential_id: Optional[str] = None
+    credential_url: Optional[str] = None
+    display_order: Optional[int] = None
+
+
+class SkillCreate(BaseModel):
+    name: str
+    category: Optional[str] = None
+    display_order: int = 0
+
+
+class SkillUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    display_order: Optional[int] = None
 
 
 class ReorderRequest(BaseModel):
@@ -2445,13 +2481,125 @@ async def delete_job_history(
 
 @app.get("/api/profile/assemble-cv")
 async def assemble_cv(user_id: str = Header(None, alias="X-User-ID")):
-    """Render structured job history into CV EXPERIENCE section text."""
+    """Render structured profile data into CV section texts."""
     user_id = user_id or "default"
     profile = profile_store.get_or_create_profile(user_id)
     job_history = profile_store.list_job_history(user_id)
+    certifications = profile_store.list_certifications(user_id)
+    skills = profile_store.list_skills(user_id)
     contact_header = cv_assembler.format_contact_header(profile)
     experience_text = cv_assembler.assemble_experience_section(job_history)
-    return {"contact_header": contact_header, "experience_text": experience_text}
+    certifications_text = cv_assembler.assemble_certifications_section(certifications)
+    skills_text = cv_assembler.assemble_skills_section(skills)
+    return {
+        "contact_header": contact_header,
+        "experience_text": experience_text,
+        "certifications_text": certifications_text,
+        "skills_text": skills_text,
+    }
+
+
+# ── Certifications endpoints ──────────────────────────────────────────────────
+
+@app.get("/api/profile/certifications")
+async def list_certifications(user_id: str = Header(None, alias="X-User-ID")):
+    """List all certification records for current user."""
+    user_id = user_id or "default"
+    return profile_store.list_certifications(user_id)
+
+
+@app.post("/api/profile/certifications", status_code=201)
+async def create_certification(
+    request: CertificationCreate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Create a new certification record."""
+    user_id = user_id or "default"
+    return profile_store.create_certification(user_id, request.model_dump())
+
+
+@app.put("/api/profile/certifications/reorder")
+async def reorder_certifications(
+    request: ReorderRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Set display order for certification records."""
+    user_id = user_id or "default"
+    profile_store.reorder_certifications(user_id, request.ordered_ids)
+    return {"status": "ok"}
+
+
+@app.put("/api/profile/certifications/{cert_id}")
+async def update_certification(
+    cert_id: int,
+    request: CertificationUpdate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Update a certification record."""
+    user_id = user_id or "default"
+    result = profile_store.update_certification(cert_id, user_id, request.model_dump(exclude_unset=True))
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Certification {cert_id} not found")
+    return result
+
+
+@app.delete("/api/profile/certifications/{cert_id}")
+async def delete_certification(
+    cert_id: int,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Delete a certification record."""
+    user_id = user_id or "default"
+    deleted = profile_store.delete_certification(cert_id, user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Certification {cert_id} not found")
+    return {"status": "deleted"}
+
+
+# ── Skills endpoints ──────────────────────────────────────────────────────────
+
+@app.get("/api/profile/skills")
+async def list_skills(user_id: str = Header(None, alias="X-User-ID")):
+    """List all skill records for current user."""
+    user_id = user_id or "default"
+    return profile_store.list_skills(user_id)
+
+
+@app.post("/api/profile/skills", status_code=201)
+async def create_skill(
+    request: SkillCreate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Create a new skill record."""
+    user_id = user_id or "default"
+    return profile_store.create_skill(user_id, request.model_dump())
+
+
+@app.put("/api/profile/skills/{skill_id}")
+async def update_skill(
+    skill_id: int,
+    request: SkillUpdate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Update a skill record."""
+    user_id = user_id or "default"
+    result = profile_store.update_skill(skill_id, user_id, request.model_dump(exclude_unset=True))
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Skill {skill_id} not found")
+    return result
+
+
+@app.delete("/api/profile/skills/{skill_id}")
+async def delete_skill(
+    skill_id: int,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Delete a skill record."""
+    user_id = user_id or "default"
+    deleted = profile_store.delete_skill(skill_id, user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Skill {skill_id} not found")
+    return {"status": "deleted"}
 
 
 @app.post("/api/profile/sync-from-cv")

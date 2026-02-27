@@ -275,7 +275,7 @@ function NewApplication() {
   // Show results if job completed
   if (currentJob?.status === 'completed' && outputFiles.length > 0) {
     return (
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden">
           <div className="bg-green-50 dark:bg-green-900/30 px-6 py-4 border-b border-green-100 dark:border-green-800">
             <div className="flex items-center space-x-3">

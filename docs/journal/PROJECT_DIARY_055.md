@@ -13,7 +13,7 @@
 - **Branch**: `main`
 - **Track**: 3.0 COMPLETE — CV Coach
 - **Last session**: Replaced the two-click hidden-JD flow in Generate Summary with an always-visible panel. Users can now select a saved job from a dropdown (auto-fills the JD textarea) or paste one manually. Fixed a crash (`summaryJobs.map is not a function`) caused by the backend returning `{"jobs": [...]}` rather than a plain array.
-- **Next steps**: Idea #239 — highlight the inserted summary text in the CV editor so users can see where it landed
+- **Next steps**: See diary 056 — Certifications + Skills sections added to Candidate Profile (Ideas #240, #241)
 - **Blocked/broken**: Nothing
 - **Ideas backlog**: #239 (Low complexity, Medium impact) — summary insertion highlight
 
