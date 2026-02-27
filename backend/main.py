@@ -334,6 +334,10 @@ class SyncFromCVRequest(BaseModel):
     cv_text: str
 
 
+class ProfileIncludeRequest(BaseModel):
+    include: bool
+
+
 class UserCreateRequest(BaseModel):
     """Request to create a new user"""
     name: str
@@ -1085,6 +1089,38 @@ async def update_job_outcome(
         return job
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+
+@app.patch("/api/jobs/{job_id}/profile")
+async def toggle_profile_include(
+    job_id: str,
+    request: ProfileIncludeRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Toggle a job's inclusion in the position profiling corpus (Idea #242)."""
+    user_id = user_id or "default"
+    try:
+        job = job_store.set_profile_include(job_id, request.include, user_id=user_id)
+        return {"job_id": job_id, "include_in_profile": job["include_in_profile"]}
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+
+@app.get("/api/position-profile")
+async def get_position_profile(user_id: str = Header(None, alias="X-User-ID")):
+    """Aggregate ATS analysis from included jobs to produce a position profile (Idea #242).
+
+    Returns:
+    - job_count: number of jobs in the corpus
+    - skill_frequency: top skills ranked by how often they appear in targeted JDs,
+      with match_rate showing how often the user's CV matched that skill
+    - consistent_gaps: high-frequency skills where match_rate < 50%
+    - strengths: high-frequency skills where match_rate >= 70%
+    - role_distribution: most common job titles in the corpus
+    - corpus_jobs: the jobs included in the analysis
+    """
+    user_id = user_id or "default"
+    return job_store.get_position_profile(user_id=user_id)
 
 
 @app.get("/api/jobs/{job_id}/description")

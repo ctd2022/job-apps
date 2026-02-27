@@ -147,6 +147,7 @@ def init_db():
         ("job_description_text", "TEXT"),  # Track 2.9: Store full JD text for viewing
         ("ats_details", "TEXT"),  # Track 2.9.2: Full ATS analysis JSON
         ("cv_version_id", "INTEGER"),  # Track 2.9.3: Link to specific CV version used
+        ("include_in_profile", "INTEGER DEFAULT 1"),  # Idea #242: Position profiling corpus
     ]
 
     for col_name, col_type in outcome_columns:
@@ -677,6 +678,152 @@ class JobStore:
 
         return self.get_job(job_id)
 
+    def set_profile_include(self, job_id: str, include: bool, user_id: str = None) -> Dict[str, Any]:
+        """Toggle a job's inclusion in the position profiling corpus (Idea #242)."""
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        if user_id:
+            cursor.execute("SELECT job_id FROM jobs WHERE job_id = ? AND user_id = ?", (job_id, user_id))
+        else:
+            cursor.execute("SELECT job_id FROM jobs WHERE job_id = ?", (job_id,))
+
+        if not cursor.fetchone():
+            conn.close()
+            raise KeyError(f"Job {job_id} not found")
+
+        now = datetime.now().isoformat()
+        cursor.execute(
+            "UPDATE jobs SET include_in_profile = ?, updated_at = ? WHERE job_id = ?",
+            (1 if include else 0, now, job_id),
+        )
+        conn.commit()
+        conn.close()
+
+        return self.get_job(job_id)
+
+    def get_position_profile(self, user_id: str = None) -> Dict[str, Any]:
+        """Aggregate ATS details from included jobs to build a position profile (Idea #242).
+
+        Returns skill frequency, match rates, consistent gaps, strengths, and role distribution.
+        All computed from stored ats_details JSON — no LLM required.
+        """
+        from collections import Counter
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        if user_id:
+            cursor.execute(
+                "SELECT job_id, company_name, job_title, ats_score, ats_details "
+                "FROM jobs WHERE include_in_profile = 1 AND ats_details IS NOT NULL AND user_id = ?",
+                (user_id,),
+            )
+        else:
+            cursor.execute(
+                "SELECT job_id, company_name, job_title, ats_score, ats_details "
+                "FROM jobs WHERE include_in_profile = 1 AND ats_details IS NOT NULL"
+            )
+        rows = cursor.fetchall()
+        conn.close()
+
+        corpus_jobs = []
+        skill_job_count: Counter = Counter()   # how many jobs required this skill
+        skill_matched_count: Counter = Counter()  # how many jobs the CV matched it in
+        job_titles: Counter = Counter()
+
+        for row in rows:
+            try:
+                details = json.loads(row["ats_details"])
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            corpus_jobs.append({
+                "job_id": row["job_id"],
+                "company_name": row["company_name"],
+                "job_title": row["job_title"],
+                "ats_score": row["ats_score"],
+            })
+
+            if row["job_title"]:
+                job_titles[row["job_title"]] += 1
+
+            # All skills/keywords required by this JD
+            pe = details.get("parsed_entities", {})
+            jd_skills: set = set()
+            for s in pe.get("jd_required_skills", []):
+                jd_skills.add(s.lower().strip())
+            for s in pe.get("jd_preferred_skills", []):
+                jd_skills.add(s.lower().strip())
+            # Also include all keywords the ATS tested (matched + missing)
+            matched_kws = {k.lower().strip() for k in details.get("matched_keywords", [])}
+            missing_kws = {k.lower().strip() for k in details.get("missing_keywords", [])}
+            all_jd_terms = jd_skills | matched_kws | missing_kws
+
+            for skill in all_jd_terms:
+                if skill:
+                    skill_job_count[skill] += 1
+            for skill in matched_kws:
+                if skill in all_jd_terms:
+                    skill_matched_count[skill] += 1
+
+        total_jobs = len(corpus_jobs)
+        if total_jobs == 0:
+            return {
+                "job_count": 0,
+                "skill_frequency": [],
+                "consistent_gaps": [],
+                "strengths": [],
+                "role_distribution": [],
+                "corpus_jobs": [],
+            }
+
+        # Minimum appearances to include in results: at least 25% of jobs, floor of 2
+        min_freq = max(2, round(total_jobs * 0.25)) if total_jobs >= 4 else 1
+
+        skill_freq = []
+        for skill, count in skill_job_count.most_common(40):
+            if count < min_freq:
+                continue
+            matched_count = skill_matched_count.get(skill, 0)
+            match_rate = matched_count / count
+            skill_freq.append({
+                "skill": skill,
+                "frequency": count,
+                "frequency_pct": round(count / total_jobs * 100),
+                "matched_count": matched_count,
+                "match_rate": round(match_rate, 2),
+            })
+
+        # Consistent gaps: appears in 40%+ of jobs, matched in fewer than half
+        consistent_gaps = [
+            s for s in skill_freq
+            if s["match_rate"] < 0.5 and s["frequency_pct"] >= 40
+        ]
+        consistent_gaps.sort(key=lambda x: (x["match_rate"], -x["frequency"]))
+
+        # Strengths: appears in 2+ jobs, matched in 70%+
+        strengths = [
+            s for s in skill_freq
+            if s["match_rate"] >= 0.7 and s["frequency"] >= 2
+        ]
+        strengths.sort(key=lambda x: (-x["match_rate"], -x["frequency"]))
+
+        role_distribution = [
+            {"title": title, "count": count}
+            for title, count in job_titles.most_common(10)
+            if title
+        ]
+
+        return {
+            "job_count": total_jobs,
+            "skill_frequency": skill_freq[:20],
+            "consistent_gaps": consistent_gaps[:10],
+            "strengths": strengths[:10],
+            "role_distribution": role_distribution,
+            "corpus_jobs": corpus_jobs,
+        }
+
     def get_job_description_text(self, job_id: str) -> Optional[str]:
         """Get the stored job description text for a job."""
         conn = get_connection()
@@ -762,6 +909,11 @@ class JobStore:
         except (IndexError, KeyError):
             cv_version_id = None
 
+        try:
+            include_in_profile = bool(row["include_in_profile"]) if row["include_in_profile"] is not None else True
+        except (IndexError, KeyError):
+            include_in_profile = True
+
         return {
             "job_id": row["job_id"],
             "user_id": row["user_id"] or "default",
@@ -791,6 +943,8 @@ class JobStore:
             "ats_details": ats_details,
             # Track 2.9.3: CV version used for this job
             "cv_version_id": cv_version_id,
+            # Idea #242: Position profiling corpus inclusion flag
+            "include_in_profile": include_in_profile,
         }
 
 
