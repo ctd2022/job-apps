@@ -103,6 +103,8 @@ export interface Application {
   response_at?: string;
   outcome_at?: string;
   notes?: string;
+  // Position profiling corpus flag (Idea #242)
+  include_in_profile?: boolean;
 }
 
 export interface HealthStatus {

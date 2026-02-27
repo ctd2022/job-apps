@@ -137,6 +137,8 @@ function normalizeApplication(data: any): Application {
     response_at: data.response_at,
     outcome_at: data.outcome_at,
     notes: data.notes,
+    // Position profiling corpus flag
+    include_in_profile: data.include_in_profile !== false,
   };
 }
 
@@ -344,6 +346,15 @@ export async function updateJobOutcome(
   });
   const data = await handleResponse<any>(response);
   return normalizeJob(data);
+}
+
+export async function toggleProfileInclude(jobId: string, include: boolean): Promise<void> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ include }),
+  });
+  await handleResponse<any>(response);
 }
 
 // Metrics

@@ -7,9 +7,10 @@ import {
   RefreshCw,
   XCircle,
   Loader2,
-  Save
+  Save,
+  BarChart2,
 } from 'lucide-react';
-import { getApplications, updateJobOutcome } from '../api';
+import { getApplications, updateJobOutcome, toggleProfileInclude } from '../api';
 import type { Application, OutcomeStatus } from '../types';
 import { getMatchTier } from '../utils/matchTier';
 
@@ -205,6 +206,9 @@ function ApplicationHistory() {
                 <th className="text-right px-3 py-2 font-medium">ATS</th>
                 <th className="text-right px-3 py-2 font-medium">Date</th>
                 <th className="text-right px-3 py-2 font-medium">Files</th>
+                <th className="text-center px-3 py-2 font-medium w-10" title="Include in Position Profile">
+                  <BarChart2 className="w-3.5 h-3.5 inline-block" />
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -252,6 +256,18 @@ function ApplicationRow({
   const [newStatus, setNewStatus] = useState<OutcomeStatus>(application.outcome_status);
   const [newNote, setNewNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [included, setIncluded] = useState(application.include_in_profile !== false);
+
+  async function handleProfileToggle(e: React.ChangeEvent<HTMLInputElement>) {
+    e.stopPropagation();
+    const next = e.target.checked;
+    setIncluded(next);
+    try {
+      await toggleProfileInclude(application.job_id, next);
+    } catch {
+      setIncluded(!next); // revert on failure
+    }
+  }
 
   const tier = getMatchTier(application.ats_score);
 
@@ -308,10 +324,23 @@ function ApplicationRow({
         <td className="px-3 py-2 text-right text-slate-400 text-xs">
           {(application.files || []).length}
         </td>
+        <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
+          {application.ats_score != null ? (
+            <input
+              type="checkbox"
+              checked={included}
+              onChange={handleProfileToggle}
+              title={included ? 'Remove from Position Profile' : 'Include in Position Profile'}
+              className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer"
+            />
+          ) : (
+            <span className="text-slate-300 dark:text-slate-600 text-xs">–</span>
+          )}
+        </td>
       </tr>
       {isExpanded && (
         <tr className="bg-slate-50 dark:bg-slate-700">
-          <td colSpan={8} className="px-3 py-2">
+          <td colSpan={9} className="px-3 py-2">
             {/* Files */}
             <div className="flex flex-wrap gap-1">
               {(application.files || []).map(file => (
