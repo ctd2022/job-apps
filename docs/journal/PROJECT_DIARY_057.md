@@ -13,9 +13,23 @@
 - **Branch**: `main`
 - **Track**: 3.0 COMPLETE — CV Coach
 - **Last session**: Completed Idea #239 (scroll-to + select inserted summary text in CV Coach) and delivered Idea #242 (Position Profiling) across all 3 phases — backend aggregation, History checkbox UI, and the full `/position-profile` analysis page.
-- **Next steps**: Explore Phase 2 of Position Profiling (optional LLM narrative button); or pick next feature from backlog
+- **Next steps**: Idea #243 — Professional Development section on Candidate Profile (see spec below)
 - **Blocked/broken**: Nothing
-- **Ideas backlog**: #242 Phase 2 (LLM narrative) is a natural next step; STAR Coach (#34), Mock Interviewer (#35) still in Idea state
+- **Ideas backlog**: #243 is queued and fully specced; #242 Phase 2 (LLM narrative on Roles page) is a lower-priority follow-on; STAR Coach (#34), Mock Interviewer (#35) still in Idea state
+
+### Idea #243 Quick Spec — Professional Development section
+
+Broader than "CPD" — covers anything showing continuous growth, whether or not it leads to a credential.
+
+**Six activity types**: Certification (can promote to Certifications on completion) · Course/Training · Degree/Qualification · Professional Membership (status=Ongoing, never completes) · Conference/Event (show_on_cv default false) · Self-directed
+
+**Key fields**: type, title, provider, status (In Progress | Studying | Paused | Completed | Ongoing), start_date, target_completion, completed_date, leads_to_credential (bool), credential_url, show_on_cv (bool), notes, display_order
+
+**Promotion flow**: type=Certification + status=Completed + leads_to_credential=true → prompt user "Add to Certifications?" → pre-populate form, keep PD item as historical record. User-confirmed, not automatic.
+
+**CV assembly**: render only show_on_cv=true items; in-progress certs show expected date; memberships render as ongoing affiliation.
+
+**Implementation pattern**: mirrors Certifications (modal-based CRUD). New SQLite table `professional_development` + ProfileStore CRUD + assemble-cv extension + new section in CandidateProfile.tsx.
 
 ---
 
