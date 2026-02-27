@@ -13,6 +13,7 @@ All endpoints (except `/api/users` and `/api/health`) support `X-User-ID` header
 | GET | `/api/jobs/{id}` | Get job status |
 | DELETE | `/api/jobs/{id}` | Delete a job |
 | PATCH | `/api/jobs/{id}/outcome` | Update application outcome status |
+| PATCH | `/api/jobs/{id}/profile` | Toggle inclusion in position profiling corpus `{"include": bool}` |
 | GET | `/api/jobs/{id}/files` | List output files |
 | GET | `/api/jobs/{id}/files/{name}` | Download file |
 | GET | `/api/jobs/{id}/files/{name}/content` | Get file content for preview |
@@ -39,6 +40,7 @@ All endpoints (except `/api/users` and `/api/health`) support `X-User-ID` header
 | PUT | `/api/profile/job-history/reorder` | Reorder job history entries |
 | GET | `/api/profile/assemble-cv` | Render job history as CV EXPERIENCE text + formatted contact header |
 | POST | `/api/profile/sync-from-cv` | Parse `<!-- JOB:id -->` markers from CV text and update job history |
+| GET | `/api/position-profile` | Aggregate ATS details from included jobs — skill frequency, match rates, consistent gaps, strengths, role distribution (Idea #242) |
 
 ## CV Coach — Generate Summary
 
@@ -68,8 +70,12 @@ Response:
 | Route | Component | Purpose |
 |-------|-----------|---------|
 | `/` | Dashboard | Stats, active jobs, recent applications |
+| `/profile` | CandidateProfile | Personal info, job history, certifications, skills |
+| `/cv-coach` | CvCoach | Live CV scoring, summary generator, version history |
+| `/cvs` | CVManager | CV library, version browser |
 | `/new` | NewApplication | Create new job application |
-| `/history` | ApplicationHistory | Full application list with filters |
+| `/history` | ApplicationHistory | Full application list with filters + profile corpus checkboxes |
+| `/position-profile` | PositionProfile | Cross-job skill frequency analysis, gaps, strengths, role distribution |
 | `/job/:id` | JobDetail | View job details, files, update status |
 
 ## Database Schema (SQLite)
@@ -103,7 +109,12 @@ CREATE TABLE jobs (
     submitted_at TEXT,
     response_at TEXT,
     outcome_at TEXT,
-    notes TEXT
+    notes TEXT,
+    job_title TEXT,
+    job_description_text TEXT,
+    ats_details TEXT,              -- full ATS analysis JSON
+    cv_version_id INTEGER,
+    include_in_profile INTEGER DEFAULT 1  -- position profiling corpus flag
 );
 
 -- CVs table

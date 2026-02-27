@@ -41,9 +41,10 @@ job_applications/
 │   │   │   ├── CVManager.tsx         (CV library — upload, rename, version browser)
 │   │   │   ├── CVTextEditor.tsx      (Inline CV editor + ATS feedback + Pull from Profile)
 │   │   │   ├── GapAnalysis.tsx       (Evidence/critical/semantic/experience gap cards + section badges)
+│   │   │   ├── PositionProfile.tsx   (Cross-job skill frequency analysis — gaps, strengths, role distribution (Idea #242))
 │   │   │   ├── Dashboard.tsx
 │   │   │   ├── NewApplication.tsx
-│   │   │   ├── ApplicationHistory.tsx
+│   │   │   ├── ApplicationHistory.tsx  (includes position-profile corpus checkbox per ATS job)
 │   │   │   ├── JobDetail.tsx
 │   │   │   └── FilePreview.tsx
 │   │   ├── api.ts           (API client + theme utilities)
@@ -107,6 +108,8 @@ job_applications/
 | PUT/DELETE | `/api/profile/skills/{id}` | Update / delete skill |
 | GET | `/api/profile/assemble-cv` | Render job history + certs + skills as CV section texts + contact header |
 | POST | `/api/profile/sync-from-cv` | Parse JOB markers from CV and update job history details |
+| PATCH | `/api/jobs/{id}/profile` | Toggle job's inclusion in position profiling corpus (Idea #242) |
+| GET | `/api/position-profile` | Aggregate ATS data from included jobs — skill frequency, match rates, gaps, strengths, role distribution (Idea #242) |
 
 ## LLM Backends
 
