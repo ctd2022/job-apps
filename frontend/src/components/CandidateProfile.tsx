@@ -843,7 +843,7 @@ function SkillsSection({ skills, onChange }: SkillsSectionProps) {
       ) : (
         <div className="space-y-3">
           {categoryOrder.map(cat => (
-            <div key={cat || '__uncategorised__'}>
+            <div key={cat || '__uncategorised__'} className={!cat && categoryOrder.length > 1 ? 'pt-2' : ''}>
               {cat && (
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
