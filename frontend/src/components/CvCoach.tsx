@@ -191,10 +191,30 @@ export default function CvCoach() {
   const [summaryJobs, setSummaryJobs] = useState<Job[]>([]);
   const [selectedSummaryJobId, setSelectedSummaryJobId] = useState('');
 
+  const [pendingHighlight, setPendingHighlight] = useState<{ start: number; end: number } | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const displayScore = useAnimatedScore(assessment?.quality_score ?? null);
   const isDirty = cvText !== originalText;
+
+  // ── Scroll-to and select inserted summary ───────────────────────────────────
+
+  useEffect(() => {
+    if (!pendingHighlight || !textareaRef.current) return;
+    const ta = textareaRef.current;
+    const { start, end } = pendingHighlight;
+    setPendingHighlight(null);
+    ta.focus();
+    ta.setSelectionRange(start, end);
+    const linesBefore = ta.value.substring(0, start).split('\n').length - 1;
+    const lineHeight = parseInt(getComputedStyle(ta).lineHeight) || 18;
+    ta.scrollTop = Math.max(0, linesBefore * lineHeight - ta.clientHeight / 3);
+    const timer = setTimeout(() => {
+      if (textareaRef.current) textareaRef.current.setSelectionRange(end, end);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [pendingHighlight]);
 
   // ── Assess ─────────────────────────────────────────────────────────────────
 
@@ -371,7 +391,11 @@ export default function CvCoach() {
     try {
       const { summary } = await generateSummary(cvText, summaryJdText.trim() || undefined);
       const newText = insertSummaryIntoCv(cvText, summary);
+      const summaryStart = newText.indexOf(summary);
       handleTextChange(newText);
+      if (summaryStart !== -1) {
+        setPendingHighlight({ start: summaryStart, end: summaryStart + summary.length });
+      }
       setSummaryFeedback(true);
       setTimeout(() => setSummaryFeedback(false), 2500);
     } catch (e) {
