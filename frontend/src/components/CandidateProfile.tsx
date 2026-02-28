@@ -1238,6 +1238,26 @@ function ProfessionalDevelopmentSection({ pdItems, certifications, onChange, onC
       const created = await createProfessionalDevelopment(data);
       onChange([...pdItems, created]);
       setAddingPD(false);
+
+      if (
+        created.status === 'Completed' &&
+        created.type === 'Certification' &&
+        created.leads_to_credential
+      ) {
+        if (window.confirm('Add this to your Certifications section?')) {
+          const newCert = await createCertification({
+            name: created.title,
+            issuing_org: created.provider ?? '',
+            date_obtained: created.completed_date ?? null,
+            no_expiry: false,
+            expiry_date: null,
+            credential_id: null,
+            credential_url: created.credential_url ?? null,
+            display_order: certifications.length,
+          });
+          onCertificationsChange([...certifications, newCert]);
+        }
+      }
     } finally {
       setSavingPD(false);
     }
