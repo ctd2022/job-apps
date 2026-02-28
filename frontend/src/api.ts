@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate } from './types';
 
 const API_BASE = '/api';
 
@@ -800,6 +800,50 @@ export async function deleteSkill(id: number): Promise<void> {
   const response = await fetch(`${API_BASE}/profile/skills/${id}`, {
     method: 'DELETE',
     headers: { ...getUserHeaders() },
+  });
+  await handleResponse(response);
+}
+
+// ── Professional Development ──────────────────────────────────────────────────
+
+export async function listProfessionalDevelopment(): Promise<ProfessionalDevelopment[]> {
+  const response = await fetch(`${API_BASE}/profile/professional-development`, {
+    headers: { ...getUserHeaders() },
+  });
+  return handleResponse<ProfessionalDevelopment[]>(response);
+}
+
+export async function createProfessionalDevelopment(data: ProfessionalDevelopmentCreate): Promise<ProfessionalDevelopment> {
+  const response = await fetch(`${API_BASE}/profile/professional-development`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<ProfessionalDevelopment>(response);
+}
+
+export async function updateProfessionalDevelopment(id: number, data: ProfessionalDevelopmentUpdate): Promise<ProfessionalDevelopment> {
+  const response = await fetch(`${API_BASE}/profile/professional-development/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<ProfessionalDevelopment>(response);
+}
+
+export async function deleteProfessionalDevelopment(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/profile/professional-development/${id}`, {
+    method: 'DELETE',
+    headers: { ...getUserHeaders() },
+  });
+  await handleResponse(response);
+}
+
+export async function reorderProfessionalDevelopment(orderedIds: number[]): Promise<void> {
+  const response = await fetch(`${API_BASE}/profile/professional-development/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ ordered_ids: orderedIds }),
   });
   await handleResponse(response);
 }

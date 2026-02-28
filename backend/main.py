@@ -326,6 +326,36 @@ class SkillUpdate(BaseModel):
     display_order: Optional[int] = None
 
 
+class ProfessionalDevelopmentCreate(BaseModel):
+    type: str
+    title: str
+    provider: Optional[str] = None
+    status: str = "In Progress"
+    start_date: Optional[str] = None
+    target_completion: Optional[str] = None
+    completed_date: Optional[str] = None
+    leads_to_credential: bool = False
+    credential_url: Optional[str] = None
+    show_on_cv: bool = True
+    notes: Optional[str] = None
+    display_order: int = 0
+
+
+class ProfessionalDevelopmentUpdate(BaseModel):
+    type: Optional[str] = None
+    title: Optional[str] = None
+    provider: Optional[str] = None
+    status: Optional[str] = None
+    start_date: Optional[str] = None
+    target_completion: Optional[str] = None
+    completed_date: Optional[str] = None
+    leads_to_credential: Optional[bool] = None
+    credential_url: Optional[str] = None
+    show_on_cv: Optional[bool] = None
+    notes: Optional[str] = None
+    display_order: Optional[int] = None
+
+
 class ReorderRequest(BaseModel):
     ordered_ids: List[int]
 
@@ -2523,15 +2553,18 @@ async def assemble_cv(user_id: str = Header(None, alias="X-User-ID")):
     job_history = profile_store.list_job_history(user_id)
     certifications = profile_store.list_certifications(user_id)
     skills = profile_store.list_skills(user_id)
+    pd_items = profile_store.list_professional_development(user_id)
     contact_header = cv_assembler.format_contact_header(profile)
     experience_text = cv_assembler.assemble_experience_section(job_history)
     certifications_text = cv_assembler.assemble_certifications_section(certifications)
     skills_text = cv_assembler.assemble_skills_section(skills)
+    professional_development_text = cv_assembler.assemble_professional_development_section(pd_items)
     return {
         "contact_header": contact_header,
         "experience_text": experience_text,
         "certifications_text": certifications_text,
         "skills_text": skills_text,
+        "professional_development_text": professional_development_text,
     }
 
 
@@ -2589,6 +2622,63 @@ async def delete_certification(
     deleted = profile_store.delete_certification(cert_id, user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Certification {cert_id} not found")
+    return {"status": "deleted"}
+
+
+# ── Professional Development endpoints (Idea #243) ────────────────────────────
+
+@app.get("/api/profile/professional-development")
+async def list_professional_development(user_id: str = Header(None, alias="X-User-ID")):
+    """List all professional development items for current user."""
+    user_id = user_id or "default"
+    return profile_store.list_professional_development(user_id)
+
+
+@app.post("/api/profile/professional-development", status_code=201)
+async def create_professional_development(
+    request: ProfessionalDevelopmentCreate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Create a new professional development item."""
+    user_id = user_id or "default"
+    return profile_store.create_professional_development(user_id, request.model_dump())
+
+
+@app.put("/api/profile/professional-development/reorder")
+async def reorder_professional_development(
+    request: ReorderRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Set display order for professional development items."""
+    user_id = user_id or "default"
+    profile_store.reorder_professional_development(user_id, request.ordered_ids)
+    return {"status": "ok"}
+
+
+@app.put("/api/profile/professional-development/{pd_id}")
+async def update_professional_development(
+    pd_id: int,
+    request: ProfessionalDevelopmentUpdate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Update a professional development item."""
+    user_id = user_id or "default"
+    result = profile_store.update_professional_development(pd_id, user_id, request.model_dump(exclude_unset=True))
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Professional development item {pd_id} not found")
+    return result
+
+
+@app.delete("/api/profile/professional-development/{pd_id}")
+async def delete_professional_development(
+    pd_id: int,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Delete a professional development item."""
+    user_id = user_id or "default"
+    deleted = profile_store.delete_professional_development(pd_id, user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Professional development item {pd_id} not found")
     return {"status": "deleted"}
 
 

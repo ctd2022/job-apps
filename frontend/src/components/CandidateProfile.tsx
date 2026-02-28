@@ -17,6 +17,11 @@ import {
   createSkill,
   updateSkill,
   deleteSkill,
+  listProfessionalDevelopment,
+  createProfessionalDevelopment,
+  updateProfessionalDevelopment,
+  deleteProfessionalDevelopment,
+  reorderProfessionalDevelopment,
 } from '../api';
 import type {
   CandidateProfile as ProfileType,
@@ -29,6 +34,11 @@ import type {
   CertificationUpdate,
   Skill,
   SkillCreate,
+  ProfessionalDevelopment,
+  ProfessionalDevelopmentCreate,
+  ProfessionalDevelopmentUpdate,
+  PDType,
+  PDStatus,
 } from '../types';
 
 // ─── Job modal form state ────────────────────────────────────────────────────
@@ -918,6 +928,499 @@ function SkillsSection({ skills, onChange }: SkillsSectionProps) {
   );
 }
 
+// ─── Professional Development ─────────────────────────────────────────────────
+
+const PD_TYPES: PDType[] = [
+  'Certification',
+  'Course / Training',
+  'Degree / Qualification',
+  'Professional Membership',
+  'Conference / Event',
+  'Self-directed',
+];
+
+const STATUS_BY_TYPE: Record<PDType, PDStatus[]> = {
+  'Certification': ['In Progress', 'Studying', 'Paused', 'Completed'],
+  'Course / Training': ['In Progress', 'Studying', 'Paused', 'Completed'],
+  'Degree / Qualification': ['In Progress', 'Studying', 'Paused', 'Completed'],
+  'Professional Membership': ['Ongoing'],
+  'Conference / Event': ['Completed', 'In Progress'],
+  'Self-directed': ['In Progress', 'Paused', 'Completed'],
+};
+
+const PD_TYPE_COLOURS: Record<PDType, string> = {
+  'Certification': 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+  'Course / Training': 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+  'Degree / Qualification': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300',
+  'Professional Membership': 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
+  'Conference / Event': 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
+  'Self-directed': 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+};
+
+interface PDFormState {
+  type: PDType;
+  title: string;
+  provider: string;
+  status: PDStatus;
+  start_date: string;
+  target_completion: string;
+  completed_date: string;
+  leads_to_credential: boolean;
+  credential_url: string;
+  show_on_cv: boolean;
+  notes: string;
+}
+
+const EMPTY_PD_FORM: PDFormState = {
+  type: 'Course / Training',
+  title: '',
+  provider: '',
+  status: 'In Progress',
+  start_date: '',
+  target_completion: '',
+  completed_date: '',
+  leads_to_credential: false,
+  credential_url: '',
+  show_on_cv: true,
+  notes: '',
+};
+
+function pdToForm(pd: ProfessionalDevelopment): PDFormState {
+  return {
+    type: pd.type,
+    title: pd.title,
+    provider: pd.provider ?? '',
+    status: pd.status,
+    start_date: pd.start_date ?? '',
+    target_completion: pd.target_completion ?? '',
+    completed_date: pd.completed_date ?? '',
+    leads_to_credential: pd.leads_to_credential,
+    credential_url: pd.credential_url ?? '',
+    show_on_cv: pd.show_on_cv,
+    notes: pd.notes ?? '',
+  };
+}
+
+function formToPDCreate(form: PDFormState, display_order = 0): ProfessionalDevelopmentCreate {
+  return {
+    type: form.type,
+    title: form.title.trim(),
+    provider: form.provider.trim() || null,
+    status: form.type === 'Professional Membership' ? 'Ongoing' : form.status,
+    start_date: form.start_date.trim() || null,
+    target_completion: form.status === 'Completed' || form.type === 'Professional Membership' ? null : (form.target_completion.trim() || null),
+    completed_date: form.status === 'Completed' ? (form.completed_date.trim() || null) : null,
+    leads_to_credential: form.leads_to_credential,
+    credential_url: form.leads_to_credential ? (form.credential_url.trim() || null) : null,
+    show_on_cv: form.show_on_cv,
+    notes: form.notes.trim() || null,
+    display_order,
+  };
+}
+
+interface PDModalProps {
+  initial: PDFormState;
+  title: string;
+  saving: boolean;
+  onSave: (form: PDFormState) => void;
+  onClose: () => void;
+}
+
+function PDModal({ initial, title, saving, onSave, onClose }: PDModalProps) {
+  const [form, setForm] = useState<PDFormState>(initial);
+
+  const set = <K extends keyof PDFormState>(key: K, value: PDFormState[K]) =>
+    setForm(prev => ({ ...prev, [key]: value }));
+
+  const handleTypeChange = (newType: PDType) => {
+    const allowedStatuses = STATUS_BY_TYPE[newType];
+    const newStatus: PDStatus = newType === 'Professional Membership'
+      ? 'Ongoing'
+      : (allowedStatuses.includes(form.status) ? form.status : allowedStatuses[0]);
+    setForm(prev => ({ ...prev, type: newType, status: newStatus }));
+  };
+
+  const isMembership = form.type === 'Professional Membership';
+  const showLeadsToCredential = form.type === 'Certification' || form.type === 'Course / Training';
+  const showTargetCompletion = form.status !== 'Completed' && !isMembership;
+  const showCompletedDate = form.status === 'Completed';
+  const allowedStatuses = STATUS_BY_TYPE[form.type];
+
+  const valid = form.title.trim() !== '';
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+          <h3 className="font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Type</label>
+            <select
+              value={form.type}
+              onChange={e => handleTypeChange(e.target.value as PDType)}
+              className={inputCls}
+            >
+              {PD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Title *</label>
+            <input
+              value={form.title}
+              onChange={e => set('title', e.target.value)}
+              className={inputCls}
+              placeholder="AWS Solutions Architect"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Provider / Organisation</label>
+            <input
+              value={form.provider}
+              onChange={e => set('provider', e.target.value)}
+              className={inputCls}
+              placeholder="Amazon Web Services"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Status</label>
+              <select
+                value={form.status}
+                onChange={e => set('status', e.target.value as PDStatus)}
+                disabled={isMembership}
+                className={`${inputCls} disabled:opacity-60`}
+              >
+                {allowedStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Start Date</label>
+              <input
+                type="month"
+                value={form.start_date}
+                onChange={e => set('start_date', e.target.value)}
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          {showTargetCompletion && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Target Completion</label>
+              <input
+                type="month"
+                value={form.target_completion}
+                onChange={e => set('target_completion', e.target.value)}
+                className={inputCls}
+              />
+            </div>
+          )}
+
+          {showCompletedDate && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Completed Date</label>
+              <input
+                type="month"
+                value={form.completed_date}
+                onChange={e => set('completed_date', e.target.value)}
+                className={inputCls}
+              />
+            </div>
+          )}
+
+          {showLeadsToCredential && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.leads_to_credential}
+                onChange={e => set('leads_to_credential', e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300"
+              />
+              <span className="text-sm text-slate-700 dark:text-slate-300">Leads to a credential / certificate</span>
+            </label>
+          )}
+
+          {form.leads_to_credential && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Credential URL</label>
+              <input
+                value={form.credential_url}
+                onChange={e => set('credential_url', e.target.value)}
+                className={inputCls}
+                placeholder="https://verify.example.com/..."
+              />
+            </div>
+          )}
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.show_on_cv}
+              onChange={e => set('show_on_cv', e.target.checked)}
+              className="w-4 h-4 rounded border-slate-300"
+            />
+            <span className="text-sm text-slate-700 dark:text-slate-300">
+              Show on CV
+              {form.type === 'Conference / Event' && <span className="text-xs text-slate-400 ml-1">(default off for events)</span>}
+            </span>
+          </label>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notes</label>
+            <textarea
+              value={form.notes}
+              onChange={e => set('notes', e.target.value)}
+              rows={2}
+              className={`${inputCls} resize-y`}
+              placeholder="Optional notes..."
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-200 dark:border-slate-700">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(form)}
+            disabled={!valid || saving}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            {saving ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Professional Development Section ─────────────────────────────────────────
+
+interface ProfessionalDevelopmentSectionProps {
+  pdItems: ProfessionalDevelopment[];
+  certifications: Certification[];
+  onChange: (items: ProfessionalDevelopment[]) => void;
+  onCertificationsChange: (certs: Certification[]) => void;
+}
+
+function ProfessionalDevelopmentSection({ pdItems, certifications, onChange, onCertificationsChange }: ProfessionalDevelopmentSectionProps) {
+  const [addingPD, setAddingPD] = useState(false);
+  const [editingPD, setEditingPD] = useState<ProfessionalDevelopment | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [savingPD, setSavingPD] = useState(false);
+
+  const movePD = useCallback(async (index: number, direction: -1 | 1) => {
+    const newList = [...pdItems];
+    const swapIdx = index + direction;
+    if (swapIdx < 0 || swapIdx >= newList.length) return;
+    [newList[index], newList[swapIdx]] = [newList[swapIdx], newList[index]];
+    onChange(newList);
+    await reorderProfessionalDevelopment(newList.map(p => p.id));
+  }, [pdItems, onChange]);
+
+  const handleAddPD = async (form: PDFormState) => {
+    setSavingPD(true);
+    try {
+      const data: ProfessionalDevelopmentCreate = formToPDCreate(form, pdItems.length);
+      const created = await createProfessionalDevelopment(data);
+      onChange([...pdItems, created]);
+      setAddingPD(false);
+    } finally {
+      setSavingPD(false);
+    }
+  };
+
+  const handleUpdatePD = async (form: PDFormState) => {
+    if (!editingPD) return;
+    const prevStatus = editingPD.status;
+    setSavingPD(true);
+    try {
+      const data: ProfessionalDevelopmentUpdate = formToPDCreate(form, editingPD.display_order);
+      const updated = await updateProfessionalDevelopment(editingPD.id, data);
+      onChange(pdItems.map(p => p.id === editingPD.id ? updated : p));
+      setEditingPD(null);
+
+      // Promotion flow: Cert + Completed + leads_to_credential → offer to add to Certifications
+      if (
+        prevStatus !== 'Completed' &&
+        updated.status === 'Completed' &&
+        updated.type === 'Certification' &&
+        updated.leads_to_credential
+      ) {
+        if (window.confirm('This certification is now complete. Add it to your Certifications section?')) {
+          const newCert = await createCertification({
+            name: updated.title,
+            issuing_org: updated.provider ?? '',
+            date_obtained: updated.completed_date ?? null,
+            no_expiry: false,
+            expiry_date: null,
+            credential_id: null,
+            credential_url: updated.credential_url ?? null,
+            display_order: certifications.length,
+          });
+          onCertificationsChange([...certifications, newCert]);
+        }
+      }
+    } finally {
+      setSavingPD(false);
+    }
+  };
+
+  const handleDeletePD = async (id: number) => {
+    if (!window.confirm('Delete this professional development item?')) return;
+    setDeletingId(id);
+    try {
+      await deleteProfessionalDevelopment(id);
+      onChange(pdItems.filter(p => p.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const formatPDMeta = (pd: ProfessionalDevelopment) => {
+    const parts: string[] = [];
+    if (pd.status === 'Completed' && pd.completed_date) parts.push(`Completed ${pd.completed_date}`);
+    else if (pd.status === 'Ongoing') parts.push('Ongoing');
+    else if (pd.target_completion) parts.push(`Expected ${pd.target_completion}`);
+    else parts.push(pd.status);
+    if (pd.start_date) parts.unshift(`Since ${pd.start_date}`);
+    return parts.join(' · ');
+  };
+
+  return (
+    <>
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-slate-800 dark:text-slate-100">Professional Development</h2>
+          <button
+            onClick={() => setAddingPD(true)}
+            className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded hover:bg-blue-700"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add Activity
+          </button>
+        </div>
+
+        {pdItems.length === 0 ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500 italic text-center py-6">
+            No activities yet — click "Add Activity" to get started.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {pdItems.map((pd, idx) => (
+              <div
+                key={pd.id}
+                className={`flex items-start gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 ${!pd.show_on_cv ? 'opacity-50' : ''}`}
+              >
+                {/* Reorder arrows */}
+                <div className="flex flex-col gap-0.5 mt-0.5">
+                  <button
+                    onClick={() => movePD(idx, -1)}
+                    disabled={idx === 0}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
+                    title="Move up"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => movePD(idx, 1)}
+                    disabled={idx === pdItems.length - 1}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
+                    title="Move down"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* PD info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`inline-block text-xs font-medium rounded px-1.5 py-0.5 ${PD_TYPE_COLOURS[pd.type]}`}>
+                      {pd.type}
+                    </span>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{pd.title}</p>
+                    {pd.provider && (
+                      <span className="text-sm text-slate-500 dark:text-slate-400">| {pd.provider}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{formatPDMeta(pd)}</p>
+                  {!pd.show_on_cv && (
+                    <p className="text-xs text-slate-400 italic">Hidden from CV</p>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {pd.credential_url && (
+                    <a
+                      href={pd.credential_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded"
+                      title="View credential"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  <button
+                    onClick={() => setEditingPD(pd)}
+                    className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded"
+                    title="Edit"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDeletePD(pd.id)}
+                    disabled={deletingId === pd.id}
+                    className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded disabled:opacity-50"
+                    title="Delete"
+                  >
+                    {deletingId === pd.id
+                      ? <Loader className="w-3.5 h-3.5 animate-spin" />
+                      : <Trash2 className="w-3.5 h-3.5" />
+                    }
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {addingPD && (
+        <PDModal
+          initial={EMPTY_PD_FORM}
+          title="Add Professional Development Activity"
+          saving={savingPD}
+          onSave={handleAddPD}
+          onClose={() => setAddingPD(false)}
+        />
+      )}
+      {editingPD && (
+        <PDModal
+          initial={pdToForm(editingPD)}
+          title="Edit Professional Development Activity"
+          saving={savingPD}
+          onSave={handleUpdatePD}
+          onClose={() => setEditingPD(null)}
+        />
+      )}
+    </>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CandidateProfile() {
@@ -925,6 +1428,7 @@ export default function CandidateProfile() {
   const [jobHistory, setJobHistory] = useState<JobHistoryRecord[]>([]);
   const [certifications, setCertifications] = useState<Certification[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [pdItems, setPdItems] = useState<ProfessionalDevelopment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addingJob, setAddingJob] = useState(false);
@@ -934,16 +1438,18 @@ export default function CandidateProfile() {
 
   const load = useCallback(async () => {
     try {
-      const [p, jobs, certs, skillList] = await Promise.all([
+      const [p, jobs, certs, skillList, pdList] = await Promise.all([
         getProfile(),
         listJobHistory(),
         listCertifications(),
         listSkills(),
+        listProfessionalDevelopment(),
       ]);
       setProfile(p);
       setJobHistory(jobs);
       setCertifications(certs);
       setSkills(skillList);
+      setPdItems(pdList);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -1027,10 +1533,16 @@ export default function CandidateProfile() {
       <PIIBanner />
 
       <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-4 items-start">
-        {/* Left column: Personal Info + Certifications */}
+        {/* Left column: Personal Info + Certifications + Professional Development */}
         <div className="space-y-4">
           <PersonalInfoSection profile={profile} onSaved={setProfile} />
           <CertificationsSection certifications={certifications} onChange={setCertifications} />
+          <ProfessionalDevelopmentSection
+            pdItems={pdItems}
+            certifications={certifications}
+            onChange={setPdItems}
+            onCertificationsChange={setCertifications}
+          />
         </div>
 
         {/* Right column: Work Experience + Skills */}

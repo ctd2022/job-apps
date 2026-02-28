@@ -449,6 +449,39 @@ export interface Skill {
 export type SkillCreate = Omit<Skill, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
 export type SkillUpdate = Partial<SkillCreate>;
 
+// Professional Development (Idea #243)
+export type PDType =
+  | 'Certification'
+  | 'Course / Training'
+  | 'Degree / Qualification'
+  | 'Professional Membership'
+  | 'Conference / Event'
+  | 'Self-directed';
+
+export type PDStatus = 'In Progress' | 'Studying' | 'Paused' | 'Completed' | 'Ongoing';
+
+export interface ProfessionalDevelopment {
+  id: number;
+  user_id: string;
+  type: PDType;
+  title: string;
+  provider: string | null;
+  status: PDStatus;
+  start_date: string | null;
+  target_completion: string | null;
+  completed_date: string | null;
+  leads_to_credential: boolean;
+  credential_url: string | null;
+  show_on_cv: boolean;
+  notes: string | null;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProfessionalDevelopmentCreate = Omit<ProfessionalDevelopment, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
+export type ProfessionalDevelopmentUpdate = Partial<ProfessionalDevelopmentCreate>;
+
 // Idea #229: CV Coach
 export interface CoachingSuggestion {
   priority: 'high' | 'medium' | 'low';

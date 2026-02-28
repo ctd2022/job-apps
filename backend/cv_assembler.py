@@ -144,6 +144,46 @@ def assemble_skills_section(skills: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def assemble_professional_development_section(items: list[dict[str, Any]]) -> str:
+    """Render professional development items into a plain-text PROFESSIONAL DEVELOPMENT section.
+
+    Only items with show_on_cv=True are included.
+    Format varies by type and status.
+    """
+    visible = [i for i in items if i.get("show_on_cv")]
+    if not visible:
+        return ""
+
+    lines: list[str] = ["PROFESSIONAL DEVELOPMENT"]
+    for item in visible:
+        item_type = item.get("type") or ""
+        title = item.get("title") or ""
+        provider = item.get("provider") or ""
+        status = item.get("status") or ""
+        target = item.get("target_completion") or ""
+        completed = item.get("completed_date") or ""
+        start = item.get("start_date") or ""
+
+        if item_type == "Professional Membership":
+            date_part = "Ongoing"
+        elif status == "Completed":
+            date_part = f"Completed: {completed}" if completed else "Completed"
+        elif item_type == "Certification" or item_type == "Course / Training":
+            if target:
+                date_part = f"In Progress (expected: {target})"
+            else:
+                date_part = "In Progress"
+        elif item_type == "Conference / Event":
+            date_part = start if start else status
+        else:
+            date_part = status
+
+        parts = [p for p in [title, provider, date_part] if p]
+        lines.append(" | ".join(parts))
+
+    return "\n".join(lines)
+
+
 def parse_experience_section(cv_text: str) -> list[dict[str, Any]]:
     """Extract job updates from CV text containing <!-- JOB:id --> markers.
 

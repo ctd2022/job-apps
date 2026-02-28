@@ -247,6 +247,28 @@ def init_db():
         )
     ''')
 
+    # Professional Development table (Idea #243)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS professional_development (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'default',
+            type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            provider TEXT,
+            status TEXT NOT NULL DEFAULT 'In Progress',
+            start_date TEXT,
+            target_completion TEXT,
+            completed_date TEXT,
+            leads_to_credential INTEGER DEFAULT 0,
+            credential_url TEXT,
+            show_on_cv INTEGER DEFAULT 1,
+            notes TEXT,
+            display_order INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    ''')
+
     # Create indexes for migrated columns (must come AFTER migration)
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_jobs_outcome_status ON jobs(outcome_status)
@@ -1627,6 +1649,114 @@ class ProfileStore:
             cursor.execute(
                 "UPDATE certifications SET display_order = ? WHERE id = ? AND user_id = ?",
                 (idx, cert_id, user_id),
+            )
+        conn.commit()
+        conn.close()
+
+    # ── Professional Development ─────────────────────────────────────────────
+
+    def _row_to_pd(self, row: sqlite3.Row) -> Dict[str, Any]:
+        d = dict(row)
+        d["leads_to_credential"] = bool(d.get("leads_to_credential"))
+        d["show_on_cv"] = bool(d.get("show_on_cv"))
+        return d
+
+    def list_professional_development(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return all PD items for user, ordered by display_order."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM professional_development WHERE user_id = ? ORDER BY display_order ASC, id ASC",
+            (user_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [self._row_to_pd(r) for r in rows]
+
+    def create_professional_development(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert a new PD item. Returns the created record."""
+        now = datetime.now().isoformat()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO professional_development
+               (user_id, type, title, provider, status, start_date, target_completion,
+                completed_date, leads_to_credential, credential_url, show_on_cv, notes,
+                display_order, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                user_id,
+                data.get("type", ""),
+                data.get("title", ""),
+                data.get("provider"),
+                data.get("status", "In Progress"),
+                data.get("start_date"),
+                data.get("target_completion"),
+                data.get("completed_date"),
+                1 if data.get("leads_to_credential") else 0,
+                data.get("credential_url"),
+                1 if data.get("show_on_cv", True) else 0,
+                data.get("notes"),
+                data.get("display_order", 0),
+                now,
+                now,
+            ),
+        )
+        pd_id = cursor.lastrowid
+        conn.commit()
+        cursor.execute("SELECT * FROM professional_development WHERE id = ?", (pd_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return self._row_to_pd(row)
+
+    def update_professional_development(self, pd_id: int, user_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update a PD item. Returns updated record or None."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM professional_development WHERE id = ? AND user_id = ?", (pd_id, user_id))
+        if not cursor.fetchone():
+            conn.close()
+            return None
+        allowed = {"type", "title", "provider", "status", "start_date", "target_completion",
+                   "completed_date", "leads_to_credential", "credential_url", "show_on_cv",
+                   "notes", "display_order"}
+        updates: Dict[str, Any] = {k: v for k, v in data.items() if k in allowed}
+        if "leads_to_credential" in updates:
+            updates["leads_to_credential"] = 1 if updates["leads_to_credential"] else 0
+        if "show_on_cv" in updates:
+            updates["show_on_cv"] = 1 if updates["show_on_cv"] else 0
+        updates["updated_at"] = datetime.now().isoformat()
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [pd_id, user_id]
+        cursor.execute(
+            f"UPDATE professional_development SET {set_clause} WHERE id = ? AND user_id = ?", values
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM professional_development WHERE id = ?", (pd_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return self._row_to_pd(row)
+
+    def delete_professional_development(self, pd_id: int, user_id: str) -> bool:
+        """Delete a PD item. Returns True if deleted."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM professional_development WHERE id = ? AND user_id = ?", (pd_id, user_id)
+        )
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def reorder_professional_development(self, user_id: str, ordered_ids: List[int]) -> None:
+        """Set display_order for each PD item in the given order."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        for idx, pd_id in enumerate(ordered_ids):
+            cursor.execute(
+                "UPDATE professional_development SET display_order = ? WHERE id = ? AND user_id = ?",
+                (idx, pd_id, user_id),
             )
         conn.commit()
         conn.close()
