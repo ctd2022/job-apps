@@ -29,14 +29,14 @@ job_applications/
 ├── backend/                 ← FastAPI REST API
 │   ├── main.py              (API endpoints)
 │   ├── job_processor.py     (Background tasks)
-│   ├── job_store.py         (SQLite persistence: users, jobs, CVs, profiles, certifications, skills)
-│   ├── cv_assembler.py      (Render job history / certs / skills → CV text + parse-back markers)
+│   ├── job_store.py         (SQLite persistence: users, jobs, CVs, profiles, certifications, skills, professional_development)
+│   ├── cv_assembler.py      (Render job history / certs / skills / PD → CV text + parse-back markers)
 │   └── pii_scrubber.py      (Strip/restore employer names + personal info pre-LLM)
 │
 ├── frontend/                ← React Web UI
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── CandidateProfile.tsx  (Profile CRUD page — personal info + job history + certifications + skills)
+│   │   │   ├── CandidateProfile.tsx  (Profile CRUD page — personal info + job history + certifications + skills + professional development)
 │   │   │   ├── CvCoach.tsx           (CV coaching — live score, suggestions, version history, Pull from Profile, Generate Summary (Idea #55))
 │   │   │   ├── CVManager.tsx         (CV library — upload, rename, version browser)
 │   │   │   ├── CVTextEditor.tsx      (Inline CV editor + ATS feedback + Pull from Profile)
@@ -73,8 +73,8 @@ job_applications/
 |------|---------|
 | `MASTER_VISION.md` | Strategic direction and roadmap |
 | `backend/main.py` | API endpoints |
-| `backend/job_store.py` | SQLite persistence (users, jobs, CVs, candidate profiles, job history, certifications, skills) |
-| `backend/cv_assembler.py` | Render job history / certs / skills into CV text; format contact header; parse `<!-- JOB:id -->` markers back |
+| `backend/job_store.py` | SQLite persistence (users, jobs, CVs, candidate profiles, job history, certifications, skills, professional_development) |
+| `backend/cv_assembler.py` | Render job history / certs / skills / PD into CV text; format contact header; parse `<!-- JOB:id -->` markers back |
 | `backend/pii_scrubber.py` | Strip employer names + PII before LLM; restore in response |
 | `frontend/src/api.ts` | Frontend API client |
 | `frontend/src/App.tsx` | Main app with routing |
@@ -106,8 +106,11 @@ job_applications/
 | PUT/DELETE | `/api/profile/certifications/{id}` | Update / delete certification |
 | GET/POST | `/api/profile/skills` | List / create skill records (Idea #240) |
 | PUT/DELETE | `/api/profile/skills/{id}` | Update / delete skill |
-| GET | `/api/profile/assemble-cv` | Render job history + certs + skills as CV section texts + contact header |
+| GET | `/api/profile/assemble-cv` | Render job history + certs + skills + PD as CV section texts + contact header |
 | POST | `/api/profile/sync-from-cv` | Parse JOB markers from CV and update job history details |
+| GET/POST | `/api/profile/professional-development` | List / create professional development items (Idea #243) |
+| PUT | `/api/profile/professional-development/reorder` | Reorder PD items |
+| PUT/DELETE | `/api/profile/professional-development/{id}` | Update / delete PD item |
 | PATCH | `/api/jobs/{id}/profile` | Toggle job's inclusion in position profiling corpus (Idea #242) |
 | GET | `/api/position-profile` | Aggregate ATS data from included jobs — skill frequency, match rates, gaps, strengths, role distribution (Idea #242) |
 

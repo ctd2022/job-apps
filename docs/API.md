@@ -38,7 +38,15 @@ All endpoints (except `/api/users` and `/api/health`) support `X-User-ID` header
 | GET/POST | `/api/profile/job-history` | List / create job history records |
 | PUT/DELETE | `/api/profile/job-history/{id}` | Update / delete a job history record |
 | PUT | `/api/profile/job-history/reorder` | Reorder job history entries |
-| GET | `/api/profile/assemble-cv` | Render job history as CV EXPERIENCE text + formatted contact header |
+| GET/POST | `/api/profile/certifications` | List / create certification records (Idea #240) |
+| PUT | `/api/profile/certifications/reorder` | Reorder certifications |
+| PUT/DELETE | `/api/profile/certifications/{id}` | Update / delete certification |
+| GET/POST | `/api/profile/skills` | List / create skill records (Idea #240) |
+| PUT/DELETE | `/api/profile/skills/{id}` | Update / delete skill |
+| GET/POST | `/api/profile/professional-development` | List / create professional development items — 6 types, promotion flow to Certifications (Idea #243) |
+| PUT | `/api/profile/professional-development/reorder` | Reorder PD items |
+| PUT/DELETE | `/api/profile/professional-development/{id}` | Update / delete PD item |
+| GET | `/api/profile/assemble-cv` | Render job history + certs + skills + PD as CV section texts + contact header |
 | POST | `/api/profile/sync-from-cv` | Parse `<!-- JOB:id -->` markers from CV text and update job history |
 | GET | `/api/position-profile` | Aggregate ATS details from included jobs — skill frequency, match rates, consistent gaps, strengths, role distribution (Idea #242) |
 
@@ -70,7 +78,7 @@ Response:
 | Route | Component | Purpose |
 |-------|-----------|---------|
 | `/` | Dashboard | Stats, active jobs, recent applications |
-| `/profile` | CandidateProfile | Personal info, job history, certifications, skills |
+| `/profile` | CandidateProfile | Personal info, job history, certifications, skills, professional development |
 | `/cv-coach` | CvCoach | Live CV scoring, summary generator, version history |
 | `/cvs` | CVManager | CV library, version browser |
 | `/new` | NewApplication | Create new job application |
@@ -127,5 +135,25 @@ CREATE TABLE cvs (
     is_default INTEGER DEFAULT 0,
     created_at TEXT,
     updated_at TEXT
+);
+
+-- Professional Development table (Idea #243)
+CREATE TABLE professional_development (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL DEFAULT 'default',
+    type TEXT NOT NULL,              -- Certification | Course / Training | Degree / Qualification | Professional Membership | Conference / Event | Self-directed
+    title TEXT NOT NULL,
+    provider TEXT,
+    status TEXT NOT NULL DEFAULT 'In Progress',  -- In Progress | Studying | Paused | Completed | Ongoing
+    start_date TEXT,
+    target_completion TEXT,
+    completed_date TEXT,
+    leads_to_credential INTEGER DEFAULT 0,
+    credential_url TEXT,
+    show_on_cv INTEGER DEFAULT 1,
+    notes TEXT,
+    display_order INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 ```
