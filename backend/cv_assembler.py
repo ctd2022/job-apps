@@ -74,6 +74,53 @@ def format_contact_header(profile: dict) -> str:
     return "\n".join(lines)
 
 
+def assemble_summary_section(profile: dict) -> str:
+    """Render the professional summary from profile data."""
+    text = (profile.get("summary") or "").strip()
+    if not text:
+        return ""
+    return f"PROFESSIONAL SUMMARY\n{text}"
+
+
+def assemble_education_section(education: list[dict[str, Any]]) -> str:
+    """Render education records into a plain-text EDUCATION section.
+
+    Format per entry:
+        <!-- EDU:id -->
+        qualification | institution
+        start_date – end_date (or Present)
+        Grade: X | field_of_study  (only whichever are present)
+    """
+    if not education:
+        return ""
+
+    lines: list[str] = ["EDUCATION"]
+    for edu in education:
+        edu_id = edu["id"]
+        institution = edu.get("institution") or ""
+        qualification = edu.get("qualification") or ""
+        start = edu.get("start_date") or ""
+        end = edu.get("end_date") or ("Present" if edu.get("is_current") else "")
+        date_range = f"{start} \u2013 {end}".strip(" \u2013")
+        grade = edu.get("grade") or ""
+        field = edu.get("field_of_study") or ""
+
+        lines.append(f"<!-- EDU:{edu_id} -->")
+        lines.append(f"{qualification} | {institution}")
+        if date_range:
+            lines.append(date_range)
+        detail_parts = []
+        if grade:
+            detail_parts.append(f"Grade: {grade}")
+        if field:
+            detail_parts.append(field)
+        if detail_parts:
+            lines.append(" | ".join(detail_parts))
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+
 def _format_cert_line(cert: dict[str, Any]) -> str:
     """Format a single certification as a pipe-separated line."""
     name = cert.get("name") or ""

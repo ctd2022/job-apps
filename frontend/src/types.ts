@@ -395,6 +395,8 @@ export interface CandidateProfile {
   website: string | null;
   headline: string | null;
   cert_grouping_mode: 'flat' | 'by_org' | null;
+  summary: string | null;
+  section_config: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -498,6 +500,31 @@ export interface ProfessionalDevelopment {
 
 export type ProfessionalDevelopmentCreate = Omit<ProfessionalDevelopment, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
 export type ProfessionalDevelopmentUpdate = Partial<ProfessionalDevelopmentCreate>;
+
+// Education
+export interface Education {
+  id: number;
+  user_id: string;
+  institution: string;
+  qualification: string;
+  grade: string | null;
+  field_of_study: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  is_current: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+export type EducationCreate = Omit<Education, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
+export type EducationUpdate = Partial<EducationCreate>;
+
+// Section ordering/visibility config
+export interface SectionConfig {
+  key: string;
+  label: string;
+  visible: boolean;
+}
 
 // Idea #229: CV Coach
 export interface CoachingSuggestion {

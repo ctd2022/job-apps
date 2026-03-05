@@ -308,6 +308,34 @@ def init_db():
         )
     ''')
 
+    # Education table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS education (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'default',
+            institution TEXT NOT NULL,
+            qualification TEXT NOT NULL,
+            grade TEXT,
+            field_of_study TEXT,
+            start_date TEXT,
+            end_date TEXT,
+            is_current INTEGER DEFAULT 0,
+            display_order INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    ''')
+
+    # Migrations: summary and section_config on candidate_profiles
+    try:
+        cursor.execute("ALTER TABLE candidate_profiles ADD COLUMN summary TEXT")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE candidate_profiles ADD COLUMN section_config TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     # Create indexes for migrated columns (must come AFTER migration)
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_jobs_outcome_status ON jobs(outcome_status)
@@ -1434,7 +1462,7 @@ class ProfileStore:
 
     def update_profile(self, user_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         """Update personal info fields. Returns updated profile."""
-        allowed = {"full_name", "email", "phone", "location", "linkedin", "website", "headline", "cert_grouping_mode"}
+        allowed = {"full_name", "email", "phone", "location", "linkedin", "website", "headline", "cert_grouping_mode", "summary", "section_config"}
         url_fields = {"linkedin", "website"}
         updates = {
             k: (v.replace(" ", "") if k in url_fields and isinstance(v, str) else v)
@@ -1905,6 +1933,105 @@ class ProfileStore:
             cursor.execute(
                 "UPDATE professional_development SET display_order = ? WHERE id = ? AND user_id = ?",
                 (idx, pd_id, user_id),
+            )
+        conn.commit()
+        conn.close()
+
+    # ── Education ────────────────────────────────────────────────────────────
+
+    def _row_to_edu(self, row: sqlite3.Row) -> Dict[str, Any]:
+        d = dict(row)
+        d["is_current"] = bool(d.get("is_current"))
+        return d
+
+    def list_education(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return all education records for user, ordered by display_order."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM education WHERE user_id = ? ORDER BY display_order ASC, id ASC",
+            (user_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [self._row_to_edu(r) for r in rows]
+
+    def create_education(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert a new education record. Returns the created record."""
+        now = datetime.now().isoformat()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO education
+               (user_id, institution, qualification, grade, field_of_study,
+                start_date, end_date, is_current, display_order, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                user_id,
+                data.get("institution", ""),
+                data.get("qualification", ""),
+                data.get("grade"),
+                data.get("field_of_study"),
+                data.get("start_date"),
+                data.get("end_date"),
+                1 if data.get("is_current") else 0,
+                data.get("display_order", 0),
+                now,
+                now,
+            ),
+        )
+        edu_id = cursor.lastrowid
+        conn.commit()
+        cursor.execute("SELECT * FROM education WHERE id = ?", (edu_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return self._row_to_edu(row)
+
+    def update_education(self, edu_id: int, user_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update an education record. Returns updated record or None."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM education WHERE id = ? AND user_id = ?", (edu_id, user_id))
+        if not cursor.fetchone():
+            conn.close()
+            return None
+        allowed = {"institution", "qualification", "grade", "field_of_study",
+                   "start_date", "end_date", "is_current", "display_order"}
+        updates: Dict[str, Any] = {k: v for k, v in data.items() if k in allowed}
+        if "is_current" in updates:
+            updates["is_current"] = 1 if updates["is_current"] else 0
+        updates["updated_at"] = datetime.now().isoformat()
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [edu_id, user_id]
+        cursor.execute(
+            f"UPDATE education SET {set_clause} WHERE id = ? AND user_id = ?", values
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM education WHERE id = ?", (edu_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return self._row_to_edu(row)
+
+    def delete_education(self, edu_id: int, user_id: str) -> bool:
+        """Delete an education record. Returns True if deleted."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM education WHERE id = ? AND user_id = ?", (edu_id, user_id)
+        )
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def reorder_education(self, user_id: str, ordered_ids: List[int]) -> None:
+        """Set display_order for each education record in the given order."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        for idx, edu_id in enumerate(ordered_ids):
+            cursor.execute(
+                "UPDATE education SET display_order = ? WHERE id = ? AND user_id = ?",
+                (idx, edu_id, user_id),
             )
         conn.commit()
         conn.close()

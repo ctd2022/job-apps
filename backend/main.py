@@ -266,6 +266,9 @@ class ProfileUpdate(BaseModel):
     linkedin: Optional[str] = None
     website: Optional[str] = None
     headline: Optional[str] = None
+    cert_grouping_mode: Optional[str] = None
+    summary: Optional[str] = None
+    section_config: Optional[str] = None
 
 
 class JobHistoryCreate(BaseModel):
@@ -369,6 +372,28 @@ class ProfessionalDevelopmentUpdate(BaseModel):
     credential_url: Optional[str] = None
     show_on_cv: Optional[bool] = None
     notes: Optional[str] = None
+    display_order: Optional[int] = None
+
+
+class EducationCreate(BaseModel):
+    institution: str
+    qualification: str
+    grade: Optional[str] = None
+    field_of_study: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    is_current: bool = False
+    display_order: int = 0
+
+
+class EducationUpdate(BaseModel):
+    institution: Optional[str] = None
+    qualification: Optional[str] = None
+    grade: Optional[str] = None
+    field_of_study: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    is_current: Optional[bool] = None
     display_order: Optional[int] = None
 
 
@@ -2561,28 +2586,71 @@ async def delete_job_history(
     return {"status": "deleted"}
 
 
+DEFAULT_SECTIONS = [
+    {"key": "summary",                  "label": "Professional Summary"},
+    {"key": "experience",               "label": "Work Experience"},
+    {"key": "education",                "label": "Education"},
+    {"key": "certifications",           "label": "Certifications"},
+    {"key": "skills",                   "label": "Skills"},
+    {"key": "professional_development", "label": "Professional Development"},
+]
+
+
 @app.get("/api/profile/assemble-cv")
 async def assemble_cv(user_id: str = Header(None, alias="X-User-ID")):
     """Render structured profile data into CV section texts."""
+    import json as _json
     user_id = user_id or "default"
     profile = profile_store.get_or_create_profile(user_id)
     job_history = profile_store.list_job_history(user_id)
     certifications = profile_store.list_certifications(user_id)
     skills = profile_store.list_skills(user_id)
     pd_items = profile_store.list_professional_development(user_id)
+    education = profile_store.list_education(user_id)
     orgs = profile_store.list_orgs()
     grouping_mode = profile.get("cert_grouping_mode") or "flat"
     contact_header = cv_assembler.format_contact_header(profile)
+    summary_text = cv_assembler.assemble_summary_section(profile)
     experience_text = cv_assembler.assemble_experience_section(job_history)
+    education_text = cv_assembler.assemble_education_section(education)
     certifications_text = cv_assembler.assemble_certifications_section(certifications, orgs, grouping_mode)
     skills_text = cv_assembler.assemble_skills_section(skills)
     professional_development_text = cv_assembler.assemble_professional_development_section(pd_items)
+
+    text_map = {
+        "summary": summary_text,
+        "experience": experience_text,
+        "education": education_text,
+        "certifications": certifications_text,
+        "skills": skills_text,
+        "professional_development": professional_development_text,
+    }
+
+    raw_config = profile.get("section_config")
+    try:
+        config = _json.loads(raw_config) if raw_config else DEFAULT_SECTIONS
+    except (ValueError, TypeError):
+        config = DEFAULT_SECTIONS
+
+    sections = [
+        {
+            "key": s["key"],
+            "label": s["label"],
+            "text": text_map.get(s["key"], ""),
+            "visible": s.get("visible", True),
+        }
+        for s in config
+    ]
+
     return {
         "contact_header": contact_header,
+        "summary_text": summary_text,
         "experience_text": experience_text,
+        "education_text": education_text,
         "certifications_text": certifications_text,
         "skills_text": skills_text,
         "professional_development_text": professional_development_text,
+        "sections": sections,
     }
 
 
@@ -2729,6 +2797,63 @@ async def delete_professional_development(
     deleted = profile_store.delete_professional_development(pd_id, user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Professional development item {pd_id} not found")
+    return {"status": "deleted"}
+
+
+# ── Education endpoints ───────────────────────────────────────────────────────
+
+@app.get("/api/profile/education")
+async def list_education(user_id: str = Header(None, alias="X-User-ID")):
+    """List all education records for current user."""
+    user_id = user_id or "default"
+    return profile_store.list_education(user_id)
+
+
+@app.post("/api/profile/education", status_code=201)
+async def create_education(
+    request: EducationCreate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Create a new education record."""
+    user_id = user_id or "default"
+    return profile_store.create_education(user_id, request.model_dump())
+
+
+@app.put("/api/profile/education/reorder")
+async def reorder_education(
+    request: ReorderRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Set display order for education records."""
+    user_id = user_id or "default"
+    profile_store.reorder_education(user_id, request.ordered_ids)
+    return {"status": "ok"}
+
+
+@app.put("/api/profile/education/{edu_id}")
+async def update_education(
+    edu_id: int,
+    request: EducationUpdate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Update an education record."""
+    user_id = user_id or "default"
+    result = profile_store.update_education(edu_id, user_id, request.model_dump(exclude_unset=True))
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Education record {edu_id} not found")
+    return result
+
+
+@app.delete("/api/profile/education/{edu_id}")
+async def delete_education(
+    edu_id: int,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Delete an education record."""
+    user_id = user_id or "default"
+    deleted = profile_store.delete_education(edu_id, user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Education record {edu_id} not found")
     return {"status": "deleted"}
 
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, ExternalLink, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, ExternalLink, ChevronRight, Eye, EyeOff, Wand2, RefreshCw } from 'lucide-react';
 import {
   getProfile,
   updateProfile,
@@ -26,6 +26,13 @@ import {
   createIssuingOrg,
   updateIssuingOrg,
   deleteIssuingOrg,
+  listEducation,
+  createEducation,
+  updateEducation,
+  deleteEducation,
+  reorderEducation,
+  assembleCV,
+  generateSummary,
 } from '../api';
 import type {
   CandidateProfile as ProfileType,
@@ -45,6 +52,9 @@ import type {
   PDStatus,
   IssuingOrganisation,
   IssuingOrgCreate,
+  Education,
+  EducationCreate,
+  SectionConfig,
 } from '../types';
 
 // ─── Job modal form state ────────────────────────────────────────────────────
@@ -1049,7 +1059,7 @@ function SkillsSection({ skills, onChange }: SkillsSectionProps) {
   const [deletingCategory, setDeletingCategory] = useState<string | null>(null);
 
   // Collect existing category names for datalist
-  const existingCategories = [...new Set(skills.map(s => s.category).filter(Boolean) as string[])];
+  const existingCategories = [...new Set(skills.map(s => s.category).filter(Boolean) as string[])].sort();
 
   // Group skills by category
   const grouped = skills.reduce<Record<string, Skill[]>>((acc, skill) => {
@@ -1752,6 +1762,612 @@ function ProfessionalDevelopmentSection({ pdItems, certifications, onChange, onC
   );
 }
 
+// ─── Education form state ────────────────────────────────────────────────────
+
+interface EduFormState {
+  institution: string;
+  qualification: string;
+  grade: string;
+  field_of_study: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
+}
+
+const EMPTY_EDU_FORM: EduFormState = {
+  institution: '',
+  qualification: '',
+  grade: '',
+  field_of_study: '',
+  start_date: '',
+  end_date: '',
+  is_current: false,
+};
+
+function eduToForm(edu: Education): EduFormState {
+  return {
+    institution: edu.institution,
+    qualification: edu.qualification,
+    grade: edu.grade ?? '',
+    field_of_study: edu.field_of_study ?? '',
+    start_date: edu.start_date ?? '',
+    end_date: edu.end_date ?? '',
+    is_current: edu.is_current,
+  };
+}
+
+function formToEduCreate(form: EduFormState, display_order = 0): EducationCreate {
+  return {
+    institution: form.institution.trim(),
+    qualification: form.qualification.trim(),
+    grade: form.grade.trim() || null,
+    field_of_study: form.field_of_study.trim() || null,
+    start_date: form.start_date.trim() || null,
+    end_date: form.is_current ? null : (form.end_date.trim() || null),
+    is_current: form.is_current,
+    display_order,
+  };
+}
+
+// ─── Education Modal ───────────────────────────────────────────────────────────
+
+interface EduModalProps {
+  initial: EduFormState;
+  title: string;
+  saving: boolean;
+  onSave: (form: EduFormState) => void;
+  onClose: () => void;
+}
+
+function EduModal({ initial, title, saving, onSave, onClose }: EduModalProps) {
+  const [form, setForm] = useState<EduFormState>(initial);
+
+  const set = <K extends keyof EduFormState>(key: K, value: EduFormState[K]) =>
+    setForm(prev => ({ ...prev, [key]: value }));
+
+  const valid = form.institution.trim() !== '' && form.qualification.trim() !== '';
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+          <h3 className="font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Qualification *</label>
+              <input
+                value={form.qualification}
+                onChange={e => set('qualification', e.target.value)}
+                className={inputCls}
+                placeholder="BSc Computer Science"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Institution *</label>
+              <input
+                value={form.institution}
+                onChange={e => set('institution', e.target.value)}
+                className={inputCls}
+                placeholder="University of London"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Field of Study</label>
+              <input
+                value={form.field_of_study}
+                onChange={e => set('field_of_study', e.target.value)}
+                className={inputCls}
+                placeholder="Computer Vision, ML"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Grade</label>
+              <input
+                value={form.grade}
+                onChange={e => set('grade', e.target.value)}
+                className={inputCls}
+                placeholder="2:1 Honours"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Start Year</label>
+              <input
+                value={form.start_date}
+                onChange={e => set('start_date', e.target.value)}
+                className={inputCls}
+                placeholder="2018"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">End Year</label>
+                <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.is_current}
+                    onChange={e => set('is_current', e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-slate-300"
+                  />
+                  Current
+                </label>
+              </div>
+              {form.is_current ? (
+                <div className="w-full px-2.5 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded bg-slate-50 dark:bg-slate-700/50 text-slate-400 dark:text-slate-500 italic">
+                  Present
+                </div>
+              ) : (
+                <input
+                  value={form.end_date}
+                  onChange={e => set('end_date', e.target.value)}
+                  className={inputCls}
+                  placeholder="2021"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-200 dark:border-slate-700">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(form)}
+            disabled={!valid || saving}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            {saving ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Education Section ─────────────────────────────────────────────────────────
+
+interface EducationSectionProps {
+  education: Education[];
+  onChange: (items: Education[]) => void;
+}
+
+function EducationSection({ education, onChange }: EducationSectionProps) {
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<Education | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const moveEdu = useCallback(async (index: number, direction: -1 | 1) => {
+    const newList = [...education];
+    const swapIdx = index + direction;
+    if (swapIdx < 0 || swapIdx >= newList.length) return;
+    [newList[index], newList[swapIdx]] = [newList[swapIdx], newList[index]];
+    onChange(newList);
+    await reorderEducation(newList.map(e => e.id));
+  }, [education, onChange]);
+
+  const handleAdd = async (form: EduFormState) => {
+    setSaving(true);
+    try {
+      const created = await createEducation(formToEduCreate(form, education.length));
+      onChange([...education, created]);
+      setAdding(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdate = async (form: EduFormState) => {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      const updated = await updateEducation(editing.id, formToEduCreate(form, editing.display_order));
+      onChange(education.map(e => e.id === editing.id ? updated : e));
+      setEditing(null);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Delete this education record?')) return;
+    setDeletingId(id);
+    try {
+      await deleteEducation(id);
+      onChange(education.filter(e => e.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <>
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-slate-800 dark:text-slate-100">Education</h2>
+          <button
+            onClick={() => setAdding(true)}
+            className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded hover:bg-blue-700"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add
+          </button>
+        </div>
+
+        {education.length === 0 ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500 italic text-center py-6">
+            No education yet — click "Add" to get started.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {education.map((edu, idx) => (
+              <div
+                key={edu.id}
+                className="flex items-start gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3"
+              >
+                <div className="flex flex-col gap-0.5 mt-0.5">
+                  <button
+                    onClick={() => moveEdu(idx, -1)}
+                    disabled={idx === 0}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
+                    title="Move up"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => moveEdu(idx, 1)}
+                    disabled={idx === education.length - 1}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
+                    title="Move down"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    {edu.qualification}
+                    <span className="font-normal text-slate-500 dark:text-slate-400"> | {edu.institution}</span>
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {edu.start_date ?? '?'}{' – '}{edu.is_current ? 'Present' : (edu.end_date ?? '?')}
+                  </p>
+                  {(edu.grade || edu.field_of_study) && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      {[edu.grade ? `Grade: ${edu.grade}` : null, edu.field_of_study].filter(Boolean).join(' | ')}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => setEditing(edu)}
+                    className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded"
+                    title="Edit"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(edu.id)}
+                    disabled={deletingId === edu.id}
+                    className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded disabled:opacity-50"
+                    title="Delete"
+                  >
+                    {deletingId === edu.id
+                      ? <Loader className="w-3.5 h-3.5 animate-spin" />
+                      : <Trash2 className="w-3.5 h-3.5" />
+                    }
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {adding && (
+        <EduModal
+          initial={EMPTY_EDU_FORM}
+          title="Add Education"
+          saving={saving}
+          onSave={handleAdd}
+          onClose={() => setAdding(false)}
+        />
+      )}
+      {editing && (
+        <EduModal
+          initial={eduToForm(editing)}
+          title="Edit Education"
+          saving={saving}
+          onSave={handleUpdate}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── Default section config ────────────────────────────────────────────────────
+
+const DEFAULT_SECTION_CONFIG: SectionConfig[] = [
+  { key: 'summary',                  label: 'Professional Summary', visible: true },
+  { key: 'experience',               label: 'Work Experience',       visible: true },
+  { key: 'education',                label: 'Education',             visible: true },
+  { key: 'certifications',           label: 'Certifications',        visible: true },
+  { key: 'skills',                   label: 'Skills',                visible: true },
+  { key: 'professional_development', label: 'Professional Development', visible: true },
+];
+
+// ─── Section Config Panel ─────────────────────────────────────────────────────
+
+interface SectionConfigPanelProps {
+  config: SectionConfig[];
+  onChange: (config: SectionConfig[]) => void;
+}
+
+function SectionConfigPanel({ config, onChange }: SectionConfigPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  const toggleVisible = async (key: string) => {
+    const updated = config.map(s => s.key === key ? { ...s, visible: !s.visible } : s);
+    onChange(updated);
+    await updateProfile({ section_config: JSON.stringify(updated) } as ProfileUpdate);
+  };
+
+  const moveSection = async (index: number, direction: -1 | 1) => {
+    const newList = [...config];
+    const swapIdx = index + direction;
+    if (swapIdx < 0 || swapIdx >= newList.length) return;
+    [newList[index], newList[swapIdx]] = [newList[swapIdx], newList[index]];
+    onChange(newList);
+    await updateProfile({ section_config: JSON.stringify(newList) } as ProfileUpdate);
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-3 text-left"
+      >
+        <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">CV Section Order</span>
+        <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+      </button>
+
+      {expanded && (
+        <div className="px-5 pb-4 border-t border-slate-200 dark:border-slate-700 pt-3 space-y-1">
+          {config.map((section, idx) => (
+            <div key={section.key} className="flex items-center gap-2 py-1">
+              <button
+                onClick={() => toggleVisible(section.key)}
+                className="flex-shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                title={section.visible ? 'Hide section' : 'Show section'}
+              >
+                {section.visible
+                  ? <Eye className="w-4 h-4 text-blue-500" />
+                  : <EyeOff className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                }
+              </button>
+              <span className={`flex-1 text-sm ${section.visible ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}>
+                {section.label}
+              </span>
+              <div className="flex gap-0.5">
+                <button
+                  onClick={() => moveSection(idx, -1)}
+                  disabled={idx === 0}
+                  className="p-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-25"
+                  title="Move up"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => moveSection(idx, 1)}
+                  disabled={idx === config.length - 1}
+                  className="p-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-25"
+                  title="Move down"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Summary Section ──────────────────────────────────────────────────────────
+
+interface SummarySectionProps {
+  profile: ProfileType | null;
+  onSaved: (p: ProfileType) => void;
+}
+
+function SummarySection({ profile, onSaved }: SummarySectionProps) {
+  const [text, setText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [showJD, setShowJD] = useState(false);
+  const [jd, setJd] = useState('');
+
+  useEffect(() => {
+    setText(profile?.summary ?? '');
+  }, [profile?.summary]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated = await updateProfile({ summary: text } as ProfileUpdate);
+      onSaved(updated);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!showJD) { setShowJD(true); return; }
+    setGenerating(true);
+    try {
+      const assembled = await assembleCV();
+      const result = await generateSummary(assembled.experience_text, jd || undefined);
+      setText(result.summary);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const dirty = text !== (profile?.summary ?? '');
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-slate-800 dark:text-slate-100">Professional Summary</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 hover:underline disabled:opacity-50"
+            title="Generate summary using AI"
+          >
+            {generating ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+            Generate
+          </button>
+          {dirty && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? <Loader className="w-3 h-3 animate-spin" /> : null}
+              Save
+            </button>
+          )}
+        </div>
+      </div>
+
+      {showJD && (
+        <div className="mb-2">
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+            Job description (optional — for a targeted summary)
+          </label>
+          <textarea
+            value={jd}
+            onChange={e => setJd(e.target.value)}
+            rows={3}
+            className={`${inputCls} resize-y mb-1`}
+            placeholder="Paste job description here…"
+          />
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex items-center gap-1 text-xs bg-purple-600 text-white px-2.5 py-1 rounded hover:bg-purple-700 disabled:opacity-50"
+          >
+            {generating ? <Loader className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+            Generate now
+          </button>
+        </div>
+      )}
+
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        rows={4}
+        className={`${inputCls} resize-y`}
+        placeholder="A concise professional summary (3–4 sentences)…"
+      />
+      <p className="text-xs text-slate-400 mt-1">{text.length} characters</p>
+    </div>
+  );
+}
+
+// ─── Profile Preview ──────────────────────────────────────────────────────────
+
+function ProfilePreview() {
+  const [expanded, setExpanded] = useState(false);
+  const [previewText, setPreviewText] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const result = await assembleCV();
+      const parts: string[] = [];
+      if (result.contact_header) parts.push(result.contact_header);
+      for (const section of result.sections) {
+        if (section.visible && section.text) {
+          parts.push(section.text);
+        }
+      }
+      setPreviewText(parts.join('\n\n'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExpand = () => {
+    const wasExpanded = expanded;
+    setExpanded(v => !v);
+    if (!wasExpanded) refresh();
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+      <button
+        onClick={handleExpand}
+        className="w-full flex items-center justify-between px-5 py-3 text-left"
+      >
+        <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">CV Preview</span>
+        <div className="flex items-center gap-2">
+          {expanded && (
+            <button
+              onClick={e => { e.stopPropagation(); refresh(); }}
+              disabled={loading}
+              className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+              title="Refresh preview"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          )}
+          <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-5 pb-5 border-t border-slate-200 dark:border-slate-700 pt-3">
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
+              <Loader className="w-4 h-4 animate-spin" /> Assembling CV…
+            </div>
+          ) : (
+            <textarea
+              readOnly
+              value={previewText}
+              rows={20}
+              className="w-full px-3 py-2 text-xs font-mono border border-slate-200 dark:border-slate-600 rounded bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 resize-y focus:outline-none"
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CandidateProfile() {
@@ -1761,6 +2377,8 @@ export default function CandidateProfile() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [pdItems, setPdItems] = useState<ProfessionalDevelopment[]>([]);
   const [orgs, setOrgs] = useState<IssuingOrganisation[]>([]);
+  const [education, setEducation] = useState<Education[]>([]);
+  const [sectionConfig, setSectionConfig] = useState<SectionConfig[]>(DEFAULT_SECTION_CONFIG);
   const [groupingMode, setGroupingMode] = useState<'flat' | 'by_org'>('flat');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1776,13 +2394,14 @@ export default function CandidateProfile() {
 
   const load = useCallback(async () => {
     try {
-      const [p, jobs, certs, skillList, pdList, orgList] = await Promise.all([
+      const [p, jobs, certs, skillList, pdList, orgList, eduList] = await Promise.all([
         getProfile(),
         listJobHistory(),
         listCertifications(),
         listSkills(),
         listProfessionalDevelopment(),
         listIssuingOrgs(),
+        listEducation(),
       ]);
       setProfile(p);
       setJobHistory(jobs);
@@ -1790,8 +2409,16 @@ export default function CandidateProfile() {
       setSkills(skillList);
       setPdItems(pdList);
       setOrgs(orgList);
+      setEducation(eduList);
       // Restore grouping mode from profile if available
       if (p.cert_grouping_mode === 'by_org' || p.cert_grouping_mode === 'flat') setGroupingMode(p.cert_grouping_mode);
+      // Restore section config from profile if available
+      if (p.section_config) {
+        try {
+          const parsed = JSON.parse(p.section_config) as SectionConfig[];
+          if (Array.isArray(parsed) && parsed.length > 0) setSectionConfig(parsed);
+        } catch { /* ignore malformed JSON */ }
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -1875,8 +2502,10 @@ export default function CandidateProfile() {
       <PIIBanner />
 
       <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-4 items-start">
-        {/* Left column: Personal Info + Certifications + Professional Development */}
+        {/* Left column */}
         <div className="space-y-4">
+          <SectionConfigPanel config={sectionConfig} onChange={setSectionConfig} />
+          <SummarySection profile={profile} onSaved={setProfile} />
           <PersonalInfoSection profile={profile} onSaved={setProfile} />
           <IssuingOrgsAdmin orgs={orgs} onChange={setOrgs} />
           <CertificationsSection
@@ -1895,7 +2524,7 @@ export default function CandidateProfile() {
           />
         </div>
 
-        {/* Right column: Work Experience + Skills */}
+        {/* Right column: Work Experience + Education + Skills */}
         <div className="space-y-4">
           {/* Work Experience */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
@@ -1992,10 +2621,16 @@ export default function CandidateProfile() {
             )}
           </div>
 
+          {/* Education */}
+          <EducationSection education={education} onChange={setEducation} />
+
           {/* Skills */}
           <SkillsSection skills={skills} onChange={setSkills} />
         </div>
       </div>
+
+      {/* Full-width CV Preview */}
+      <ProfilePreview />
 
       {/* Modals */}
       {addingJob && (

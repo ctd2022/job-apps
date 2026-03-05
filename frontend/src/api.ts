@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate } from './types';
 
 const API_BASE = '/api';
 
@@ -709,11 +709,20 @@ export async function reorderJobHistory(orderedIds: number[]): Promise<void> {
   await handleResponse(response);
 }
 
-export async function assembleCV(): Promise<{ experience_text: string; contact_header: string; certifications_text: string; skills_text: string }> {
+export async function assembleCV(): Promise<{
+  contact_header: string;
+  summary_text: string;
+  experience_text: string;
+  education_text: string;
+  certifications_text: string;
+  skills_text: string;
+  professional_development_text: string;
+  sections: { key: string; label: string; text: string; visible: boolean }[];
+}> {
   const response = await fetch(`${API_BASE}/profile/assemble-cv`, {
     headers: { ...getUserHeaders() },
   });
-  return handleResponse<{ experience_text: string; contact_header: string; certifications_text: string; skills_text: string }>(response);
+  return handleResponse(response);
 }
 
 export async function syncFromCV(cvText: string): Promise<{ updated_count: number }> {
@@ -794,6 +803,50 @@ export async function deleteCertification(id: number): Promise<void> {
 
 export async function reorderCertifications(orderedIds: number[]): Promise<void> {
   const response = await fetch(`${API_BASE}/profile/certifications/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ ordered_ids: orderedIds }),
+  });
+  await handleResponse(response);
+}
+
+// ── Education ─────────────────────────────────────────────────────────────────
+
+export async function listEducation(): Promise<Education[]> {
+  const response = await fetch(`${API_BASE}/profile/education`, {
+    headers: { ...getUserHeaders() },
+  });
+  return handleResponse<Education[]>(response);
+}
+
+export async function createEducation(data: EducationCreate): Promise<Education> {
+  const response = await fetch(`${API_BASE}/profile/education`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<Education>(response);
+}
+
+export async function updateEducation(id: number, data: EducationUpdate): Promise<Education> {
+  const response = await fetch(`${API_BASE}/profile/education/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<Education>(response);
+}
+
+export async function deleteEducation(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/profile/education/${id}`, {
+    method: 'DELETE',
+    headers: { ...getUserHeaders() },
+  });
+  await handleResponse(response);
+}
+
+export async function reorderEducation(orderedIds: number[]): Promise<void> {
+  const response = await fetch(`${API_BASE}/profile/education/reorder`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
     body: JSON.stringify({ ordered_ids: orderedIds }),
