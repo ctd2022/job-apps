@@ -1,9 +1,9 @@
 # MASTER VISION - Job Application Workflow
 
-**Last Updated**: 25 February 2026
-**Current Status**: Track 2.9.3 COMPLETE - CV Versioning + Keyword Injection fixes
-**Branch**: `track2.8-semantic-ats`
-**Next Phase**: Track 2.9.2 Core UX - Match Explanation Cards
+**Last Updated**: 5 March 2026
+**Current Status**: Track 3.0 COMPLETE — CV Coach + Candidate Profile fully built out
+**Branch**: `main`
+**Next Phase**: Interview Prep (#34 STAR Coach) or Job Title Bullet Suggestions (#59)
 
 ---
 
@@ -157,43 +157,64 @@ Final Score = (Lexical × 0.55) + (Semantic × 0.35) + (Evidence × 0.10)
 - [x] **#94 Privacy-First Messaging**: Shield icon + "Your CV never leaves this PC" in footer
 - [x] **#92 JD Auto-Save**: Store full JD text in database, "View Original Job Description" button + modal in JobDetail
 
-### **🎯 Track 2.9.2: Core UX** ← NEXT
+### **✅ Track 2.9.2–2.9.3: Core UX + CV Refinement** - COMPLETE
 
-**Why This Matters**: Track 2.8 built powerful backend intelligence (semantic scoring, gap analysis, section matching). Track 2.9 surfaces this to users in intuitive, actionable ways. Based on comprehensive competitor UX research (LinkedIn, Otta, Wellfound, Hired, etc.) - see `docs/raw/competitors-ux/`.
+- Match Explanation Cards (#89) — "why you match" narrative with section-level evidence
+- Gap-fill Wizard (#82) — guided evidence questions per gap type (critical/evidence/semantic)
+- Smart CV Gap Analysis with Actionable Suggestions (#87) — placement recommendations
+- Auto-Suggest Keywords (#100) — keyword injection into CV via LLM with verification
+- CV Versioning System (#98) — full version history + one-click restore
+- Pipeline Health Diagnosis (#33) — LLM diagnosis of application funnel bottlenecks
+- Evidence Gap Enrichment (#78) — section badges + specific advice per weak-evidence skill
 
-**Core Insight from Research**: The shift from "Search & Filter" (user does work) to "Match & Explain" (AI does work, explains why).
+---
 
-**Implementation Phases (Prioritized)**:
+### **✅ Track 3.0: CV Coach** - COMPLETE (February 2026)
 
-| Phase | Idea | Title | Complexity | Impact | Status |
-|-------|------|-------|------------|--------|--------|
-| **Quick Wins** |
-| 2.9.1 | #90 | Match Score Tier Labels | Low | Medium | **DONE** |
-| 2.9.1 | #94 | Privacy-First UX Messaging | Low | Medium | **DONE** |
-| 2.9.1 | #92 | Job Description Auto-Save | Low | Medium | **DONE** |
-| **Core UX** |
-| 2.9.2 | #89 | Match Explanation Cards (Otta/Wellfound style) | Medium | High | Next |
-| 2.9.2 | #96 | Missing Keywords Alert with Frequency | Medium | High | |
-| 2.9.2 | #97 | CV Section Completeness Meter | Medium | Medium | |
-| **Evidence Enhancement** |
-| 2.9.3 | #93 | Guided Evidence Question (Otta pattern) | Medium | High | |
-| **Major Features** |
-| 2.9.4 | #91 | Kanban Application Tracker Dashboard | High | High | |
-| 2.9.4 | #95 | Parser + Verify Editable Fields (Indeed pattern) | High | High | |
+**Why**: A Grammarly-style live CV quality coach that assesses the CV without a job description — ensuring the document is strong before tailoring begins.
 
-**Key UX Patterns to Adopt** (from research):
-- **From Otta**: Match explanation narratives, guided pitch questions, salary transparency
-- **From Wellfound**: One-click actions, equity/compensation display
-- **From LinkedIn**: Network signals, Easy Apply simplicity, skills assessments
-- **From Teal/Huntr**: Comprehensive tracking dashboards, browser extensions
+**Features (Idea #229):**
+- Live re-assessment on every keystroke (1.5s debounce) — no submit button
+- Animated quality score with colour bands and coaching suggestion cards
+- Jump-to-section links from each suggestion
+- Version history picker — load and restore any stored CV version
+- Professional Summary Generator (#55) — two-click LLM generate with optional JD context, PII-scrubbed
+- Pull from Profile — injects contact header + experience text from Candidate Profile
 
-**Patterns to Avoid**:
-- Black hole applications with no status feedback
-- Opaque matching with no explanation
-- Frictionless apply that generates low-quality applications
-- Character limits without real-time feedback
+**Route**: `/cv-coach` | **Component**: `CvCoach.tsx`
 
-**Privacy Differentiator**: "Your CV never leaves this PC" - key advantage vs cloud platforms.
+---
+
+### **✅ Track 3.1: Candidate Profile** - COMPLETE (February–March 2026)
+
+A structured data profile that acts as the single source of truth for career history. Assembles CV sections on demand; PII never exposed to LLM in raw form.
+
+**Sub-features delivered:**
+
+| Idea | Feature |
+|------|---------|
+| #233 | Candidate Profile + PII Privacy Layer — personal info, job history, contact header assembly |
+| #238 | Pull from Profile — contact header injected into CV editors with idempotent replace |
+| #240 | Certifications + Skills sections — CRUD, reorder, category grouping |
+| #242 | Position Profiling — cross-job skill frequency, consistent gaps, strengths, role distribution |
+| #243 | Professional Development — 6 types, status badges, promotion-to-Certification flow |
+| #281 | Issuing Organisation as first-class entity — colour, display label, logo; cert FK + grouping modes |
+| —    | Education section, Professional Summary card, Section Config panel, CV Preview panel |
+
+**Profile page sections:**
+- CV Section Order (reorder + eye toggle, persisted as JSON on profile)
+- Professional Summary (textarea + AI Generate, PII-scrubbed before LLM)
+- Personal Info (name, email, phone, location, LinkedIn, website, headline)
+- Issuing Organisations admin (colour picker, logo URL)
+- Certifications (org FK, flat/by-issuer grouping, modal CRUD, reorder)
+- Professional Development (6 types, promotion flow to Certifications)
+- Job History (CRUD, reorder, sync-from-CV via `<!-- JOB:id -->` markers)
+- Education (qualification, institution, grade, field of study, year range)
+- Skills (chip UI, grouped by category)
+- CV Preview (collapsible; assembles all visible sections in configured order)
+
+**Route**: `/profile` | **Component**: `CandidateProfile.tsx`
+**Route**: `/position-profile` | **Component**: `PositionProfile.tsx`
 
 ---
 
@@ -496,13 +517,21 @@ npm run dev
 | Jan 2026 | **Track 2.8.1 Complete** - Section detection, entity extraction, evidence scoring | 015 |
 | Jan 2026 | **Track 2.8.2 Complete** - Semantic embeddings, hybrid scoring (55/35/10) | 016 |
 | Jan 2026 | **Track 2.9.1 Complete** - Quick Wins: tier labels, privacy footer, JD auto-save | 017 |
+| Feb 2026 | **Track 2.9.2–3 Complete** - Match cards, gap-fill wizard, keyword injection, versioning | 018–049 |
+| Feb 2026 | **Track 3.0 Complete** - CV Coach: live scoring, summary generator, pull from profile | 050–055 |
+| Feb 2026 | **Candidate Profile (#233)** - personal info, job history, PII scrubber, contact header | 056 |
+| Feb 2026 | **Certifications + Skills (#240)** - CRUD, reorder, assembler | 057 |
+| Feb 2026 | **Position Profiling (#242)** - cross-job skill freq, corpus checkbox | 057 |
+| Feb 2026 | **Professional Development (#243)** - 6 types, promotion flow | 058 |
+| Feb 2026 | **Issuing Organisations (#281)** - first-class entity, cert FK, flat/by-org grouping | 059 |
+| Mar 2026 | **Education + Summary + SectionConfig + Preview** - profile page complete | 060 |
 
 ### **Pending Decisions:**
-- ~~SQLite vs in-memory for job history?~~ ✅ SQLite implemented (23 Jan)
-- ~~Multiple CV management?~~ ✅ Implemented (23 Jan)
-- ⏳ When to validate and move to Track 3? (after 20+ tracked applications)
-- ⏳ Profile management in Track 3 or separate phase?
-- ⏳ Llama.cpp model selection UI (deferred enhancement)
+- ~~SQLite vs in-memory for job history?~~ ✅ SQLite implemented
+- ~~Multiple CV management?~~ ✅ Implemented
+- ~~Profile management in Track 3 or separate phase?~~ ✅ Built as Track 3.1 (local-first)
+- ⏳ When to validate and move to Track 3 SaaS? (after 20+ tracked applications with profile data)
+- ⏳ Llama.cpp model selection UI (#1 — deferred, low priority)
 
 ---
 
@@ -513,10 +542,10 @@ npm run dev
 - Get tailored outputs
 - Download DOCX files
 
-### **Phase 2: Profile Management** (After Track 3)
-- Users create one master profile
-- Generate infinite variations (tech CV, leadership CV, LinkedIn, etc.)
-- Single source of truth
+### **Phase 2: Profile Management** ✅ LARGELY COMPLETE (Track 3.1)
+- ~~Users create one master profile~~ ✅ Candidate Profile built
+- ~~Single source of truth~~ ✅ Profile assembles all CV sections on demand
+- Generate infinite variations (tech CV, leadership CV, LinkedIn export) — still to build
 
 ### **Phase 3: Public Profiles + Matching** (Future)
 - Searchable public profiles
@@ -532,66 +561,40 @@ npm run dev
 
 ## 🎯 **STRATEGIC PRIORITIES**
 
-### **Immediate (This Week):**
-1. ~~Complete Track 2 Week 3~~ ✅ DONE
-2. ~~Test with all three backends~~ ✅ DONE
-3. ~~Implement Track 2.5: Outcome Tracking~~ ✅ DONE (24 Jan 2026)
-4. ~~**Track 2.8: Hybrid Semantic ATS**~~ ✅ Track 2.8.2 COMPLETE (26 Jan 2026)
-   - ~~Phase 2.8.1: Section detection + entity extraction~~ ✅ DONE
-   - ~~Phase 2.8.2: Semantic embeddings + hybrid scoring~~ ✅ DONE
-   - Phase 2.8.3: Constraint penalties (optional, deferred)
-5. ~~**Track 2.9.1: Quick Wins**~~ ✅ COMPLETE (26 Jan 2026)
-   - ~~#90 Match Score Tier Labels~~ ✅ DONE
-   - ~~#94 Privacy-First Messaging~~ ✅ DONE
-   - ~~#92 JD Auto-Save~~ ✅ DONE
-6. **Track 2.9.2: Core UX** ← NEXT FOCUS
-   - #89 Match Explanation Cards ← START HERE
-   - #96 Missing Keywords Alert
-   - #97 CV Completeness Meter
+### **Current State (March 2026):**
+Everything through Track 3.1 is complete. The tool is feature-rich and actively usable for real job applications. The Candidate Profile is the new foundation — all CV assembly flows through it.
 
-### **Short-term (Next 2-3 Weeks):**
-1. Complete Track 2.9.1 Quick Wins (tier labels, privacy messaging, JD save)
-2. Implement Match Explanation Cards (#89) - flagship UX feature
-3. Start using for real job applications with new UX
+### **Next Candidates (all Priority 4, pick based on value):**
 
-### **Medium-term (1-3 Months):**
-1. Complete Track 2.9 UX features
-2. Use web UI for 10-20 real job applications
-3. Track outcomes and validate improvement
-4. Decide: Continue local-only OR proceed to Track 3?
+| ID | Idea | Why now |
+|----|------|---------|
+| #34 | STAR Behavioral Coach | Job History is built; natural extension for interview prep |
+| #59 | Job title-based bullet suggestions | Position profiling + job history make this feasible now |
+| #37 | Answer Reuse Engine | Companion to #34 — reuse STAR stories across applications |
+| #35 | Mock AI Interviewer | Larger scope follow-on to #34 |
+| #30 | Follow-up Automation | Outcome tracking is in place; this adds chasing cadence |
+| #1  | Llama.cpp model selection | Small UI polish, low effort |
 
-### **Deferred Enhancements:**
-See `ideas.db` for full backlog (**50+ ideas**). Run `python scripts/ideas_html.py` for interactive view.
+### **Medium-term:**
+1. Use the tool for real job applications — validate the full profile → assemble → submit → track loop
+2. Decide: continue local-only OR scope Track 4 (SaaS/multi-user hosted)
 
-**Track 2.9 UX Ideas** (from competitor research):
-- #89 Match Explanation Cards (P5) - "why you match" narrative
-- #90 Match Score Tier Labels (P4) - Top Match/Good Fit/Reach
-- #91 Kanban Application Tracker (P3) - visual pipeline
-- #92 JD Auto-Save (P4) - preserve job postings
-- #93 Guided Evidence Question (P4) - Otta-style contextual input
-- #94 Privacy-First Messaging (P3) - differentiator
-- #95 Parser + Verify Fields (P3) - Indeed pattern
-- #96 Missing Keywords Alert (P4) - actionable gaps
-- #97 CV Completeness Meter (P3) - quality indicators
-
-**Other High-Priority Ideas**:
-- Pipeline Health Diagnosis (P5) - identify bottlenecks in job search
-- Mock AI Interviewer (P4) - practice with AI feedback
-- JD Red-flag Detector (P4) - flag problematic job descriptions
+### **Backlog:**
+See `ideas.db` for full backlog. Run `python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" list --project job_applications` or generate the HTML view.
 
 ---
 
 ## 🎯 **ONE-SENTENCE SUMMARY**
 
-**Track 2.9.1 complete (tier labels, privacy footer, JD viewer). Next: Track 2.9.2 Core UX - match explanation cards to show users WHY they match.**
+**Track 3.1 complete — the Candidate Profile is the source of truth, the CV assembles from structured data, and the tool is ready for active use. Next: interview prep (#34 STAR Coach) or job title bullet suggestions (#59).**
 
 ---
 
-**Last Updated**: 26 January 2026
-**Next Review**: After Track 2.9.2 Core UX complete
+**Last Updated**: 5 March 2026
+**Next Review**: After first batch of real applications tracked end-to-end with profile data
 **Development Tool**: Claude Code (see PROJECT_DIARY_007.md)
 
-**Status**: ✅ **TRACK 2.9.1 COMPLETE** - Quick Wins | 🎯 **TRACK 2.9.2 NEXT** - Core UX
+**Status**: ✅ **TRACK 3.1 COMPLETE** - Candidate Profile | 🎯 **NEXT** - Interview Prep / Bullet Suggestions
 
 ---
 

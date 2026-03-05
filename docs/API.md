@@ -46,7 +46,12 @@ All endpoints (except `/api/users` and `/api/health`) support `X-User-ID` header
 | GET/POST | `/api/profile/professional-development` | List / create professional development items — 6 types, promotion flow to Certifications (Idea #243) |
 | PUT | `/api/profile/professional-development/reorder` | Reorder PD items |
 | PUT/DELETE | `/api/profile/professional-development/{id}` | Update / delete PD item |
-| GET | `/api/profile/assemble-cv` | Render job history + certs + skills + PD as CV section texts + contact header |
+| GET/POST | `/api/issuing-organisations` | List / create issuing organisations (Idea #281) |
+| PUT/DELETE | `/api/issuing-organisations/{id}` | Update / delete issuing organisation |
+| GET/POST | `/api/profile/education` | List / create education records |
+| PUT | `/api/profile/education/reorder` | Reorder education entries |
+| PUT/DELETE | `/api/profile/education/{id}` | Update / delete education record |
+| GET | `/api/profile/assemble-cv` | Render all profile sections as CV text — returns `contact_header`, `summary_text`, `experience_text`, `education_text`, `certifications_text`, `skills_text`, `professional_development_text`, and `sections` array `[{key, label, text, visible}]` in user-configured order |
 | POST | `/api/profile/sync-from-cv` | Parse `<!-- JOB:id -->` markers from CV text and update job history |
 | GET | `/api/position-profile` | Aggregate ATS details from included jobs — skill frequency, match rates, consistent gaps, strengths, role distribution (Idea #242) |
 
@@ -78,7 +83,7 @@ Response:
 | Route | Component | Purpose |
 |-------|-----------|---------|
 | `/` | Dashboard | Stats, active jobs, recent applications |
-| `/profile` | CandidateProfile | Personal info, job history, certifications, skills, professional development |
+| `/profile` | CandidateProfile | Section config, summary, personal info, issuing orgs, certifications, PD, job history, education, skills, CV preview |
 | `/cv-coach` | CvCoach | Live CV scoring, summary generator, version history |
 | `/cvs` | CVManager | CV library, version browser |
 | `/new` | NewApplication | Create new job application |
@@ -88,17 +93,15 @@ Response:
 
 ## Database Schema (SQLite)
 
-**File**: `jobs.db`
+**File**: `data/jobs.db`
 
 ```sql
--- Users table
 CREATE TABLE users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
 
--- Jobs table
 CREATE TABLE jobs (
     job_id TEXT PRIMARY KEY,
     user_id TEXT DEFAULT 'default',
@@ -122,10 +125,9 @@ CREATE TABLE jobs (
     job_description_text TEXT,
     ats_details TEXT,              -- full ATS analysis JSON
     cv_version_id INTEGER,
-    include_in_profile INTEGER DEFAULT 1  -- position profiling corpus flag
+    include_in_profile INTEGER DEFAULT 1
 );
 
--- CVs table
 CREATE TABLE cvs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT DEFAULT 'default',
@@ -137,11 +139,100 @@ CREATE TABLE cvs (
     updated_at TEXT
 );
 
--- Professional Development table (Idea #243)
+CREATE TABLE cv_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cv_id INTEGER NOT NULL,
+    version_number INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    content TEXT NOT NULL,
+    change_summary TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE match_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id TEXT NOT NULL,
+    cv_version_id INTEGER,
+    score INTEGER NOT NULL,
+    matched INTEGER,
+    total INTEGER,
+    missing_count INTEGER,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE candidate_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL DEFAULT 'default',
+    full_name TEXT,
+    email TEXT,
+    phone TEXT,
+    location TEXT,
+    linkedin TEXT,
+    website TEXT,
+    headline TEXT,
+    cert_grouping_mode TEXT DEFAULT 'flat',  -- flat | by_org
+    summary TEXT,
+    section_config TEXT,  -- JSON: [{key, label, visible}] in display order
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE job_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL DEFAULT 'default',
+    employer TEXT NOT NULL,
+    title TEXT NOT NULL,
+    start_date TEXT,
+    end_date TEXT,
+    is_current INTEGER DEFAULT 0,
+    description TEXT,
+    details TEXT,           -- free-text synced via <!-- JOB:id --> markers
+    display_order INTEGER DEFAULT 0,
+    tags TEXT DEFAULT '[]', -- JSON array
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE issuing_organisations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    display_label TEXT,
+    colour TEXT NOT NULL DEFAULT '#6366f1',
+    logo_url TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE certifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL DEFAULT 'default',
+    name TEXT NOT NULL,
+    issuing_org TEXT NOT NULL,
+    issuing_org_id INTEGER REFERENCES issuing_organisations(id),
+    date_obtained TEXT,
+    no_expiry INTEGER DEFAULT 0,
+    expiry_date TEXT,
+    credential_id TEXT,
+    credential_url TEXT,
+    display_order INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE skills (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL DEFAULT 'default',
+    name TEXT NOT NULL,
+    category TEXT,
+    display_order INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE professional_development (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL DEFAULT 'default',
-    type TEXT NOT NULL,              -- Certification | Course / Training | Degree / Qualification | Professional Membership | Conference / Event | Self-directed
+    type TEXT NOT NULL,   -- Certification | Course / Training | Degree / Qualification | Professional Membership | Conference / Event | Self-directed
     title TEXT NOT NULL,
     provider TEXT,
     status TEXT NOT NULL DEFAULT 'In Progress',  -- In Progress | Studying | Paused | Completed | Ongoing
@@ -152,6 +243,21 @@ CREATE TABLE professional_development (
     credential_url TEXT,
     show_on_cv INTEGER DEFAULT 1,
     notes TEXT,
+    display_order INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE education (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL DEFAULT 'default',
+    institution TEXT NOT NULL,
+    qualification TEXT NOT NULL,
+    grade TEXT,
+    field_of_study TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    is_current INTEGER DEFAULT 0,
     display_order INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
