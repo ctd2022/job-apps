@@ -292,9 +292,24 @@ class JobHistoryUpdate(BaseModel):
     tags: Optional[List[str]] = None
 
 
+class IssuingOrgCreate(BaseModel):
+    name: str
+    display_label: Optional[str] = None
+    colour: str = '#6366f1'
+    logo_url: Optional[str] = None
+
+
+class IssuingOrgUpdate(BaseModel):
+    name: Optional[str] = None
+    display_label: Optional[str] = None
+    colour: Optional[str] = None
+    logo_url: Optional[str] = None
+
+
 class CertificationCreate(BaseModel):
     name: str
-    issuing_org: str
+    issuing_org: str = ''
+    issuing_org_id: Optional[int] = None
     date_obtained: Optional[str] = None
     no_expiry: bool = False
     expiry_date: Optional[str] = None
@@ -306,6 +321,7 @@ class CertificationCreate(BaseModel):
 class CertificationUpdate(BaseModel):
     name: Optional[str] = None
     issuing_org: Optional[str] = None
+    issuing_org_id: Optional[int] = None
     date_obtained: Optional[str] = None
     no_expiry: Optional[bool] = None
     expiry_date: Optional[str] = None
@@ -2554,9 +2570,11 @@ async def assemble_cv(user_id: str = Header(None, alias="X-User-ID")):
     certifications = profile_store.list_certifications(user_id)
     skills = profile_store.list_skills(user_id)
     pd_items = profile_store.list_professional_development(user_id)
+    orgs = profile_store.list_orgs()
+    grouping_mode = profile.get("cert_grouping_mode") or "flat"
     contact_header = cv_assembler.format_contact_header(profile)
     experience_text = cv_assembler.assemble_experience_section(job_history)
-    certifications_text = cv_assembler.assemble_certifications_section(certifications)
+    certifications_text = cv_assembler.assemble_certifications_section(certifications, orgs, grouping_mode)
     skills_text = cv_assembler.assemble_skills_section(skills)
     professional_development_text = cv_assembler.assemble_professional_development_section(pd_items)
     return {
@@ -2566,6 +2584,38 @@ async def assemble_cv(user_id: str = Header(None, alias="X-User-ID")):
         "skills_text": skills_text,
         "professional_development_text": professional_development_text,
     }
+
+
+# ── Issuing Organisations endpoints (Idea #281) ───────────────────────────────
+
+@app.get("/api/profile/issuing-organisations")
+async def list_issuing_organisations():
+    """List all issuing organisations (global, not user-scoped)."""
+    return profile_store.list_orgs()
+
+
+@app.post("/api/profile/issuing-organisations", status_code=201)
+async def create_issuing_organisation(request: IssuingOrgCreate):
+    """Create a new issuing organisation."""
+    return profile_store.create_org(request.model_dump())
+
+
+@app.put("/api/profile/issuing-organisations/{org_id}")
+async def update_issuing_organisation(org_id: int, request: IssuingOrgUpdate):
+    """Update an issuing organisation."""
+    result = profile_store.update_org(org_id, request.model_dump(exclude_unset=True))
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Organisation {org_id} not found")
+    return result
+
+
+@app.delete("/api/profile/issuing-organisations/{org_id}")
+async def delete_issuing_organisation(org_id: int):
+    """Delete an issuing organisation (only if no certs reference it)."""
+    deleted = profile_store.delete_org(org_id)
+    if not deleted:
+        raise HTTPException(status_code=409, detail="Organisation is referenced by certifications and cannot be deleted")
+    return {"status": "deleted"}
 
 
 # ── Certifications endpoints ──────────────────────────────────────────────────

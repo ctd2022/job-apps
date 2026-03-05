@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate } from './types';
 
 const API_BASE = '/api';
 
@@ -723,6 +723,38 @@ export async function syncFromCV(cvText: string): Promise<{ updated_count: numbe
     body: JSON.stringify({ cv_text: cvText }),
   });
   return handleResponse<{ updated_count: number }>(response);
+}
+
+// ── Issuing Organisations (Idea #281) ─────────────────────────────────────────
+
+export async function listIssuingOrgs(): Promise<IssuingOrganisation[]> {
+  const response = await fetch(`${API_BASE}/profile/issuing-organisations`);
+  return handleResponse<IssuingOrganisation[]>(response);
+}
+
+export async function createIssuingOrg(data: IssuingOrgCreate): Promise<IssuingOrganisation> {
+  const response = await fetch(`${API_BASE}/profile/issuing-organisations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<IssuingOrganisation>(response);
+}
+
+export async function updateIssuingOrg(id: number, data: IssuingOrgUpdate): Promise<IssuingOrganisation> {
+  const response = await fetch(`${API_BASE}/profile/issuing-organisations/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<IssuingOrganisation>(response);
+}
+
+export async function deleteIssuingOrg(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/profile/issuing-organisations/${id}`, {
+    method: 'DELETE',
+  });
+  return handleResponse<void>(response);
 }
 
 // ── Certifications ────────────────────────────────────────────────────────────

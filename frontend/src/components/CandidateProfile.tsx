@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, ExternalLink, ChevronRight } from 'lucide-react';
 import {
   getProfile,
   updateProfile,
@@ -22,6 +22,10 @@ import {
   updateProfessionalDevelopment,
   deleteProfessionalDevelopment,
   reorderProfessionalDevelopment,
+  listIssuingOrgs,
+  createIssuingOrg,
+  updateIssuingOrg,
+  deleteIssuingOrg,
 } from '../api';
 import type {
   CandidateProfile as ProfileType,
@@ -39,6 +43,8 @@ import type {
   ProfessionalDevelopmentUpdate,
   PDType,
   PDStatus,
+  IssuingOrganisation,
+  IssuingOrgCreate,
 } from '../types';
 
 // ─── Job modal form state ────────────────────────────────────────────────────
@@ -97,6 +103,7 @@ function formToCreate(form: JobFormState): JobHistoryCreate {
 interface CertFormState {
   name: string;
   issuing_org: string;
+  issuing_org_id: number | null;
   date_obtained: string;
   no_expiry: boolean;
   expiry_date: string;
@@ -107,6 +114,7 @@ interface CertFormState {
 const EMPTY_CERT_FORM: CertFormState = {
   name: '',
   issuing_org: '',
+  issuing_org_id: null,
   date_obtained: '',
   no_expiry: false,
   expiry_date: '',
@@ -118,6 +126,7 @@ function certToForm(cert: Certification): CertFormState {
   return {
     name: cert.name,
     issuing_org: cert.issuing_org,
+    issuing_org_id: cert.issuing_org_id,
     date_obtained: cert.date_obtained ?? '',
     no_expiry: cert.no_expiry,
     expiry_date: cert.expiry_date ?? '',
@@ -130,6 +139,7 @@ function formToCertCreate(form: CertFormState, display_order = 0): Certification
   return {
     name: form.name.trim(),
     issuing_org: form.issuing_org.trim(),
+    issuing_org_id: form.issuing_org_id,
     date_obtained: form.date_obtained.trim() || null,
     no_expiry: form.no_expiry,
     expiry_date: form.no_expiry ? null : (form.expiry_date.trim() || null),
@@ -313,17 +323,50 @@ interface CertModalProps {
   initial: CertFormState;
   title: string;
   saving: boolean;
+  orgs: IssuingOrganisation[];
   onSave: (form: CertFormState) => void;
   onClose: () => void;
+  onOrgCreated: (org: IssuingOrganisation) => void;
 }
 
-function CertModal({ initial, title, saving, onSave, onClose }: CertModalProps) {
+function CertModal({ initial, title, saving, orgs, onSave, onClose, onOrgCreated }: CertModalProps) {
   const [form, setForm] = useState<CertFormState>(initial);
+  const [newOrgName, setNewOrgName] = useState('');
+  const [creatingOrg, setCreatingOrg] = useState(false);
 
-  const set = (key: keyof CertFormState, value: string | boolean) =>
+  const set = <K extends keyof CertFormState>(key: K, value: CertFormState[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
 
-  const valid = form.name.trim() !== '' && form.issuing_org.trim() !== '';
+  const selectOrg = (orgIdStr: string) => {
+    if (orgIdStr === '__new__') return;
+    if (orgIdStr === '') {
+      set('issuing_org_id', null);
+      set('issuing_org', '');
+    } else {
+      const org = orgs.find(o => o.id === Number(orgIdStr));
+      if (org) {
+        set('issuing_org_id', org.id);
+        set('issuing_org', org.name);
+      }
+    }
+  };
+
+  const handleQuickCreateOrg = async () => {
+    if (!newOrgName.trim()) return;
+    setCreatingOrg(true);
+    try {
+      const created = await createIssuingOrg({ name: newOrgName.trim(), display_label: null, colour: '#6366f1', logo_url: null });
+      onOrgCreated(created);
+      set('issuing_org_id', created.id);
+      set('issuing_org', created.name);
+      setNewOrgName('');
+    } finally {
+      setCreatingOrg(false);
+    }
+  };
+
+  const selectedOrg = orgs.find(o => o.id === form.issuing_org_id);
+  const valid = form.name.trim() !== '' && (form.issuing_org_id !== null || form.issuing_org.trim() !== '');
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -347,12 +390,47 @@ function CertModal({ initial, title, saving, onSave, onClose }: CertModalProps) 
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Issuing Organisation *</label>
-            <input
-              value={form.issuing_org}
-              onChange={e => set('issuing_org', e.target.value)}
-              className={inputCls}
-              placeholder="Amazon Web Services"
-            />
+            <div className="flex items-center gap-2">
+              {selectedOrg && (
+                <span className="inline-block w-4 h-4 rounded-full flex-shrink-0 border border-slate-200" style={{ background: selectedOrg.colour }} />
+              )}
+              <select
+                value={form.issuing_org_id !== null ? String(form.issuing_org_id) : ''}
+                onChange={e => selectOrg(e.target.value)}
+                className={inputCls + ' flex-1'}
+              >
+                <option value="">— select or type below —</option>
+                {orgs.map(o => (
+                  <option key={o.id} value={o.id}>{o.display_label ? `${o.name} (${o.display_label})` : o.name}</option>
+                ))}
+              </select>
+            </div>
+            {/* Fallback free-text if no org selected */}
+            {form.issuing_org_id === null && (
+              <input
+                value={form.issuing_org}
+                onChange={e => set('issuing_org', e.target.value)}
+                className={inputCls + ' mt-1'}
+                placeholder="Or type org name directly…"
+              />
+            )}
+            {/* Quick-create inline */}
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <input
+                value={newOrgName}
+                onChange={e => setNewOrgName(e.target.value)}
+                placeholder="Create new org…"
+                className="flex-1 px-2 py-1 text-xs border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+              />
+              <button
+                onClick={handleQuickCreateOrg}
+                disabled={!newOrgName.trim() || creatingOrg}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50"
+              >
+                {creatingOrg ? <Loader className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                Add
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -432,6 +510,177 @@ function CertModal({ initial, title, saving, onSave, onClose }: CertModalProps) 
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Issuing Organisations Admin ──────────────────────────────────────────────
+
+interface IssuingOrgsAdminProps {
+  orgs: IssuingOrganisation[];
+  onChange: (orgs: IssuingOrganisation[]) => void;
+}
+
+function IssuingOrgsAdmin({ orgs, onChange }: IssuingOrgsAdminProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addLabel, setAddLabel] = useState('');
+  const [addColour, setAddColour] = useState('#6366f1');
+  const [adding, setAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editColour, setEditColour] = useState('');
+  const [editLabel, setEditLabel] = useState('');
+  const [savingId, setSavingId] = useState<number | null>(null);
+
+  const handleAdd = async () => {
+    if (!addName.trim()) return;
+    setAdding(true);
+    try {
+      const data: IssuingOrgCreate = { name: addName.trim(), display_label: addLabel.trim() || null, colour: addColour, logo_url: null };
+      const created = await createIssuingOrg(data);
+      onChange([...orgs, created]);
+      setAddName('');
+      setAddLabel('');
+      setAddColour('#6366f1');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const startEdit = (org: IssuingOrganisation) => {
+    setEditingId(org.id);
+    setEditColour(org.colour);
+    setEditLabel(org.display_label ?? '');
+  };
+
+  const handleSaveEdit = async (org: IssuingOrganisation) => {
+    setSavingId(org.id);
+    try {
+      const updated = await updateIssuingOrg(org.id, { colour: editColour, display_label: editLabel || null });
+      onChange(orgs.map(o => o.id === org.id ? updated : o));
+      setEditingId(null);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    setDeletingId(id);
+    try {
+      await deleteIssuingOrg(id);
+      onChange(orgs.filter(o => o.id !== id));
+    } catch {
+      alert('Cannot delete: certifications are linked to this organisation.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-3 text-left"
+      >
+        <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">Issuing Organisations</span>
+        <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+      </button>
+
+      {expanded && (
+        <div className="px-5 pb-5 space-y-2 border-t border-slate-200 dark:border-slate-700 pt-3">
+          {orgs.length === 0 && (
+            <p className="text-xs text-slate-400 italic">No organisations yet.</p>
+          )}
+          {orgs.map(org => (
+            <div key={org.id} className="flex items-center gap-2 py-1.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
+              <span className="inline-block w-5 h-5 rounded-full flex-shrink-0 border border-slate-200" style={{ background: org.colour }} />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{org.name}</span>
+                {org.display_label && <span className="ml-1.5 text-xs text-slate-400">({org.display_label})</span>}
+              </div>
+              {editingId === org.id ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={editColour}
+                    onChange={e => setEditColour(e.target.value)}
+                    className="w-7 h-7 rounded cursor-pointer border border-slate-300"
+                    title="Brand colour"
+                  />
+                  <input
+                    value={editColour}
+                    onChange={e => setEditColour(e.target.value)}
+                    className="w-20 px-1.5 py-0.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-mono"
+                    placeholder="#6366f1"
+                  />
+                  <input
+                    value={editLabel}
+                    onChange={e => setEditLabel(e.target.value)}
+                    className="w-16 px-1.5 py-0.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                    placeholder="short label"
+                  />
+                  <button
+                    onClick={() => handleSaveEdit(org)}
+                    disabled={savingId === org.id}
+                    className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50"
+                  >
+                    {savingId === org.id ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  </button>
+                  <button onClick={() => setEditingId(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => startEdit(org)} className="p-1 text-slate-400 hover:text-blue-600 rounded" title="Edit colour/label">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(org.id)}
+                    disabled={deletingId === org.id}
+                    className="p-1 text-slate-400 hover:text-red-600 rounded disabled:opacity-50"
+                    title="Delete (only if no certs use it)"
+                  >
+                    {deletingId === org.id ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Add org row */}
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              type="color"
+              value={addColour}
+              onChange={e => setAddColour(e.target.value)}
+              className="w-7 h-7 rounded cursor-pointer border border-slate-300 flex-shrink-0"
+              title="Brand colour"
+            />
+            <input
+              value={addName}
+              onChange={e => setAddName(e.target.value)}
+              placeholder="Organisation name *"
+              className="flex-1 px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+            />
+            <input
+              value={addLabel}
+              onChange={e => setAddLabel(e.target.value)}
+              placeholder="Short label"
+              className="w-24 px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+            />
+            <button
+              onClick={handleAdd}
+              disabled={!addName.trim() || adding}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex-shrink-0"
+            >
+              {adding ? <Loader className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+              Add
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -542,10 +791,14 @@ function PersonalInfoSection({ profile, onSaved }: PersonalInfoSectionProps) {
 
 interface CertificationsSectionProps {
   certifications: Certification[];
+  orgs: IssuingOrganisation[];
+  groupingMode: 'flat' | 'by_org';
   onChange: (certs: Certification[]) => void;
+  onGroupingModeChange: (mode: 'flat' | 'by_org') => void;
+  onOrgCreated: (org: IssuingOrganisation) => void;
 }
 
-function CertificationsSection({ certifications, onChange }: CertificationsSectionProps) {
+function CertificationsSection({ certifications, orgs, groupingMode, onChange, onGroupingModeChange, onOrgCreated }: CertificationsSectionProps) {
   const [addingCert, setAddingCert] = useState(false);
   const [editingCert, setEditingCert] = useState<Certification | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -604,98 +857,150 @@ function CertificationsSection({ certifications, onChange }: CertificationsSecti
     return parts.join(' – ');
   };
 
+  const certAccentColour = (cert: Certification) => cert.org_colour ?? '#6366f1';
+
+  const renderCertCard = (cert: Certification, idx: number, total: number) => (
+    <div
+      key={cert.id}
+      className="flex items-start gap-2 rounded-md border bg-slate-50 dark:bg-slate-900 p-3"
+      style={{ borderColor: certAccentColour(cert), borderLeftWidth: '3px' }}
+    >
+      {/* Reorder arrows */}
+      <div className="flex flex-col gap-0.5 mt-0.5">
+        <button
+          onClick={() => moveCert(idx, -1)}
+          disabled={idx === 0}
+          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
+          title="Move up"
+        >
+          <ChevronUp className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => moveCert(idx, 1)}
+          disabled={idx === total - 1}
+          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
+          title="Move down"
+        >
+          <ChevronDown className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Cert info */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+          <span className="font-semibold" style={{ color: certAccentColour(cert) }}>{cert.name}</span>
+          <span className="font-normal text-slate-500 dark:text-slate-400"> | {cert.org_display_label ?? cert.issuing_org}</span>
+        </p>
+        {formatDateRange(cert) && (
+          <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateRange(cert)}</p>
+        )}
+        {cert.credential_id && (
+          <p className="text-xs text-slate-400 dark:text-slate-500">ID: {cert.credential_id}</p>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {cert.credential_url && (
+          <a
+            href={cert.credential_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded"
+            title="View credential"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )}
+        <button
+          onClick={() => setEditingCert(cert)}
+          className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded"
+          title="Edit"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => handleDeleteCert(cert.id)}
+          disabled={deletingId === cert.id}
+          className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded disabled:opacity-50"
+          title="Delete"
+        >
+          {deletingId === cert.id
+            ? <Loader className="w-3.5 h-3.5 animate-spin" />
+            : <Trash2 className="w-3.5 h-3.5" />
+          }
+        </button>
+      </div>
+    </div>
+  );
+
+  // Group by org for grouped view
+  const orgMap = new Map(orgs.map(o => [o.id, o]));
+  const grouped = new Map<number | null, Certification[]>();
+  for (const cert of certifications) {
+    const key = cert.issuing_org_id ?? null;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(cert);
+  }
+  const sortedOrgIds = [...orgs]
+    .filter(o => grouped.has(o.id))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(o => o.id);
+  if (grouped.has(null)) sortedOrgIds.push(null as unknown as number);
+
   return (
     <>
       <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-slate-800 dark:text-slate-100">Certifications</h2>
-          <button
-            onClick={() => setAddingCert(true)}
-            className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded hover:bg-blue-700"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add Cert
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Grouping toggle */}
+            <div className="flex rounded overflow-hidden border border-slate-200 dark:border-slate-600 text-xs">
+              <button
+                onClick={() => onGroupingModeChange('flat')}
+                className={`px-2.5 py-1 ${groupingMode === 'flat' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600'}`}
+              >Flat</button>
+              <button
+                onClick={() => onGroupingModeChange('by_org')}
+                className={`px-2.5 py-1 ${groupingMode === 'by_org' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600'}`}
+              >By Issuer</button>
+            </div>
+            <button
+              onClick={() => setAddingCert(true)}
+              className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded hover:bg-blue-700"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Cert
+            </button>
+          </div>
         </div>
 
         {certifications.length === 0 ? (
           <p className="text-sm text-slate-400 dark:text-slate-500 italic text-center py-6">
             No certifications yet — click "Add Cert" to get started.
           </p>
+        ) : groupingMode === 'by_org' ? (
+          <div className="space-y-4">
+            {sortedOrgIds.map(orgId => {
+              const group = grouped.get(orgId as number | null) ?? [];
+              const org = orgId !== null ? orgMap.get(orgId as number) : null;
+              const label = org ? (org.display_label ?? org.name) : 'Other';
+              const colour = org?.colour ?? '#94a3b8';
+              return (
+                <div key={String(orgId)}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="inline-block w-3 h-3 rounded-full" style={{ background: colour }} />
+                    <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: colour }}>{label}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {group.map(cert => renderCertCard(cert, certifications.indexOf(cert), certifications.length))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="space-y-2">
-            {certifications.map((cert, idx) => (
-              <div
-                key={cert.id}
-                className="flex items-start gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3"
-              >
-                {/* Reorder arrows */}
-                <div className="flex flex-col gap-0.5 mt-0.5">
-                  <button
-                    onClick={() => moveCert(idx, -1)}
-                    disabled={idx === 0}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
-                    title="Move up"
-                  >
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => moveCert(idx, 1)}
-                    disabled={idx === certifications.length - 1}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
-                    title="Move down"
-                  >
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Cert info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                    <span className="font-semibold" style={{ color: '#FF9900' }}>{cert.name}</span>
-                    <span className="font-normal text-slate-500 dark:text-slate-400"> | {cert.issuing_org}</span>
-                  </p>
-                  {formatDateRange(cert) && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateRange(cert)}</p>
-                  )}
-                  {cert.credential_id && (
-                    <p className="text-xs text-slate-400 dark:text-slate-500">ID: {cert.credential_id}</p>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {cert.credential_url && (
-                    <a
-                      href={cert.credential_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded"
-                      title="View credential"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  )}
-                  <button
-                    onClick={() => setEditingCert(cert)}
-                    className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded"
-                    title="Edit"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteCert(cert.id)}
-                    disabled={deletingId === cert.id}
-                    className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded disabled:opacity-50"
-                    title="Delete"
-                  >
-                    {deletingId === cert.id
-                      ? <Loader className="w-3.5 h-3.5 animate-spin" />
-                      : <Trash2 className="w-3.5 h-3.5" />
-                    }
-                  </button>
-                </div>
-              </div>
-            ))}
+            {certifications.map((cert, idx) => renderCertCard(cert, idx, certifications.length))}
           </div>
         )}
       </div>
@@ -705,8 +1010,10 @@ function CertificationsSection({ certifications, onChange }: CertificationsSecti
           initial={EMPTY_CERT_FORM}
           title="Add Certification"
           saving={savingCert}
+          orgs={orgs}
           onSave={handleAddCert}
           onClose={() => setAddingCert(false)}
+          onOrgCreated={onOrgCreated}
         />
       )}
       {editingCert && (
@@ -714,8 +1021,10 @@ function CertificationsSection({ certifications, onChange }: CertificationsSecti
           initial={certToForm(editingCert)}
           title="Edit Certification"
           saving={savingCert}
+          orgs={orgs}
           onSave={handleUpdateCert}
           onClose={() => setEditingCert(null)}
+          onOrgCreated={onOrgCreated}
         />
       )}
     </>
@@ -1248,6 +1557,7 @@ function ProfessionalDevelopmentSection({ pdItems, certifications, onChange, onC
           const newCert = await createCertification({
             name: created.title,
             issuing_org: created.provider ?? '',
+            issuing_org_id: null,
             date_obtained: created.completed_date ?? null,
             no_expiry: false,
             expiry_date: null,
@@ -1284,6 +1594,7 @@ function ProfessionalDevelopmentSection({ pdItems, certifications, onChange, onC
           const newCert = await createCertification({
             name: updated.title,
             issuing_org: updated.provider ?? '',
+            issuing_org_id: null,
             date_obtained: updated.completed_date ?? null,
             no_expiry: false,
             expiry_date: null,
@@ -1449,6 +1760,8 @@ export default function CandidateProfile() {
   const [certifications, setCertifications] = useState<Certification[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [pdItems, setPdItems] = useState<ProfessionalDevelopment[]>([]);
+  const [orgs, setOrgs] = useState<IssuingOrganisation[]>([]);
+  const [groupingMode, setGroupingMode] = useState<'flat' | 'by_org'>('flat');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addingJob, setAddingJob] = useState(false);
@@ -1456,20 +1769,29 @@ export default function CandidateProfile() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [savingJob, setSavingJob] = useState(false);
 
+  const handleGroupingModeChange = useCallback(async (mode: 'flat' | 'by_org') => {
+    setGroupingMode(mode);
+    await updateProfile({ cert_grouping_mode: mode } as ProfileUpdate);
+  }, []);
+
   const load = useCallback(async () => {
     try {
-      const [p, jobs, certs, skillList, pdList] = await Promise.all([
+      const [p, jobs, certs, skillList, pdList, orgList] = await Promise.all([
         getProfile(),
         listJobHistory(),
         listCertifications(),
         listSkills(),
         listProfessionalDevelopment(),
+        listIssuingOrgs(),
       ]);
       setProfile(p);
       setJobHistory(jobs);
       setCertifications(certs);
       setSkills(skillList);
       setPdItems(pdList);
+      setOrgs(orgList);
+      // Restore grouping mode from profile if available
+      if (p.cert_grouping_mode === 'by_org' || p.cert_grouping_mode === 'flat') setGroupingMode(p.cert_grouping_mode);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -1556,7 +1878,15 @@ export default function CandidateProfile() {
         {/* Left column: Personal Info + Certifications + Professional Development */}
         <div className="space-y-4">
           <PersonalInfoSection profile={profile} onSaved={setProfile} />
-          <CertificationsSection certifications={certifications} onChange={setCertifications} />
+          <IssuingOrgsAdmin orgs={orgs} onChange={setOrgs} />
+          <CertificationsSection
+            certifications={certifications}
+            orgs={orgs}
+            groupingMode={groupingMode}
+            onChange={setCertifications}
+            onGroupingModeChange={handleGroupingModeChange}
+            onOrgCreated={org => setOrgs(prev => [...prev, org])}
+          />
           <ProfessionalDevelopmentSection
             pdItems={pdItems}
             certifications={certifications}

@@ -169,6 +169,32 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Migration (Idea #281): Add issuing_org_id FK to certifications
+    try:
+        cursor.execute("ALTER TABLE certifications ADD COLUMN issuing_org_id INTEGER REFERENCES issuing_organisations(id)")
+    except sqlite3.OperationalError:
+        pass
+
+    # Migration (Idea #281): Seed orgs from existing free-text issuing_org values
+    cursor.execute("""
+        INSERT OR IGNORE INTO issuing_organisations (name, colour, created_at, updated_at)
+        SELECT DISTINCT issuing_org, '#6366f1', datetime('now'), datetime('now')
+        FROM certifications WHERE issuing_org IS NOT NULL AND issuing_org != ''
+    """)
+    cursor.execute("""
+        UPDATE certifications
+        SET issuing_org_id = (
+            SELECT id FROM issuing_organisations WHERE name = certifications.issuing_org
+        )
+        WHERE issuing_org_id IS NULL
+    """)
+
+    # Migration (Idea #281): Add cert_grouping_mode to candidate_profiles
+    try:
+        cursor.execute("ALTER TABLE candidate_profiles ADD COLUMN cert_grouping_mode TEXT DEFAULT 'flat'")
+    except sqlite3.OperationalError:
+        pass
+
     # Migration: Add user_id columns (for existing databases)
     for table in ["jobs", "cvs"]:
         try:
@@ -242,6 +268,19 @@ def init_db():
             name TEXT NOT NULL,
             category TEXT,
             display_order INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    ''')
+
+    # Issuing Organisations table (Idea #281)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS issuing_organisations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            display_label TEXT,
+            colour TEXT DEFAULT '#6366f1',
+            logo_url TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
@@ -1395,7 +1434,7 @@ class ProfileStore:
 
     def update_profile(self, user_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         """Update personal info fields. Returns updated profile."""
-        allowed = {"full_name", "email", "phone", "location", "linkedin", "website", "headline"}
+        allowed = {"full_name", "email", "phone", "location", "linkedin", "website", "headline", "cert_grouping_mode"}
         url_fields = {"linkedin", "website"}
         updates = {
             k: (v.replace(" ", "") if k in url_fields and isinstance(v, str) else v)
@@ -1562,31 +1601,55 @@ class ProfileStore:
         return d
 
     def list_certifications(self, user_id: str) -> List[Dict[str, Any]]:
-        """Return all certifications for user, ordered by display_order."""
+        """Return all certifications for user, joined with org data, ordered by display_order."""
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM certifications WHERE user_id = ? ORDER BY display_order ASC, id ASC",
+            """SELECT c.*, o.colour AS org_colour, o.display_label AS org_display_label
+               FROM certifications c
+               LEFT JOIN issuing_organisations o ON c.issuing_org_id = o.id
+               WHERE c.user_id = ? ORDER BY c.display_order ASC, c.id ASC""",
             (user_id,),
         )
         rows = cursor.fetchall()
         conn.close()
         return [self._row_to_cert(r) for r in rows]
 
+    def _resolve_issuing_org(self, cursor: sqlite3.Cursor, data: Dict[str, Any], now: str) -> tuple[Optional[int], str]:
+        """Resolve issuing_org_id and derive issuing_org text. Returns (org_id, org_name)."""
+        org_id = data.get("issuing_org_id")
+        if org_id is not None:
+            cursor.execute("SELECT name FROM issuing_organisations WHERE id = ?", (org_id,))
+            row = cursor.fetchone()
+            org_name = row["name"] if row else data.get("issuing_org", "")
+        else:
+            org_name = data.get("issuing_org", "")
+            if org_name:
+                cursor.execute(
+                    "INSERT OR IGNORE INTO issuing_organisations (name, colour, created_at, updated_at) VALUES (?, '#6366f1', ?, ?)",
+                    (org_name, now, now),
+                )
+                cursor.execute("SELECT id FROM issuing_organisations WHERE name = ?", (org_name,))
+                row = cursor.fetchone()
+                org_id = row["id"] if row else None
+        return org_id, org_name
+
     def create_certification(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Insert a new certification. Returns the created record."""
         now = datetime.now().isoformat()
         conn = get_connection()
         cursor = conn.cursor()
+        org_id, org_name = self._resolve_issuing_org(cursor, data, now)
         cursor.execute(
             """INSERT INTO certifications
-               (user_id, name, issuing_org, date_obtained, no_expiry, expiry_date,
+               (user_id, name, issuing_org, issuing_org_id, date_obtained, no_expiry, expiry_date,
                 credential_id, credential_url, display_order, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 user_id,
                 data.get("name", ""),
-                data.get("issuing_org", ""),
+                org_name,
+                org_id,
                 data.get("date_obtained"),
                 1 if data.get("no_expiry") else 0,
                 data.get("expiry_date"),
@@ -1599,7 +1662,12 @@ class ProfileStore:
         )
         cert_id = cursor.lastrowid
         conn.commit()
-        cursor.execute("SELECT * FROM certifications WHERE id = ?", (cert_id,))
+        cursor.execute(
+            """SELECT c.*, o.colour AS org_colour, o.display_label AS org_display_label
+               FROM certifications c LEFT JOIN issuing_organisations o ON c.issuing_org_id = o.id
+               WHERE c.id = ?""",
+            (cert_id,),
+        )
         row = cursor.fetchone()
         conn.close()
         return self._row_to_cert(row)
@@ -1612,19 +1680,30 @@ class ProfileStore:
         if not cursor.fetchone():
             conn.close()
             return None
-        allowed = {"name", "issuing_org", "date_obtained", "no_expiry", "expiry_date",
-                   "credential_id", "credential_url", "display_order"}
+        now = datetime.now().isoformat()
+        allowed = {"name", "issuing_org", "issuing_org_id", "date_obtained", "no_expiry",
+                   "expiry_date", "credential_id", "credential_url", "display_order"}
         updates: Dict[str, Any] = {k: v for k, v in data.items() if k in allowed}
         if "no_expiry" in updates:
             updates["no_expiry"] = 1 if updates["no_expiry"] else 0
-        updates["updated_at"] = datetime.now().isoformat()
+        # If issuing_org_id or issuing_org changed, keep both in sync
+        if "issuing_org_id" in updates or "issuing_org" in updates:
+            org_id, org_name = self._resolve_issuing_org(cursor, data, now)
+            updates["issuing_org_id"] = org_id
+            updates["issuing_org"] = org_name
+        updates["updated_at"] = now
         set_clause = ", ".join(f"{k} = ?" for k in updates)
         values = list(updates.values()) + [cert_id, user_id]
         cursor.execute(
             f"UPDATE certifications SET {set_clause} WHERE id = ? AND user_id = ?", values
         )
         conn.commit()
-        cursor.execute("SELECT * FROM certifications WHERE id = ?", (cert_id,))
+        cursor.execute(
+            """SELECT c.*, o.colour AS org_colour, o.display_label AS org_display_label
+               FROM certifications c LEFT JOIN issuing_organisations o ON c.issuing_org_id = o.id
+               WHERE c.id = ?""",
+            (cert_id,),
+        )
         row = cursor.fetchone()
         conn.close()
         return self._row_to_cert(row)
@@ -1652,6 +1731,75 @@ class ProfileStore:
             )
         conn.commit()
         conn.close()
+
+    # ── Issuing Organisations (Idea #281) ────────────────────────────────────
+
+    def list_orgs(self) -> List[Dict[str, Any]]:
+        """Return all issuing organisations, ordered by name."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM issuing_organisations ORDER BY name ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def create_org(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert a new issuing organisation. Returns the created record."""
+        now = datetime.now().isoformat()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO issuing_organisations (name, display_label, colour, logo_url, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                data["name"].strip(),
+                data.get("display_label"),
+                data.get("colour", "#6366f1"),
+                data.get("logo_url"),
+                now,
+                now,
+            ),
+        )
+        org_id = cursor.lastrowid
+        conn.commit()
+        cursor.execute("SELECT * FROM issuing_organisations WHERE id = ?", (org_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row)
+
+    def update_org(self, org_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update an issuing organisation. Returns updated record or None."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM issuing_organisations WHERE id = ?", (org_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return None
+        allowed = {"name", "display_label", "colour", "logo_url"}
+        updates = {k: v for k, v in data.items() if k in allowed and v is not None}
+        updates["updated_at"] = datetime.now().isoformat()
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [org_id]
+        cursor.execute(f"UPDATE issuing_organisations SET {set_clause} WHERE id = ?", values)
+        conn.commit()
+        cursor.execute("SELECT * FROM issuing_organisations WHERE id = ?", (org_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row)
+
+    def delete_org(self, org_id: int) -> bool:
+        """Delete an org if no certifications reference it. Returns True if deleted."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM certifications WHERE issuing_org_id = ?", (org_id,))
+        if cursor.fetchone()[0] > 0:
+            conn.close()
+            return False
+        cursor.execute("DELETE FROM issuing_organisations WHERE id = ?", (org_id,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
 
     # ── Professional Development ─────────────────────────────────────────────
 

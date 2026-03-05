@@ -394,6 +394,7 @@ export interface CandidateProfile {
   linkedin: string | null;
   website: string | null;
   headline: string | null;
+  cert_grouping_mode: 'flat' | 'by_org' | null;
   created_at: string;
   updated_at: string;
 }
@@ -418,12 +419,28 @@ export type ProfileUpdate = Partial<Omit<CandidateProfile, 'id' | 'user_id' | 'c
 export type JobHistoryCreate = Omit<JobHistoryRecord, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
 export type JobHistoryUpdate = Partial<JobHistoryCreate>;
 
+// Issuing Organisations (Idea #281)
+export interface IssuingOrganisation {
+  id: number;
+  name: string;
+  display_label: string | null;
+  colour: string;
+  logo_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type IssuingOrgCreate = Omit<IssuingOrganisation, 'id' | 'created_at' | 'updated_at'>;
+export type IssuingOrgUpdate = Partial<IssuingOrgCreate>;
+
 // Certifications (new section)
 export interface Certification {
   id: number;
   user_id: string;
   name: string;
   issuing_org: string;
+  issuing_org_id: number | null;
+  org_colour: string | null;
+  org_display_label: string | null;
   date_obtained: string | null;
   no_expiry: boolean;
   expiry_date: string | null;
@@ -433,7 +450,7 @@ export interface Certification {
   created_at: string;
   updated_at: string;
 }
-export type CertificationCreate = Omit<Certification, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
+export type CertificationCreate = Omit<Certification, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'org_colour' | 'org_display_label'>;
 export type CertificationUpdate = Partial<CertificationCreate>;
 
 // Skills (new section)

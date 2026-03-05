@@ -74,39 +74,77 @@ def format_contact_header(profile: dict) -> str:
     return "\n".join(lines)
 
 
-def assemble_certifications_section(certifications: list[dict[str, Any]]) -> str:
+def _format_cert_line(cert: dict[str, Any]) -> str:
+    """Format a single certification as a pipe-separated line."""
+    name = cert.get("name") or ""
+    org = cert.get("issuing_org") or ""
+    obtained = cert.get("date_obtained") or ""
+    no_expiry = cert.get("no_expiry") or False
+    expiry = cert.get("expiry_date") or ""
+    cred_id = cert.get("credential_id") or ""
+    cred_url = cert.get("credential_url") or ""
+
+    date_part = obtained
+    if obtained and (no_expiry or expiry):
+        date_part += " \u2013 " + ("No Expiry" if no_expiry else expiry)
+
+    parts = [p for p in [name, org, date_part] if p]
+    if cred_id:
+        parts.append(f"ID: {cred_id}")
+    if cred_url:
+        parts.append(cred_url)
+    return " | ".join(parts)
+
+
+def assemble_certifications_section(
+    certifications: list[dict[str, Any]],
+    orgs: list[dict[str, Any]] | None = None,
+    grouping_mode: str = "flat",
+) -> str:
     """Render certifications into a plain-text CERTIFICATIONS section.
 
+    grouping_mode='flat' (default): one line per cert, org in the line.
+    grouping_mode='by_org': org name as subheading, certs listed beneath.
+
     Format per entry:
-        Name | Issuing Org | date_obtained – expiry_date (or No Expiry) | ID: credential_id
-    Wrapped in <!-- CERT:id --> markers for future sync.
+        Name | Issuing Org | date_obtained - expiry_date (or No Expiry) | ID: credential_id
+    Wrapped in <!-- CERT:id --> markers.
     """
     if not certifications:
         return ""
 
     lines: list[str] = ["CERTIFICATIONS"]
-    for cert in certifications:
-        cert_id = cert["id"]
-        name = cert.get("name") or ""
-        org = cert.get("issuing_org") or ""
-        obtained = cert.get("date_obtained") or ""
-        no_expiry = cert.get("no_expiry") or False
-        expiry = cert.get("expiry_date") or ""
-        cred_id = cert.get("credential_id") or ""
-        cred_url = cert.get("credential_url") or ""
 
-        date_part = obtained
-        if obtained and (no_expiry or expiry):
-            date_part += " \u2013 " + ("No Expiry" if no_expiry else expiry)
+    if grouping_mode == "by_org" and orgs:
+        org_map = {o["id"]: o for o in orgs}
+        # Group certs by issuing_org_id; uncategorised last
+        from collections import defaultdict
+        grouped: dict[Any, list[dict[str, Any]]] = defaultdict(list)
+        for cert in certifications:
+            grouped[cert.get("issuing_org_id")].append(cert)
 
-        parts = [p for p in [name, org, date_part] if p]
-        if cred_id:
-            parts.append(f"ID: {cred_id}")
-        if cred_url:
-            parts.append(cred_url)
-
-        lines.append(f"<!-- CERT:{cert_id} -->")
-        lines.append(" | ".join(parts))
+        # Orgs with at least one cert, in org name order
+        org_ids_ordered = [
+            o["id"] for o in sorted(orgs, key=lambda o: o["name"])
+            if o["id"] in grouped
+        ]
+        for org_id in org_ids_ordered:
+            org = org_map[org_id]
+            label = org.get("display_label") or org["name"]
+            lines.append(f"\n{label}")
+            for cert in grouped[org_id]:
+                lines.append(f"<!-- CERT:{cert['id']} -->")
+                lines.append(_format_cert_line(cert))
+        # Uncategorised (no org)
+        if None in grouped:
+            lines.append("\nOther")
+            for cert in grouped[None]:
+                lines.append(f"<!-- CERT:{cert['id']} -->")
+                lines.append(_format_cert_line(cert))
+    else:
+        for cert in certifications:
+            lines.append(f"<!-- CERT:{cert['id']} -->")
+            lines.append(_format_cert_line(cert))
 
     return "\n".join(lines)
 
