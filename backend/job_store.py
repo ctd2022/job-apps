@@ -169,32 +169,6 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
-    # Migration (Idea #281): Add issuing_org_id FK to certifications
-    try:
-        cursor.execute("ALTER TABLE certifications ADD COLUMN issuing_org_id INTEGER REFERENCES issuing_organisations(id)")
-    except sqlite3.OperationalError:
-        pass
-
-    # Migration (Idea #281): Seed orgs from existing free-text issuing_org values
-    cursor.execute("""
-        INSERT OR IGNORE INTO issuing_organisations (name, colour, created_at, updated_at)
-        SELECT DISTINCT issuing_org, '#6366f1', datetime('now'), datetime('now')
-        FROM certifications WHERE issuing_org IS NOT NULL AND issuing_org != ''
-    """)
-    cursor.execute("""
-        UPDATE certifications
-        SET issuing_org_id = (
-            SELECT id FROM issuing_organisations WHERE name = certifications.issuing_org
-        )
-        WHERE issuing_org_id IS NULL
-    """)
-
-    # Migration (Idea #281): Add cert_grouping_mode to candidate_profiles
-    try:
-        cursor.execute("ALTER TABLE candidate_profiles ADD COLUMN cert_grouping_mode TEXT DEFAULT 'flat'")
-    except sqlite3.OperationalError:
-        pass
-
     # Migration: Add user_id columns (for existing databases)
     for table in ["jobs", "cvs"]:
         try:
@@ -285,6 +259,32 @@ def init_db():
             updated_at TEXT NOT NULL
         )
     ''')
+
+    # Migration (Idea #281): Add issuing_org_id FK to certifications
+    try:
+        cursor.execute("ALTER TABLE certifications ADD COLUMN issuing_org_id INTEGER REFERENCES issuing_organisations(id)")
+    except sqlite3.OperationalError:
+        pass
+
+    # Migration (Idea #281): Seed orgs from existing free-text issuing_org values
+    cursor.execute("""
+        INSERT OR IGNORE INTO issuing_organisations (name, colour, created_at, updated_at)
+        SELECT DISTINCT issuing_org, '#6366f1', datetime('now'), datetime('now')
+        FROM certifications WHERE issuing_org IS NOT NULL AND issuing_org != ''
+    """)
+    cursor.execute("""
+        UPDATE certifications
+        SET issuing_org_id = (
+            SELECT id FROM issuing_organisations WHERE name = certifications.issuing_org
+        )
+        WHERE issuing_org_id IS NULL
+    """)
+
+    # Migration (Idea #281): Add cert_grouping_mode to candidate_profiles
+    try:
+        cursor.execute("ALTER TABLE candidate_profiles ADD COLUMN cert_grouping_mode TEXT DEFAULT 'flat'")
+    except sqlite3.OperationalError:
+        pass
 
     # Professional Development table (Idea #243)
     cursor.execute('''
