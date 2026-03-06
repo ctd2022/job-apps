@@ -166,9 +166,27 @@ function CVManager() {
   async function handlePullFromProfile() {
     setPullingProfile(true);
     try {
-      const { experience_text, contact_header } = await assembleCV();
+      const { experience_text, contact_header, summary_text } = await assembleCV();
 
       let newContent = stripContactHeader(editorContent); // idempotent
+
+      const sumPattern = /^(#{1,3}\s*)?(professional\s+)?summary\s*$|^(#{1,3}\s*)?profile\s*$/i;
+      const sumLines = newContent.split('\n');
+      const sumIdx = sumLines.findIndex(l => sumPattern.test(l.trim()));
+
+      if (summary_text) {
+        if (sumIdx === -1) {
+          newContent = summary_text + '\n\n' + newContent.trimStart();
+        } else {
+          let nextSum = sumLines.length;
+          for (let i = sumIdx + 1; i < sumLines.length; i++) {
+            if (/^#{1,3}\s/.test(sumLines[i])) { nextSum = i; break; }
+          }
+          const before = sumLines.slice(0, sumIdx);
+          const after = sumLines.slice(nextSum);
+          newContent = [...before, summary_text, '', ...after].join('\n');
+        }
+      }
 
       const expPattern = /^#{1,3}\s*(work\s+)?experience\s*$/i;
       const lines = newContent.split('\n');

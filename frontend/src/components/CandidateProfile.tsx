@@ -2201,6 +2201,7 @@ interface SummarySectionProps {
 function SummarySection({ profile, onSaved }: SummarySectionProps) {
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [showJD, setShowJD] = useState(false);
   const [jd, setJd] = useState('');
@@ -2211,9 +2212,12 @@ function SummarySection({ profile, onSaved }: SummarySectionProps) {
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const updated = await updateProfile({ summary: text } as ProfileUpdate);
       onSaved(updated);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Save failed — is the backend running?');
     } finally {
       setSaving(false);
     }
@@ -2291,6 +2295,9 @@ function SummarySection({ profile, onSaved }: SummarySectionProps) {
         placeholder="A concise professional summary (3–4 sentences)…"
       />
       <p className="text-xs text-slate-400 mt-1">{text.length} characters</p>
+      {saveError && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">{saveError}</p>
+      )}
     </div>
   );
 }

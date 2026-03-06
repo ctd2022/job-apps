@@ -1,4 +1,5 @@
-import { AlertTriangle, ArrowRight, Lightbulb, Target, UserCheck, Zap } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, Lightbulb, Target, UserCheck, Zap } from 'lucide-react';
 import type { ActionableSuggestion, EvidenceGapDetail, GapAnalysis as GapAnalysisData } from '../types';
 import CollapsibleSection from './CollapsibleSection';
 
@@ -6,6 +7,7 @@ interface GapAnalysisProps {
   gapAnalysis: GapAnalysisData;
   semanticAvailable?: boolean;
   evidenceGapDetails?: EvidenceGapDetail[];
+  onHighlightSkill?: (skill: string) => void;
 }
 
 // Priority badge styling
@@ -48,8 +50,10 @@ function getSectionBadgeStyle(section: string): string {
   }
 }
 
-function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails }: GapAnalysisProps) {
+function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails, onHighlightSkill }: GapAnalysisProps) {
   const { critical_gaps, evidence_gaps, semantic_gaps, experience_gaps, actionable_suggestions } = gapAnalysis;
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const toggle = (key: string) => setChecked(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
 
   // Merged, deduplicated list of missing critical + required skills
   const allCriticalMissing = [
@@ -204,21 +208,40 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
                   <h3 className="text-sm font-medium text-green-800 dark:text-green-300">Actionable Suggestions</h3>
                   <p className="mt-1 text-xs text-green-600 dark:text-green-400">Where to add missing skills for maximum impact:</p>
                   <div className="mt-3 space-y-2">
-                    {actionable_suggestions!.map((suggestion, idx) => (
-                      <div
-                        key={`${suggestion.skill}-${idx}`}
-                        className="flex items-center gap-2 text-xs rounded px-2 py-1.5 bg-white dark:bg-gray-800 border border-green-200 dark:border-green-800"
-                      >
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getPriorityStyle(suggestion.priority)}`}>
-                          {getPriorityLabel(suggestion.priority)}
-                        </span>
-                        <span className="font-medium text-gray-800 dark:text-gray-200">{suggestion.skill}</span>
-                        <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                        <span className="text-gray-600 dark:text-gray-400">
-                          Add to <strong>{suggestion.recommended_section}</strong>
-                        </span>
-                      </div>
-                    ))}
+                    {actionable_suggestions!.map((suggestion, idx) => {
+                      const key = `${suggestion.skill}-${idx}`;
+                      const done = checked.has(key);
+                      return (
+                        <label
+                          key={key}
+                          className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 border cursor-pointer select-none transition-opacity ${
+                            done
+                              ? 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-50'
+                              : 'bg-white dark:bg-gray-800 border-green-200 dark:border-green-800'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={done}
+                            onChange={() => {
+                              toggle(key);
+                              if (!done && onHighlightSkill) onHighlightSkill(suggestion.skill);
+                            }}
+                            className="w-3.5 h-3.5 accent-green-600 flex-shrink-0"
+                          />
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getPriorityStyle(suggestion.priority)}`}>
+                            {getPriorityLabel(suggestion.priority)}
+                          </span>
+                          <span className={`font-medium text-gray-800 dark:text-gray-200 ${done ? 'line-through' : ''}`}>
+                            {suggestion.skill}
+                          </span>
+                          <span className="text-gray-400 dark:text-gray-500">→</span>
+                          <span className={`text-gray-600 dark:text-gray-400 ${done ? 'line-through' : ''}`}>
+                            {suggestion.recommended_section}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

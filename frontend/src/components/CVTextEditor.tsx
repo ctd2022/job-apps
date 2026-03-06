@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw, Wand2, Sparkles, Download } from 'lucide-react';
 import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis, applySuggestions, getBackends, suggestSkills, assembleCV, syncFromCV } from '../api';
 import type { CVVersion, RematchResponse, ATSAnalysisData, ATSComparisonData, CategoryComparison, Backend } from '../types';
@@ -15,6 +15,7 @@ interface CVTextEditorProps {
   onSaved: () => void;
   jobId?: string;
   initialContent?: string;
+  highlightTerm?: string;
 }
 
 function computeComparison(
@@ -71,7 +72,7 @@ function computeComparison(
   };
 }
 
-function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: CVTextEditorProps) {
+function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent, highlightTerm }: CVTextEditorProps) {
   const [version, setVersion] = useState<CVVersion | null>(null);
   const [content, setContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
@@ -119,9 +120,23 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
   const [pullingProfile, setPullingProfile] = useState(false);
   const [profileSyncToast, setProfileSyncToast] = useState<string | null>(null);
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     loadVersion();
   }, [cvVersionId]);
+
+  // Jump to and select the first occurrence of highlightTerm when editor opens
+  useEffect(() => {
+    if (!highlightTerm || loading || !textareaRef.current) return;
+    const el = textareaRef.current;
+    const idx = content.toLowerCase().indexOf(highlightTerm.toLowerCase());
+    if (idx === -1) return;
+    el.focus();
+    el.setSelectionRange(idx, idx + highlightTerm.length);
+    const linesBefore = content.substring(0, idx).split('\n').length;
+    el.scrollTop = Math.max(0, (linesBefore - 4) * 20);
+  }, [highlightTerm, loading]);
 
   useEffect(() => {
     if (jobId) {
@@ -217,9 +232,27 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
   async function handlePullFromProfile() {
     setPullingProfile(true);
     try {
-      const { experience_text, contact_header } = await assembleCV();
+      const { experience_text, contact_header, summary_text } = await assembleCV();
 
       let newContent = stripContactHeader(content); // idempotent
+
+      const sumPattern = /^(#{1,3}\s*)?(professional\s+)?summary\s*$|^(#{1,3}\s*)?profile\s*$/i;
+      const sumLines = newContent.split('\n');
+      const sumIdx = sumLines.findIndex(l => sumPattern.test(l.trim()));
+
+      if (summary_text) {
+        if (sumIdx === -1) {
+          newContent = summary_text + '\n\n' + newContent.trimStart();
+        } else {
+          let nextSum = sumLines.length;
+          for (let i = sumIdx + 1; i < sumLines.length; i++) {
+            if (/^#{1,3}\s/.test(sumLines[i])) { nextSum = i; break; }
+          }
+          const before = sumLines.slice(0, sumIdx);
+          const after = sumLines.slice(nextSum);
+          newContent = [...before, summary_text, '', ...after].join('\n');
+        }
+      }
 
       const expPattern = /^#{1,3}\s*(work\s+)?experience\s*$/i;
       const lines = newContent.split('\n');
@@ -407,9 +440,7 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full ${
-        jobId ? 'max-w-7xl' : 'max-w-4xl'
-      } max-h-[90vh] flex flex-col`}>
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-[95vw] max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <div>
@@ -599,6 +630,7 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent }: 
                   </div>
                 ) : (
                   <textarea
+                    ref={textareaRef}
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                     className="w-full min-h-[300px] h-96 font-mono text-sm p-3 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"

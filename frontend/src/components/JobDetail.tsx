@@ -62,6 +62,7 @@ function JobDetail() {
   // CV Editor modal state
   const [showCVEditor, setShowCVEditor] = useState(false);
   const [gapFillResult, setGapFillResult] = useState<ApplySuggestionsResponse | null>(null);
+  const [highlightTerm, setHighlightTerm] = useState<string | undefined>(undefined);
 
   // Skill Suggester state (Idea #56)
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
@@ -175,7 +176,7 @@ function JobDetail() {
 
   if (error || !job) {
     return (
-      <div className="max-w-6xl mx-auto">
+      <div className="w-full">
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 p-4">
           <div className="flex items-center space-x-3">
             <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400" />
@@ -193,7 +194,7 @@ function JobDetail() {
   const statusConfig = STATUS_CONFIG[job.outcome_status] || STATUS_CONFIG.draft;
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       {/* Header */}
       <div className="mb-3 flex items-center justify-between">
         <Link to="/" className="flex items-center text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
@@ -352,6 +353,7 @@ function JobDetail() {
                 gapAnalysis={atsAnalysis.gap_analysis}
                 semanticAvailable={atsAnalysis.semantic_analysis?.available ?? false}
                 evidenceGapDetails={atsAnalysis.evidence_gap_details}
+                onHighlightSkill={(skill) => { setHighlightTerm(skill); setShowCVEditor(true); }}
               />
               <GapFillWizard
                 jobId={job.id}
@@ -486,10 +488,11 @@ function JobDetail() {
       {showCVEditor && job.cv_version_id && (
         <CVTextEditor
           cvVersionId={job.cv_version_id}
-          onClose={() => { setShowCVEditor(false); setGapFillResult(null); loadJob(); }}
+          onClose={() => { setShowCVEditor(false); setGapFillResult(null); setHighlightTerm(undefined); loadJob(); }}
           onSaved={() => loadJob()}
           jobId={job.id}
           initialContent={gapFillResult?.revised_cv}
+          highlightTerm={highlightTerm}
         />
       )}
 

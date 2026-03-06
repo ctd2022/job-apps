@@ -275,7 +275,7 @@ function NewApplication() {
   // Show results if job completed
   if (currentJob?.status === 'completed' && outputFiles.length > 0) {
     return (
-      <div className="max-w-6xl mx-auto">
+      <div className="w-full">
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden">
           <div className="bg-green-50 dark:bg-green-900/30 px-6 py-4 border-b border-green-100 dark:border-green-800">
             <div className="flex items-center space-x-3">
@@ -342,7 +342,7 @@ function NewApplication() {
   }
   
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
         {/* Compact header bar */}
         <div className="px-4 py-2 bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600 flex items-center justify-between">
