@@ -269,6 +269,24 @@ def assemble_professional_development_section(items: list[dict[str, Any]]) -> st
     return "\n".join(lines)
 
 
+def parse_summary_section(cv_text: str) -> str | None:
+    """Extract the Professional Summary text block from CV text.
+
+    Matches 'PROFESSIONAL SUMMARY' (case-insensitive) up to the next section
+    header (line in ALL CAPS or a markdown ## heading) or end of string.
+    Returns the cleaned body text, or None if not found.
+    """
+    match = re.search(
+        r'(?im)^(?:##\s*)?PROFESSIONAL\s+SUMMARY\s*\n(.*?)(?=^(?:##\s*)?[A-Z][A-Z\s]{3,}$|\Z)',
+        cv_text,
+        re.DOTALL | re.MULTILINE,
+    )
+    if not match:
+        return None
+    body = match.group(1).strip()
+    return body if body else None
+
+
 def parse_experience_section(cv_text: str) -> list[dict[str, Any]]:
     """Extract job updates from CV text containing <!-- JOB:id --> markers.
 

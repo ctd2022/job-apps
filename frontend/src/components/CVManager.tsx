@@ -26,6 +26,7 @@ import {
   getCV,
   updateCVContent,
   assembleCV,
+  deleteCVVersion,
 } from '../api';
 import type { StoredCV, CVVersion } from '../types';
 
@@ -53,6 +54,7 @@ function CVManager() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [versions, setVersions] = useState<Record<number, CVVersion[]>>({});
   const [loadingVersions, setLoadingVersions] = useState<number | null>(null);
+  const [deletingVersionId, setDeletingVersionId] = useState<number | null>(null);
 
   // Editor modal
   const [editorCvId, setEditorCvId] = useState<number | null>(null);
@@ -144,6 +146,22 @@ function CVManager() {
       } finally {
         setLoadingVersions(null);
       }
+    }
+  }
+
+  async function handleDeleteVersion(cvId: number, versionId: number, versionNumber: number) {
+    if (!window.confirm(`Delete version v${versionNumber}? This cannot be undone.`)) return;
+    setDeletingVersionId(versionId);
+    try {
+      await deleteCVVersion(cvId, versionId);
+      const v = await getCVVersions(cvId);
+      setVersions(prev => ({ ...prev, [cvId]: v }));
+      await loadCVs();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete version';
+      setError(msg.includes('last version') ? 'Cannot delete the last version of a CV.' : msg);
+    } finally {
+      setDeletingVersionId(null);
     }
   }
 
@@ -321,6 +339,7 @@ function CVManager() {
                   isExpanded={expandedId === cv.id}
                   versions={versions[cv.id]}
                   loadingVersions={loadingVersions === cv.id}
+                  deletingVersionId={deletingVersionId}
                   isRenaming={renamingId === cv.id}
                   renameValue={renameValue}
                   isDeleting={deletingId === cv.id}
@@ -334,6 +353,7 @@ function CVManager() {
                   onCancelDelete={() => setDeletingId(null)}
                   onSetDefault={() => handleSetDefault(cv.id)}
                   onEdit={() => openEditor(cv.id)}
+                  onDeleteVersion={(versionId, versionNumber) => handleDeleteVersion(cv.id, versionId, versionNumber)}
                   formatDate={formatDate}
                 />
               ))}
@@ -426,6 +446,7 @@ interface CVRowProps {
   isExpanded: boolean;
   versions?: CVVersion[];
   loadingVersions: boolean;
+  deletingVersionId: number | null;
   isRenaming: boolean;
   renameValue: string;
   isDeleting: boolean;
@@ -439,13 +460,14 @@ interface CVRowProps {
   onCancelDelete: () => void;
   onSetDefault: () => void;
   onEdit: () => void;
+  onDeleteVersion: (versionId: number, versionNumber: number) => void;
   formatDate: (iso: string) => string;
 }
 
 function CVRow({
-  cv, isExpanded, versions, loadingVersions, isRenaming, renameValue, isDeleting,
+  cv, isExpanded, versions, loadingVersions, deletingVersionId, isRenaming, renameValue, isDeleting,
   onToggleVersions, onStartRename, onRenameChange, onRenameSubmit, onRenameCancel,
-  onDelete, onConfirmDelete, onCancelDelete, onSetDefault, onEdit, formatDate,
+  onDelete, onConfirmDelete, onCancelDelete, onSetDefault, onEdit, onDeleteVersion, formatDate,
 }: CVRowProps) {
   return (
     <>
@@ -546,16 +568,37 @@ function CVRow({
                     <th className="text-left py-1 pr-4 font-medium">Version</th>
                     <th className="text-left py-1 pr-4 font-medium">Date</th>
                     <th className="text-left py-1 font-medium">Summary</th>
+                    <th className="py-1 w-6"></th>
                   </tr>
                 </thead>
                 <tbody className="text-slate-600 dark:text-slate-300">
-                  {versions.map((v) => (
-                    <tr key={v.id} className="border-t border-slate-100 dark:border-slate-800">
-                      <td className="py-1 pr-4 font-mono">v{v.version_number}</td>
-                      <td className="py-1 pr-4">{formatDate(v.created_at)}</td>
-                      <td className="py-1 text-slate-500 dark:text-slate-400">{v.change_summary || 'Initial upload'}</td>
-                    </tr>
-                  ))}
+                  {versions.map((v) => {
+                    const isCurrent = v.id === cv.current_version_id;
+                    const isOnlyVersion = versions.length === 1;
+                    const isDeleting = deletingVersionId === v.id;
+                    return (
+                      <tr key={v.id} className="border-t border-slate-100 dark:border-slate-800">
+                        <td className="py-1 pr-4 font-mono">
+                          v{v.version_number}
+                          {isCurrent && <span className="ml-1 text-blue-500">(current)</span>}
+                        </td>
+                        <td className="py-1 pr-4">{formatDate(v.created_at)}</td>
+                        <td className="py-1 text-slate-500 dark:text-slate-400">{v.change_summary || 'Initial upload'}</td>
+                        <td className="py-1 text-right">
+                          <button
+                            onClick={() => onDeleteVersion(v.id, v.version_number)}
+                            disabled={isOnlyVersion || isDeleting}
+                            className="p-0.5 text-slate-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={isOnlyVersion ? 'Cannot delete the last version' : `Delete v${v.version_number}`}
+                          >
+                            {isDeleting
+                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                              : <Trash2 className="w-3 h-3" />}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             ) : (

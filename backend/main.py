@@ -403,6 +403,7 @@ class ReorderRequest(BaseModel):
 
 class SyncFromCVRequest(BaseModel):
     cv_text: str
+    sync_summary: bool = False
 
 
 class ProfileIncludeRequest(BaseModel):
@@ -2209,6 +2210,22 @@ async def update_cv_content(
     return updated
 
 
+@app.delete("/api/cvs/{cv_id}/versions/{version_id}")
+async def delete_cv_version(
+    cv_id: int,
+    version_id: int,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Delete a single CV version. Cannot delete the last remaining version."""
+    user_id = user_id or "default"
+    result = cv_store.delete_cv_version(version_id, user_id)
+    if result.get("error") == "not_found":
+        raise HTTPException(status_code=404, detail="Version not found")
+    if result.get("error") == "last_version":
+        raise HTTPException(status_code=409, detail="Cannot delete the last version of a CV")
+    return {"status": "deleted", "new_current_version_id": result.get("new_current_version_id")}
+
+
 # ============================================================================
 # CV Coach Endpoint
 # ============================================================================
@@ -2911,7 +2928,7 @@ async def sync_from_cv(
     request: SyncFromCVRequest,
     user_id: str = Header(None, alias="X-User-ID"),
 ):
-    """Parse <!-- JOB:id --> markers in CV text and update job history details."""
+    """Parse JOB markers + optional summary from CV text and update profile."""
     user_id = user_id or "default"
     updates = cv_assembler.parse_experience_section(request.cv_text)
     updated_count = 0
@@ -2923,7 +2940,15 @@ async def sync_from_cv(
         if job_id in job_ids:
             profile_store.update_job_details(job_id, update["details"], update["tags"])
             updated_count += 1
-    return {"updated_count": updated_count}
+
+    summary_updated = False
+    if request.sync_summary:
+        summary_text = cv_assembler.parse_summary_section(request.cv_text)
+        if summary_text:
+            profile_store.update_profile(user_id, summary=summary_text)
+            summary_updated = True
+
+    return {"updated_count": updated_count, "summary_updated": summary_updated}
 
 
 # ============================================================================

@@ -123,6 +123,10 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent, hi
   const [previewOpen, setPreviewOpen] = useState(false);
   const [profileSyncToast, setProfileSyncToast] = useState<string | null>(null);
 
+  // Sync to Profile state (Idea #291)
+  const [syncingProfile, setSyncingProfile] = useState(false);
+  const [profileSynced, setProfileSynced] = useState(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -241,12 +245,28 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent, hi
     }
   }
 
+  async function handleSyncToProfile() {
+    if (syncingProfile) return;
+    setSyncingProfile(true);
+    setProfileSynced(false);
+    try {
+      await syncFromCV(content, true);
+      setProfileSynced(true);
+      setTimeout(() => setProfileSynced(false), 3000);
+    } catch {
+      // Non-critical
+    } finally {
+      setSyncingProfile(false);
+    }
+  }
+
   async function handleRematch() {
     if (!jobId || !savedNewVersionId || rematching) return;
     try {
       setRematching(true);
       setRematchError(null);
       setComparison(null);
+      setProfileSynced(false);
 
       // Snapshot current analysis for comparison
       const snapshotAnalysis = atsAnalysis;
@@ -462,28 +482,47 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent, hi
 
                 {/* Re-match result (compact - details in right pane) */}
                 {rematchResult && (
-                  <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-2 rounded text-sm">
-                    <div className="flex items-center space-x-2 text-green-700 dark:text-green-300">
-                      <CheckCircle className="w-4 h-4" />
-                      <span>ATS Re-Match Complete</span>
+                  <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-2 rounded text-sm space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2 text-green-700 dark:text-green-300">
+                        <CheckCircle className="w-4 h-4" />
+                        <span>ATS Re-Match Complete</span>
+                      </div>
+                      <div className="flex items-center space-x-2 font-mono text-sm">
+                        <span className="text-slate-500 dark:text-slate-400">
+                          {rematchResult.old_score != null ? `${rematchResult.old_score}%` : 'N/A'}
+                        </span>
+                        <span className="text-slate-400">-&gt;</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-100">
+                          {rematchResult.new_score}%
+                        </span>
+                        <span className={`font-bold ${
+                          rematchResult.delta > 0
+                            ? 'text-green-600 dark:text-green-400'
+                            : rematchResult.delta < 0
+                              ? 'text-red-600 dark:text-red-400'
+                              : 'text-slate-500'
+                        }`}>
+                          ({rematchResult.delta > 0 ? '+' : ''}{rematchResult.delta})
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2 font-mono text-sm">
-                      <span className="text-slate-500 dark:text-slate-400">
-                        {rematchResult.old_score != null ? `${rematchResult.old_score}%` : 'N/A'}
-                      </span>
-                      <span className="text-slate-400">-&gt;</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-100">
-                        {rematchResult.new_score}%
-                      </span>
-                      <span className={`font-bold ${
-                        rematchResult.delta > 0
-                          ? 'text-green-600 dark:text-green-400'
-                          : rematchResult.delta < 0
-                            ? 'text-red-600 dark:text-red-400'
-                            : 'text-slate-500'
-                      }`}>
-                        ({rematchResult.delta > 0 ? '+' : ''}{rematchResult.delta})
-                      </span>
+                    <div className="flex justify-end">
+                      {profileSynced ? (
+                        <span className="flex items-center space-x-1 text-xs text-green-600 dark:text-green-400">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>Profile updated</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={handleSyncToProfile}
+                          disabled={syncingProfile}
+                          className="flex items-center space-x-1 px-2 py-0.5 text-xs bg-white dark:bg-slate-700 border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/50 rounded disabled:opacity-50"
+                        >
+                          {syncingProfile && <Loader2 className="w-3 h-3 animate-spin" />}
+                          <span>Sync to Profile</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

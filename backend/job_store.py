@@ -1208,6 +1208,59 @@ class CVStore:
 
         return deleted
 
+    def delete_cv_version(self, version_id: int, user_id: Optional[str] = None) -> dict:
+        """Delete a single CV version. Cannot delete the last version."""
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Find the cv_id and verify ownership
+        if user_id:
+            cursor.execute("""
+                SELECT cv_versions.id, cv_versions.cv_id
+                FROM cv_versions
+                JOIN cvs ON cv_versions.cv_id = cvs.id
+                WHERE cv_versions.id = ? AND cvs.user_id = ?
+            """, (version_id, user_id))
+        else:
+            cursor.execute("SELECT id, cv_id FROM cv_versions WHERE id = ?", (version_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return {"error": "not_found"}
+
+        cv_id = row["cv_id"]
+
+        # Count remaining versions for this CV
+        cursor.execute("SELECT COUNT(*) as cnt FROM cv_versions WHERE cv_id = ?", (cv_id,))
+        count = cursor.fetchone()["cnt"]
+        if count <= 1:
+            conn.close()
+            return {"error": "last_version"}
+
+        # Check if deleting the current version — if so, promote another
+        cursor.execute("SELECT current_version_id FROM cvs WHERE id = ?", (cv_id,))
+        cv_row = cursor.fetchone()
+        new_current_version_id = None
+
+        if cv_row and cv_row["current_version_id"] == version_id:
+            cursor.execute("""
+                SELECT id, content FROM cv_versions
+                WHERE cv_id = ? AND id != ?
+                ORDER BY version_number DESC LIMIT 1
+            """, (cv_id, version_id))
+            next_ver = cursor.fetchone()
+            if next_ver:
+                new_current_version_id = next_ver["id"]
+                cursor.execute(
+                    "UPDATE cvs SET current_version_id = ?, content = ?, updated_at = ? WHERE id = ?",
+                    (new_current_version_id, next_ver["content"], datetime.now().isoformat(), cv_id),
+                )
+
+        cursor.execute("DELETE FROM cv_versions WHERE id = ?", (version_id,))
+        conn.commit()
+        conn.close()
+        return {"deleted": True, "new_current_version_id": new_current_version_id}
+
     def set_default(self, cv_id: int, user_id: str = None) -> bool:
         """Set a CV as the default for the user."""
         conn = get_connection()

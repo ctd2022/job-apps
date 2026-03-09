@@ -620,6 +620,14 @@ export async function updateCVContent(
   return handleResponse(response);
 }
 
+export async function deleteCVVersion(cvId: number, versionId: number): Promise<{ status: string; new_current_version_id: number | null }> {
+  const response = await fetch(`${API_BASE}/cvs/${cvId}/versions/${versionId}`, {
+    method: 'DELETE',
+    headers: { ...getUserHeaders() },
+  });
+  return handleResponse(response);
+}
+
 export async function assessCVCoach(cvText: string): Promise<CVCoachAssessment> {
   const response = await fetch(`${API_BASE}/cv-coach/assess`, {
     method: 'POST',
@@ -725,13 +733,13 @@ export async function assembleCV(): Promise<{
   return handleResponse(response);
 }
 
-export async function syncFromCV(cvText: string): Promise<{ updated_count: number }> {
+export async function syncFromCV(cvText: string, syncSummary = false): Promise<{ updated_count: number; summary_updated: boolean }> {
   const response = await fetch(`${API_BASE}/profile/sync-from-cv`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
-    body: JSON.stringify({ cv_text: cvText }),
+    body: JSON.stringify({ cv_text: cvText, sync_summary: syncSummary }),
   });
-  return handleResponse<{ updated_count: number }>(response);
+  return handleResponse<{ updated_count: number; summary_updated: boolean }>(response);
 }
 
 // ── Issuing Organisations (Idea #281) ─────────────────────────────────────────
