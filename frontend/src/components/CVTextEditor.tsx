@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw, Wand2, Sparkles, Download } from 'lucide-react';
+import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw, Wand2, Sparkles, Download, Eye } from 'lucide-react';
 import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis, applySuggestions, getBackends, suggestSkills, assembleCV, syncFromCV } from '../api';
 import type { CVVersion, RematchResponse, ATSAnalysisData, ATSComparisonData, CategoryComparison, Backend } from '../types';
+import CVPreviewModal from './CVPreviewModal';
+import { applyProfileSections } from '../utils/pullFromProfile';
 import SuggestionChecklist from './SuggestionChecklist';
 import CVCompletenessMeter from './CVCompletenessMeter';
 import ScoreComparisonPanel from './ScoreComparisonPanel';
@@ -118,6 +120,7 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent, hi
 
   // Pull from Profile state (Idea #233)
   const [pullingProfile, setPullingProfile] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [profileSyncToast, setProfileSyncToast] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -225,62 +228,11 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent, hi
     }
   }
 
-  function stripContactHeader(text: string): string {
-    return text.replace(/<!-- CONTACT_START -->[\s\S]*?<!-- CONTACT_END -->\n?/, '');
-  }
-
   async function handlePullFromProfile() {
     setPullingProfile(true);
     try {
-      const { experience_text, contact_header, summary_text } = await assembleCV();
-
-      let newContent = stripContactHeader(content); // idempotent
-
-      const sumPattern = /^(#{1,3}\s*)?(professional\s+)?summary\s*$|^(#{1,3}\s*)?profile\s*$/i;
-      const sumLines = newContent.split('\n');
-      const sumIdx = sumLines.findIndex(l => sumPattern.test(l.trim()));
-
-      if (summary_text) {
-        if (sumIdx === -1) {
-          newContent = summary_text + '\n\n' + newContent.trimStart();
-        } else {
-          let nextSum = sumLines.length;
-          for (let i = sumIdx + 1; i < sumLines.length; i++) {
-            if (/^#{1,3}\s/.test(sumLines[i])) { nextSum = i; break; }
-          }
-          const before = sumLines.slice(0, sumIdx);
-          const after = sumLines.slice(nextSum);
-          newContent = [...before, summary_text, '', ...after].join('\n');
-        }
-      }
-
-      const expPattern = /^#{1,3}\s*(work\s+)?experience\s*$/i;
-      const lines = newContent.split('\n');
-      const expIdx = lines.findIndex(l => expPattern.test(l.trim()));
-
-      if (experience_text) {
-        if (expIdx === -1) {
-          newContent = newContent.trimEnd() + '\n\n## Experience\n\n' + experience_text;
-        } else {
-          // Find the next section header after expIdx
-          let nextSection = lines.length;
-          for (let i = expIdx + 1; i < lines.length; i++) {
-            if (/^#{1,3}\s/.test(lines[i])) {
-              nextSection = i;
-              break;
-            }
-          }
-          const before = lines.slice(0, expIdx + 1);
-          const after = lines.slice(nextSection);
-          newContent = [...before, '', experience_text, '', ...after].join('\n');
-        }
-      }
-
-      if (contact_header) {
-        newContent = contact_header + '\n\n' + newContent.trimStart();
-      }
-
-      setContent(newContent);
+      const sections = await assembleCV();
+      setContent(applyProfileSections(content, sections));
       setHasPendingGapFill(true); // mark dirty so Save is enabled
     } catch {
       // Silent — non-critical
@@ -751,19 +703,29 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent, hi
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-          <button
-            onClick={handlePullFromProfile}
-            disabled={pullingProfile}
-            className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-50"
-            title="Pull structured job history from your Profile into the EXPERIENCE section"
-          >
-            {pullingProfile ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4" />
-            )}
-            <span>Pull from Profile</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handlePullFromProfile}
+              disabled={pullingProfile}
+              className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-50"
+              title="Pull all profile sections into the CV (contact, summary, experience, education, certifications, skills, professional development)"
+            >
+              {pullingProfile ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              <span>Pull from Profile</span>
+            </button>
+            <button
+              onClick={() => setPreviewOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+              title="Preview the assembled CV from your Profile"
+            >
+              <Eye className="w-4 h-4" />
+              <span>Preview</span>
+            </button>
+          </div>
 
           <div className="flex items-center space-x-3">
             <button
@@ -787,6 +749,7 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent, hi
           </div>
         </div>
       </div>
+      {previewOpen && <CVPreviewModal onClose={() => setPreviewOpen(false)} />}
     </div>
   );
 }

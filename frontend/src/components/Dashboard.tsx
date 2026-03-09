@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   CheckCircle,
@@ -6,10 +6,12 @@ import {
   Loader2,
   RefreshCw,
   ArrowRight,
-  TrendingUp
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from 'lucide-react';
-import { getHealth, getJobs, getApplications, getMetrics } from '../api';
-import type { Job, Application, HealthStatus, Metrics } from '../types';
+import { getHealth, getJobs, getApplications, getMetrics, getMatchHistory } from '../api';
+import type { Job, Application, HealthStatus, MatchHistoryEntry, Metrics } from '../types';
 import { getMatchTier } from '../utils/matchTier';
 import PipelineDiagnosis from './PipelineDiagnosis';
 
@@ -297,8 +299,39 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 function ApplicationTableRow({ application }: { application: Application }) {
   const navigate = useNavigate();
   const tier = getMatchTier(application.ats_score);
-
   const statusConfig = STATUS_CONFIG[application.outcome_status] || STATUS_CONFIG.draft;
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<MatchHistoryEntry[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const historyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!historyOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+        setHistoryOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [historyOpen]);
+
+  async function handleScoreClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!application.job_id) return;
+    setHistoryOpen(h => !h);
+    if (history === null && !historyLoading) {
+      setHistoryLoading(true);
+      try {
+        const res = await getMatchHistory(application.job_id);
+        setHistory(res.history);
+      } catch {
+        setHistory([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    }
+  }
 
   return (
     <tr
@@ -316,9 +349,9 @@ function ApplicationTableRow({ application }: { application: Application }) {
       <td className="px-3 py-2 text-slate-600 dark:text-slate-300 text-xs truncate max-w-[120px]" title={application.model}>
         {application.model || '-'}
       </td>
-      <td className="px-3 py-2 text-right">
+      <td className="px-3 py-2 text-right relative" onClick={handleScoreClick}>
         {tier ? (
-          <div className="flex flex-col items-end">
+          <div className="flex flex-col items-end cursor-pointer select-none" title="Click to see score history">
             <span className={`text-xs px-1.5 py-0.5 ${tier.bgColor} ${tier.color} ${tier.darkBgColor} ${tier.darkTextColor}`}>
               {tier.label}
             </span>
@@ -326,6 +359,65 @@ function ApplicationTableRow({ application }: { application: Application }) {
           </div>
         ) : (
           <span className="text-slate-400">-</span>
+        )}
+        {historyOpen && tier && (
+          <div
+            ref={historyRef}
+            className="absolute right-0 top-full mt-1 z-50 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-lg text-left"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-700">
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Score History</span>
+            </div>
+            {historyLoading && (
+              <div className="px-3 py-3 flex items-center space-x-2 text-xs text-slate-400">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Loading...</span>
+              </div>
+            )}
+            {!historyLoading && history !== null && history.length === 0 && (
+              <div className="px-3 py-3 text-xs text-slate-400">No history recorded.</div>
+            )}
+            {!historyLoading && history !== null && history.length > 0 && (
+              <div className="divide-y divide-slate-100 dark:divide-slate-700 max-h-64 overflow-y-auto">
+                {[...history].reverse().map((entry, idx) => {
+                  const isLatest = idx === 0;
+                  const delta = entry.delta;
+                  const deltaIcon = delta == null ? null
+                    : delta > 0 ? <TrendingUp className="w-3 h-3 text-green-500" />
+                    : delta < 0 ? <TrendingDown className="w-3 h-3 text-red-500" />
+                    : <Minus className="w-3 h-3 text-slate-400" />;
+                  const deltaText = delta == null ? null
+                    : delta > 0 ? `+${delta}%`
+                    : delta < 0 ? `${delta}%`
+                    : '0%';
+                  return (
+                    <div key={entry.id} className={`px-3 py-2 ${isLatest ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1.5">
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">#{entry.iteration}</span>
+                          {isLatest && <span className="text-[10px] px-1 bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300">latest</span>}
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          {deltaIcon}
+                          {deltaText && <span className={`text-xs font-mono ${delta! > 0 ? 'text-green-600 dark:text-green-400' : delta! < 0 ? 'text-red-500' : 'text-slate-400'}`}>{deltaText}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-sm font-semibold font-mono text-slate-800 dark:text-slate-100">{entry.score}%</span>
+                        {entry.matched != null && entry.total != null && (
+                          <span className="text-[10px] text-slate-400 font-mono">{entry.matched}/{entry.total} kw</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                        {new Date(entry.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
       </td>
       <td className="px-3 py-2 text-right text-slate-500 dark:text-slate-400 text-xs font-mono">

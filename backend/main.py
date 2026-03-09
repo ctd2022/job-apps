@@ -2001,6 +2001,9 @@ async def list_applications(
                 # Merge data from database
                 app_info["company_name"] = db_job.get("company_name") or app_info["company_name"]
                 app_info["job_title"] = db_job.get("job_title")
+                # DB ats_score is always up-to-date (rematch updates DB but not metadata.json)
+                if db_job.get("ats_score") is not None:
+                    app_info["ats_score"] = db_job["ats_score"]
                 app_info["outcome_status"] = db_job.get("outcome_status", "draft")
                 app_info["submitted_at"] = db_job.get("submitted_at")
                 app_info["response_at"] = db_job.get("response_at")

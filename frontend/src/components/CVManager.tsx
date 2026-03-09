@@ -12,7 +12,10 @@ import {
   FileText,
   Plus,
   Download,
+  Eye,
 } from 'lucide-react';
+import CVPreviewModal from './CVPreviewModal';
+import { applyProfileSections } from '../utils/pullFromProfile';
 import {
   getCVs,
   createCV,
@@ -59,6 +62,7 @@ function CVManager() {
   const [saving, setSaving] = useState(false);
   const [loadingEditor, setLoadingEditor] = useState(false);
   const [pullingProfile, setPullingProfile] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     loadCVs();
@@ -159,61 +163,11 @@ function CVManager() {
     }
   }
 
-  function stripContactHeader(text: string): string {
-    return text.replace(/<!-- CONTACT_START -->[\s\S]*?<!-- CONTACT_END -->\n?/, '');
-  }
-
   async function handlePullFromProfile() {
     setPullingProfile(true);
     try {
-      const { experience_text, contact_header, summary_text } = await assembleCV();
-
-      let newContent = stripContactHeader(editorContent); // idempotent
-
-      const sumPattern = /^(#{1,3}\s*)?(professional\s+)?summary\s*$|^(#{1,3}\s*)?profile\s*$/i;
-      const sumLines = newContent.split('\n');
-      const sumIdx = sumLines.findIndex(l => sumPattern.test(l.trim()));
-
-      if (summary_text) {
-        if (sumIdx === -1) {
-          newContent = summary_text + '\n\n' + newContent.trimStart();
-        } else {
-          let nextSum = sumLines.length;
-          for (let i = sumIdx + 1; i < sumLines.length; i++) {
-            if (/^#{1,3}\s/.test(sumLines[i])) { nextSum = i; break; }
-          }
-          const before = sumLines.slice(0, sumIdx);
-          const after = sumLines.slice(nextSum);
-          newContent = [...before, summary_text, '', ...after].join('\n');
-        }
-      }
-
-      const expPattern = /^#{1,3}\s*(work\s+)?experience\s*$/i;
-      const lines = newContent.split('\n');
-      const expIdx = lines.findIndex(l => expPattern.test(l.trim()));
-
-      if (experience_text) {
-        if (expIdx === -1) {
-          newContent = newContent.trimEnd() + '\n\n## Experience\n\n' + experience_text;
-        } else {
-          let nextSection = lines.length;
-          for (let i = expIdx + 1; i < lines.length; i++) {
-            if (/^#{1,3}\s/.test(lines[i])) {
-              nextSection = i;
-              break;
-            }
-          }
-          const before = lines.slice(0, expIdx + 1);
-          const after = lines.slice(nextSection);
-          newContent = [...before, '', experience_text, '', ...after].join('\n');
-        }
-      }
-
-      if (contact_header) {
-        newContent = contact_header + '\n\n' + newContent.trimStart();
-      }
-
-      setEditorContent(newContent);
+      const sections = await assembleCV();
+      setEditorContent(applyProfileSections(editorContent, sections));
     } catch {
       // Silent — non-critical
     } finally {
@@ -412,15 +366,25 @@ function CVManager() {
                   className="flex-1 min-h-[400px] p-4 font-mono text-sm text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 resize-none focus:outline-none"
                 />
                 <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                  <button
-                    onClick={handlePullFromProfile}
-                    disabled={pullingProfile}
-                    className="flex items-center space-x-1.5 px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md disabled:opacity-50"
-                    title="Pull structured job history from your Profile into the EXPERIENCE section"
-                  >
-                    {pullingProfile ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                    <span>Pull from Profile</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={handlePullFromProfile}
+                      disabled={pullingProfile}
+                      className="flex items-center space-x-1.5 px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md disabled:opacity-50"
+                      title="Pull all profile sections (contact, summary, experience, education, certifications, skills, professional development) into the CV"
+                    >
+                      {pullingProfile ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                      <span>Pull from Profile</span>
+                    </button>
+                    <button
+                      onClick={() => setPreviewOpen(true)}
+                      className="flex items-center space-x-1.5 px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md"
+                      title="Preview the assembled CV from your Profile"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Preview</span>
+                    </button>
+                  </div>
                   <div className="flex items-center space-x-3">
                     <input
                       type="text"
@@ -450,6 +414,7 @@ function CVManager() {
           </div>
         </div>
       )}
+      {previewOpen && <CVPreviewModal onClose={() => setPreviewOpen(false)} />}
     </div>
   );
 }

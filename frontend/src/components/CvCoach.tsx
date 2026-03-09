@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { GraduationCap, RefreshCw, Save, CheckCircle, AlertCircle, ChevronRight, History, RotateCcw, Download, Wand2 } from 'lucide-react';
+import { GraduationCap, RefreshCw, Save, CheckCircle, AlertCircle, ChevronRight, History, RotateCcw, Download, Wand2, Eye } from 'lucide-react';
 import type { StoredCV, CVVersion, CVCoachAssessment, CoachingSuggestion, Job } from '../types';
 import { getCVs, getCV, getCVVersions, getCVVersionById, updateCVContent, assessCVCoach, assembleCV, generateSummary, getJobs, getJobDescription } from '../api';
+import CVPreviewModal from './CVPreviewModal';
+import { applyProfileSections } from '../utils/pullFromProfile';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -183,6 +185,7 @@ export default function CvCoach() {
   const [assessing, setAssessing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pullingProfile, setPullingProfile] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [changeSummary, setChangeSummary] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [generatingSummary, setGeneratingSummary] = useState(false);
@@ -341,58 +344,11 @@ export default function CvCoach() {
 
   // ── Pull from Profile ───────────────────────────────────────────────────────
 
-  function stripContactHeader(text: string): string {
-    return text.replace(/<!-- CONTACT_START -->[\s\S]*?<!-- CONTACT_END -->\n?/, '');
-  }
-
   const handlePullFromProfile = async () => {
     setPullingProfile(true);
     try {
-      const { experience_text, contact_header, summary_text } = await assembleCV();
-
-      let newContent = stripContactHeader(cvText); // idempotent
-
-      const sumPattern = /^(#{1,3}\s*)?(professional\s+)?summary\s*$|^(#{1,3}\s*)?profile\s*$/i;
-      const sumLines = newContent.split('\n');
-      const sumIdx = sumLines.findIndex(l => sumPattern.test(l.trim()));
-
-      if (summary_text) {
-        if (sumIdx === -1) {
-          newContent = summary_text + '\n\n' + newContent.trimStart();
-        } else {
-          let nextSum = sumLines.length;
-          for (let i = sumIdx + 1; i < sumLines.length; i++) {
-            if (/^#{1,3}\s/.test(sumLines[i])) { nextSum = i; break; }
-          }
-          const before = sumLines.slice(0, sumIdx);
-          const after = sumLines.slice(nextSum);
-          newContent = [...before, summary_text, '', ...after].join('\n');
-        }
-      }
-
-      const expPattern = /^#{1,3}\s*(work\s+)?experience\s*$/i;
-      const lines = newContent.split('\n');
-      const expIdx = lines.findIndex(l => expPattern.test(l.trim()));
-
-      if (experience_text) {
-        if (expIdx === -1) {
-          newContent = newContent.trimEnd() + '\n\n## Experience\n\n' + experience_text;
-        } else {
-          let nextSection = lines.length;
-          for (let i = expIdx + 1; i < lines.length; i++) {
-            if (/^#{1,3}\s/.test(lines[i])) { nextSection = i; break; }
-          }
-          const before = lines.slice(0, expIdx + 1);
-          const after = lines.slice(nextSection);
-          newContent = [...before, '', experience_text, '', ...after].join('\n');
-        }
-      }
-
-      if (contact_header) {
-        newContent = contact_header + '\n\n' + newContent.trimStart();
-      }
-
-      handleTextChange(newContent); // triggers debounced re-assess
+      const sections = await assembleCV();
+      handleTextChange(applyProfileSections(cvText, sections)); // triggers debounced re-assess
     } catch {
       // Silent — non-critical
     } finally {
@@ -642,15 +598,23 @@ export default function CvCoach() {
 
         {/* Save row */}
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Pull from Profile */}
+          {/* Pull from Profile + Preview */}
           <button
             onClick={handlePullFromProfile}
             disabled={pullingProfile}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg disabled:opacity-50 transition-colors"
-            title="Pull contact info and job history from your Profile"
+            title="Pull all profile sections into the CV (contact, summary, experience, education, certifications, skills, professional development)"
           >
             {pullingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Pull from Profile
+          </button>
+          <button
+            onClick={() => setPreviewOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
+            title="Preview the assembled CV from your Profile"
+          >
+            <Eye className="w-4 h-4" />
+            Preview
           </button>
 
           <input
@@ -714,6 +678,7 @@ export default function CvCoach() {
         </div>
 
       </div>
+      {previewOpen && <CVPreviewModal onClose={() => setPreviewOpen(false)} />}
     </div>
   );
 }
