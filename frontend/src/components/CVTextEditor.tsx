@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Save, X, CheckCircle, AlertCircle, RefreshCw, Wand2, Sparkles, Download, Eye } from 'lucide-react';
-import { getCVVersionById, updateCVContent, rematchATS, getATSAnalysis, applySuggestions, getBackends, suggestSkills, assembleCV, syncFromCV } from '../api';
+import { getCVVersionById, getCVs, getCV, updateCVContent, rematchATS, getATSAnalysis, applySuggestions, getBackends, suggestSkills, assembleCV, syncFromCV } from '../api';
 import type { CVVersion, RematchResponse, ATSAnalysisData, ATSComparisonData, CategoryComparison, Backend } from '../types';
 import CVPreviewModal from './CVPreviewModal';
 import { applyProfileSections } from '../utils/pullFromProfile';
@@ -159,10 +159,27 @@ function CVTextEditor({ cvVersionId, onClose, onSaved, jobId, initialContent, hi
     try {
       setLoading(true);
       setError(null);
-      const v = await getCVVersionById(cvVersionId);
-      setVersion(v);
+      let v;
+      try {
+        v = await getCVVersionById(cvVersionId);
+      } catch {
+        // Version was deleted — fall back to current version of the default CV
+        const cvList = await getCVs();
+        const stub = cvList.find(c => c.is_default) ?? cvList[0];
+        if (!stub) throw new Error('CV version not found and no default CV available.');
+        const fallbackCv = await getCV(stub.id);
+        v = {
+          id: cvVersionId,
+          cv_id: fallbackCv.id,
+          version_number: fallbackCv.version_number ?? 1,
+          filename: fallbackCv.filename,
+          content: fallbackCv.content ?? '',
+          created_at: fallbackCv.created_at,
+        };
+        setError('The linked CV version was deleted. Loaded the default CV instead — save to create a new version.');
+      }
+      setVersion(v as any);
       if (initialContent) {
-        // Pre-load from gap-fill result; mark dirty so user can save
         setContent(initialContent);
         setOriginalContent(v.content || '');
       } else {

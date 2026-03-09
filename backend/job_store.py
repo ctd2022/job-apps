@@ -1256,6 +1256,18 @@ class CVStore:
                     (new_current_version_id, next_ver["content"], datetime.now().isoformat(), cv_id),
                 )
 
+        # Re-point any jobs/match_history referencing the deleted version
+        # to the promoted version (so the editor can still load them)
+        if new_current_version_id:
+            cursor.execute(
+                "UPDATE jobs SET cv_version_id = ? WHERE cv_version_id = ?",
+                (new_current_version_id, version_id),
+            )
+            cursor.execute(
+                "UPDATE match_history SET cv_version_id = ? WHERE cv_version_id = ?",
+                (new_current_version_id, version_id),
+            )
+
         cursor.execute("DELETE FROM cv_versions WHERE id = ?", (version_id,))
         conn.commit()
         conn.close()
