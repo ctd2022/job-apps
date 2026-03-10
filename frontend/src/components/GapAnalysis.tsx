@@ -78,7 +78,10 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
 
   const hasCriticalGaps = allCriticalMissing.length > 0;
   const hasEvidenceGaps = evidence_gaps.weak_evidence_skills.length > 0;
-  const hasSemanticGaps = semanticAvailable && semantic_gaps.missing_concepts.length > 0;
+  const meaningfulSemanticGaps = semantic_gaps.missing_concepts.filter(
+    c => !c.toLowerCase().startsWith('no matchable')
+  );
+  const hasSemanticGaps = semanticAvailable && meaningfulSemanticGaps.length > 0;
   const hasExperienceGaps = experience_gaps.gap > 0;
   const hasExperienceMatch = experience_gaps.experience_match === true;
   const hasActionableSuggestions = actionable_suggestions && actionable_suggestions.length > 0;
@@ -207,7 +210,7 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
                    <div className="mt-2 text-xs text-blue-700 dark:text-blue-400 space-y-1">
                     <p>Your CV may be missing these concepts or related ideas from the job description:</p>
                     <ul className="list-disc list-inside">
-                      {semantic_gaps.missing_concepts.map(concept => (
+                      {meaningfulSemanticGaps.map(concept => (
                         <li key={concept}>{concept}</li>
                       ))}
                     </ul>
