@@ -14,9 +14,9 @@
 - **Branch**: main
 - **Track**: 3.1 — UX Polish
 - **Last session**: Implemented Idea #298 (Profile as CV source) and Idea #302 (collapsible results page with inline CV/cover letter previews). Fixed Gemini `'parts'` error (safety-blocked responses now surface a human-readable message).
-- **Next steps**: Continue UX Polish track — check ideas backlog for next priority.
+- **Next steps**: Implement Idea #303 — Gap Analysis actionable suggestions → Profile. Use plan mode first.
 - **Blocked/broken**: Nothing.
-- **Ideas backlog**: Nothing urgent flagged.
+- **Ideas backlog**: #303 (medium complexity, high impact — use plan mode before starting).
 
 ---
 
@@ -56,3 +56,21 @@ The post-generation results page was a flat list: score bar + file tabs. Restruc
 **Root cause**: When Gemini safety-filters or blocks a response, it can return a candidate with a `content` object but no `parts` key. The raw `result['candidates'][0]['content']['parts'][0]['text']` access raised `KeyError: 'parts'`, which `str(e)` rendered as `'parts'` — surfaced to the user verbatim.
 
 **Fix** (`src/llm_backend.py`): Defensive response parsing — checks `parts` safely via `.get()`, reads `finishReason` and `promptFeedback.blockReason`, and raises a human-readable `RuntimeError` like `"Gemini blocked response (SAFETY). Try rephrasing or switching model."` Also handles prompt-level blocking (no `candidates` key).
+
+---
+
+### Architectural Decision — Profile as Source of Truth (Idea #303 captured)
+
+Discussion this session clarified the correct mental model for the tool:
+
+- **Profile** = single source of truth for all CV content (skills, experience, certs, education)
+- **CV versions** = downstream snapshots assembled from Profile at a point in time; valid for per-application tweaks and history ("what did I send to Company X"), but not for maintaining the skills inventory
+- **CV text editor / CV Coach** = fine-tuning layer, operates on assembled text blobs
+
+The current Gap Analysis Actionable Suggestions checklist (diary 062) was built against the old model — checking a suggestion opens the **CV text editor** and highlights the skill. This is now the wrong target.
+
+**Idea #303** captured: rework so checking a suggestion writes directly to Profile structured data:
+- `recommended_section="skills"` → call `createSkill()` API immediately, show confirmation toast
+- `recommended_section="experience"` → navigate to Profile Work Experience with a visual hint prompting the user to add a bullet
+
+**Implementation note for next session**: use plan mode before starting — architectural decisions needed around passing navigation callbacks from `GapAnalysis` (nested inside `JobDetail`) up to Profile page navigation.
