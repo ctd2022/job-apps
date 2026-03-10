@@ -638,7 +638,7 @@ export async function assessCVCoach(cvText: string): Promise<CVCoachAssessment> 
 }
 
 export async function generateSummary(
-  cvText: string,
+  cvText: string = '',
   jobDescription?: string,
   backendType?: string,
   modelName?: string,

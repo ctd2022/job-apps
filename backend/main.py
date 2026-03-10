@@ -251,7 +251,7 @@ class CVCoachAssessRequest(BaseModel):
 
 
 class GenerateSummaryRequest(BaseModel):
-    cv_text: str
+    cv_text: str = ""  # Fallback if profile has no content
     job_description: Optional[str] = None
     backend_type: Optional[str] = None
     model_name: Optional[str] = None
@@ -2442,18 +2442,109 @@ async def assess_cv_coach(request: CVCoachAssessRequest):
         raise HTTPException(status_code=500, detail=f"Assessment failed: {str(e)}")
 
 
+def _build_profile_context(
+    profile: Dict[str, Any],
+    job_history: List[Dict[str, Any]],
+    certifications: List[Dict[str, Any]],
+    skills: List[Dict[str, Any]],
+    education: List[Dict[str, Any]],
+    pd_items: List[Dict[str, Any]],
+) -> str:
+    """Assemble all profile sections into a structured plain-text context block."""
+    from collections import defaultdict
+
+    parts: List[str] = []
+
+    headline = (profile.get("headline") or "").strip()
+    if headline:
+        parts.append(f"HEADLINE: {headline}")
+
+    if job_history:
+        lines = ["WORK EXPERIENCE"]
+        for job in job_history:
+            title = (job.get("title") or "").strip()
+            employer = (job.get("employer") or "").strip()
+            start = (job.get("start_date") or "").strip()
+            end = "Present" if job.get("is_current") else (job.get("end_date") or "").strip()
+            header = f"- {title}"
+            if employer:
+                header += f" at {employer}"
+            if start or end:
+                header += f" ({start} - {end})"
+            lines.append(header)
+            description = (job.get("description") or "").strip()
+            if description:
+                for line in description.splitlines():
+                    stripped = line.strip()
+                    if stripped:
+                        lines.append(f"  {stripped}")
+        parts.append("\n".join(lines))
+
+    if skills:
+        by_cat: Dict[str, List[str]] = defaultdict(list)
+        for s in skills:
+            cat = (s.get("category") or "Other").strip()
+            name = (s.get("name") or "").strip()
+            if name:
+                by_cat[cat].append(name)
+        if by_cat:
+            lines = ["SKILLS"]
+            for cat, names in by_cat.items():
+                lines.append(f"  {cat}: {', '.join(names)}")
+            parts.append("\n".join(lines))
+
+    if certifications:
+        lines = ["CERTIFICATIONS"]
+        for c in certifications:
+            name = (c.get("name") or "").strip()
+            org = (c.get("org_display_label") or c.get("issuing_org") or "").strip()
+            entry = f"- {name}"
+            if org:
+                entry += f" ({org})"
+            lines.append(entry)
+        parts.append("\n".join(lines))
+
+    if education:
+        lines = ["EDUCATION"]
+        for e in education:
+            qual = (e.get("qualification") or "").strip()
+            field = (e.get("field_of_study") or "").strip()
+            inst = (e.get("institution") or "").strip()
+            end_date = (e.get("end_date") or "").strip()
+            entry = f"- {qual}"
+            if field:
+                entry += f" in {field}"
+            if inst:
+                entry += f", {inst}"
+            if end_date:
+                entry += f" ({end_date})"
+            lines.append(entry)
+        parts.append("\n".join(lines))
+
+    if pd_items:
+        lines = ["PROFESSIONAL DEVELOPMENT"]
+        for p in pd_items:
+            ptype = (p.get("type") or "").strip()
+            title = (p.get("title") or "").strip()
+            provider = (p.get("provider") or "").strip()
+            entry = f"- {ptype}: {title}" if ptype else f"- {title}"
+            if provider:
+                entry += f" ({provider})"
+            lines.append(entry)
+        parts.append("\n".join(lines))
+
+    return "\n\n".join(parts)
+
+
 @app.post("/api/cv-coach/generate-summary")
 async def generate_summary_endpoint(
     request: GenerateSummaryRequest,
     user_id: str = Header(None, alias="X-User-ID"),
 ):
-    """Generate a professional summary from CV text (Idea #55)."""
+    """Generate a professional summary from full profile context (Ideas #55, #296)."""
     user_id = user_id or "default"
     if not WORKFLOW_AVAILABLE:
         raise HTTPException(status_code=503, detail="Workflow modules not available")
-    cv_text = request.cv_text.strip()
-    if not cv_text:
-        raise HTTPException(status_code=400, detail="cv_text must not be empty")
 
     backend_type = request.backend_type or "gemini"
     backend_config: Dict[str, Any] = {}
@@ -2471,10 +2562,26 @@ async def generate_summary_endpoint(
 
     profile = profile_store.get_or_create_profile(user_id)
     job_history_records = profile_store.list_job_history(user_id)
-    scrub_result = pii_scrubber.scrub(cv_text, profile, job_history_records)
+    certifications = profile_store.list_certifications(user_id)
+    skills = profile_store.list_skills(user_id)
+    education = profile_store.list_education(user_id)
+    pd_items = profile_store.list_professional_development(user_id)
+
+    profile_context = _build_profile_context(
+        profile, job_history_records, certifications, skills, education, pd_items
+    )
+
+    # Fall back to cv_text from request if profile has no content
+    if not profile_context.strip() and request.cv_text.strip():
+        profile_context = request.cv_text.strip()
+
+    if not profile_context:
+        raise HTTPException(status_code=400, detail="No profile content found — add work experience or skills first")
+
+    scrub_result = pii_scrubber.scrub(profile_context, profile, job_history_records)
 
     loop = asyncio.get_event_loop()
-    raw_summary = await loop.run_in_executor(
+    raw_summary, debug_prompt = await loop.run_in_executor(
         None,
         optimizer.generate_summary,
         scrub_result.scrubbed_text,
@@ -2482,7 +2589,7 @@ async def generate_summary_endpoint(
     )
 
     summary = pii_scrubber.restore(raw_summary, scrub_result.replacements)
-    return {"summary": summary}
+    return {"summary": summary, "debug_prompt": debug_prompt}
 
 
 # ============================================================================

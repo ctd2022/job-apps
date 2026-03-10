@@ -544,9 +544,10 @@ export interface CVCoachAssessment {
   cv_char_count: number;
 }
 
-// Idea #55: Professional Summary Generator
+// Idea #55/#296/#297: Professional Summary Generator
 export interface SummaryGenerationResponse {
   summary: string;
+  debug_prompt?: string;
 }
 
 // ── Position Profiling (Idea #242) ──────────────────────────────────────────

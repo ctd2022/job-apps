@@ -2244,6 +2244,8 @@ function SummarySection({ profile, onSaved }: SummarySectionProps) {
   const [generating, setGenerating] = useState(false);
   const [showJD, setShowJD] = useState(false);
   const [jd, setJd] = useState('');
+  const [debugPrompt, setDebugPrompt] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     setText(profile?.summary ?? '');
@@ -2265,10 +2267,11 @@ function SummarySection({ profile, onSaved }: SummarySectionProps) {
   const handleGenerate = async () => {
     if (!showJD) { setShowJD(true); return; }
     setGenerating(true);
+    setDebugPrompt(null);
     try {
-      const assembled = await assembleCV();
-      const result = await generateSummary(assembled.experience_text, jd || undefined);
+      const result = await generateSummary('', jd || undefined);
       setText(result.summary);
+      if (result.debug_prompt) setDebugPrompt(result.debug_prompt);
     } finally {
       setGenerating(false);
     }
@@ -2336,6 +2339,23 @@ function SummarySection({ profile, onSaved }: SummarySectionProps) {
       <p className="text-xs text-slate-400 mt-1">{text.length} characters</p>
       {saveError && (
         <p className="text-xs text-red-600 dark:text-red-400 mt-1">{saveError}</p>
+      )}
+
+      {debugPrompt && (
+        <div className="mt-3 border border-slate-200 dark:border-slate-600 rounded">
+          <button
+            onClick={() => setShowDebug(v => !v)}
+            className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded"
+          >
+            <span>What was sent to the LLM</span>
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDebug ? 'rotate-180' : ''}`} />
+          </button>
+          {showDebug && (
+            <pre className="px-3 pb-3 text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap break-words font-mono overflow-auto max-h-64">
+              {debugPrompt}
+            </pre>
+          )}
+        </div>
       )}
     </div>
   );

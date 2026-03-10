@@ -1130,13 +1130,14 @@ Generate the complete CV now:"""
 
     def generate_summary(
         self,
-        cv_text: str,
+        profile_context: str,
         job_description: str | None = None,
-    ) -> str:
-        """Generate a 3-4 sentence professional summary from CV text.
+    ) -> tuple[str, str]:
+        """Generate a 3-4 sentence professional summary from structured profile context.
 
         If job_description is provided, tailors the summary to that role.
-        Returns plain text only — no heading, no bullet points.
+        Returns (summary_text, debug_prompt) — plain text summary and the full
+        user-facing prompt sent to the LLM.
         """
         jd_instruction = ""
         jd_section = ""
@@ -1150,14 +1151,14 @@ Generate the complete CV now:"""
 
         system_message = (
             "You are an expert CV writer. Write a professional summary for the "
-            "candidate described in the CV below.\n\n"
+            "candidate described in the profile below.\n\n"
             "RULES:\n"
             "- Write exactly 3-4 sentences.\n"
             "- Use first person (e.g. 'I bring...', 'With X years...').\n"
             "- State the candidate's seniority level and core domain in sentence 1.\n"
             "- Highlight the 2-3 strongest, most evidenced skills in sentence 2.\n"
             "- Close with a value proposition or career focus in the final sentence.\n"
-            "- Use active, specific language grounded only in the CV content.\n"
+            "- Use active, specific language grounded only in the profile content.\n"
             "- NEVER use: passionate, dynamic, results-driven, dedicated, motivated, "
             "self-starter, go-getter, team player, synergy, leverage, stakeholder.\n"
             "- Do NOT start any sentence with 'I am a'.\n"
@@ -1167,7 +1168,7 @@ Generate the complete CV now:"""
         )
 
         prompt = (
-            f"CV:\n{cv_text}"
+            f"CANDIDATE PROFILE:\n{profile_context}"
             f"{jd_section}\n\n"
             "Write the professional summary now."
         )
@@ -1178,7 +1179,7 @@ Generate the complete CV now:"""
         ]
 
         response = self.backend.chat(messages, temperature=0.5, max_tokens=300)
-        return response.strip()
+        return response.strip(), prompt
 
     def generate_ats_report(self, cv_text: str, job_description: str) -> tuple:
         """Generate a comprehensive ATS analysis report"""
