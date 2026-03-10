@@ -2581,6 +2581,9 @@ async def generate_summary_endpoint(
 
     scrub_result = pii_scrubber.scrub(profile_context, profile, job_history_records)
 
+    generated_at = datetime.now().isoformat(timespec="seconds")
+    model_label = backend_config.get("model_name", backend_type)
+
     loop = asyncio.get_event_loop()
     raw_summary, debug_prompt = await loop.run_in_executor(
         None,
@@ -2590,7 +2593,13 @@ async def generate_summary_endpoint(
     )
 
     summary = pii_scrubber.restore(raw_summary, scrub_result.replacements)
-    return {"summary": summary, "debug_prompt": debug_prompt}
+    debug_header = (
+        f"Generated: {generated_at}\n"
+        f"Backend:   {backend_type}\n"
+        f"Model:     {model_label}\n"
+        f"{'─' * 60}\n"
+    )
+    return {"summary": summary, "debug_prompt": debug_header + debug_prompt}
 
 
 # ============================================================================
