@@ -2242,8 +2242,6 @@ function SummarySection({ profile, onSaved }: SummarySectionProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [showJD, setShowJD] = useState(false);
-  const [jd, setJd] = useState('');
   const [debugPrompt, setDebugPrompt] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
 
@@ -2265,11 +2263,10 @@ function SummarySection({ profile, onSaved }: SummarySectionProps) {
   };
 
   const handleGenerate = async () => {
-    if (!showJD) { setShowJD(true); return; }
     setGenerating(true);
     setDebugPrompt(null);
     try {
-      const result = await generateSummary('', jd || undefined);
+      const result = await generateSummary('');
       setText(result.summary);
       if (result.debug_prompt) setDebugPrompt(result.debug_prompt);
     } finally {
@@ -2288,7 +2285,7 @@ function SummarySection({ profile, onSaved }: SummarySectionProps) {
             onClick={handleGenerate}
             disabled={generating}
             className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 hover:underline disabled:opacity-50"
-            title="Generate summary using AI"
+            title="Generate summary from your profile"
           >
             {generating ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
             Generate
@@ -2305,29 +2302,6 @@ function SummarySection({ profile, onSaved }: SummarySectionProps) {
           )}
         </div>
       </div>
-
-      {showJD && (
-        <div className="mb-2">
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-            Job description (optional — for a targeted summary)
-          </label>
-          <textarea
-            value={jd}
-            onChange={e => setJd(e.target.value)}
-            rows={3}
-            className={`${inputCls} resize-y mb-1`}
-            placeholder="Paste job description here…"
-          />
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="flex items-center gap-1 text-xs bg-purple-600 text-white px-2.5 py-1 rounded hover:bg-purple-700 disabled:opacity-50"
-          >
-            {generating ? <Loader className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
-            Generate now
-          </button>
-        </div>
-      )}
 
       <textarea
         value={text}
@@ -2611,7 +2585,6 @@ export default function CandidateProfile() {
         {/* Left column */}
         <div className="space-y-4">
           <SectionConfigPanel config={sectionConfig} onChange={setSectionConfig} />
-          <SummarySection profile={profile} onSaved={setProfile} />
           <PersonalInfoSection profile={profile} onSaved={setProfile} />
           <IssuingOrgsAdmin orgs={orgs} onChange={setOrgs} />
           <CertificationsSection
@@ -2630,8 +2603,9 @@ export default function CandidateProfile() {
           />
         </div>
 
-        {/* Right column: Work Experience + Education + Skills */}
+        {/* Right column: Summary + Work Experience + Education + Skills */}
         <div className="space-y-4">
+          <SummarySection profile={profile} onSaved={setProfile} />
           {/* Work Experience */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-center justify-between mb-4">
