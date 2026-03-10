@@ -1080,8 +1080,8 @@ async def create_job(
             backend_type=backend_type,
             job_description_text=job_description_text,
         )
-        # Track which CV version was used (only for stored CVs)
-        if cv_id and cv_version_id:
+        # Track which CV version was used (stored CV or profile-assembled)
+        if cv_version_id:
             update_kwargs["cv_version_id"] = cv_version_id
         job_store.update_job(job_id, **update_kwargs)
         
