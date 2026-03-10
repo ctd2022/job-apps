@@ -1026,6 +1026,24 @@ async def create_job(
             cv_path = settings.UPLOADS_DIR / f"{job_id}_cv.txt"
             with open(cv_path, "w", encoding="utf-8") as f:
                 f.write(cv_content)
+            # Save as a stored CV version so cv_version_id is set and job
+            # detail features (CV editor, rematch, gap-fill) work correctly
+            from datetime import date as _date
+            cv_label_parts = ["Profile"]
+            if job_title:
+                cv_label_parts.append(job_title)
+            if company_name:
+                cv_label_parts.append(company_name)
+            cv_label_parts.append(_date.today().strftime("%d %b %Y"))
+            cv_name = " — ".join(cv_label_parts)
+            saved_cv = cv_store.create_cv(
+                name=cv_name,
+                filename=f"{job_id}_cv.txt",
+                content=cv_content,
+                user_id=user_id,
+                is_default=False,
+            )
+            cv_version_id = saved_cv.get("current_version_id")
 
         # Save job description file and extract text
         job_desc_path = settings.UPLOADS_DIR / f"{job_id}_job{Path(job_desc_file.filename).suffix}"
