@@ -1178,8 +1178,9 @@ Generate the complete CV now:"""
             {"role": "user", "content": prompt},
         ]
 
+        debug_prompt = f"[SYSTEM]\n{system_message}\n\n[USER]\n{prompt}"
         response = self.backend.chat(messages, temperature=0.5, max_tokens=300)
-        return response.strip(), prompt
+        return response.strip(), debug_prompt
 
     def generate_ats_report(self, cv_text: str, job_description: str) -> tuple:
         """Generate a comprehensive ATS analysis report"""
