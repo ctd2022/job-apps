@@ -165,12 +165,35 @@ const inputCls = "w-full px-2.5 py-1.5 text-sm border border-slate-300 dark:bord
 
 // ─── PII Mask Context ─────────────────────────────────────────────────────────
 
-const MaskContext = createContext(false);
+type MaskFields = {
+  personalInfo: boolean;
+  jobTitles: boolean;
+  employers: boolean;
+  descriptions: boolean;
+};
 
-function MaskedText({ children }: { children: React.ReactNode }) {
-  const masked = useContext(MaskContext);
+const DEFAULT_MASK_FIELDS: MaskFields = {
+  personalInfo: true,
+  jobTitles: true,
+  employers: true,
+  descriptions: true,
+};
+
+const MASK_FIELD_LABELS: Record<keyof MaskFields, string> = {
+  personalInfo: 'Personal Info',
+  jobTitles: 'Job Titles',
+  employers: 'Employers',
+  descriptions: 'Descriptions',
+};
+
+type MaskCtx = { masked: boolean; fields: MaskFields };
+const MaskContext = createContext<MaskCtx>({ masked: false, fields: DEFAULT_MASK_FIELDS });
+
+function MaskedText({ children, field }: { children: React.ReactNode; field: keyof MaskFields }) {
+  const { masked, fields } = useContext(MaskContext);
+  const active = masked && fields[field];
   return (
-    <span className={masked ? 'blur-sm select-none transition-[filter] duration-300 cursor-default' : 'transition-[filter] duration-300'}>
+    <span className={active ? 'blur-sm select-none transition-[filter] duration-300 cursor-default' : 'transition-[filter] duration-300'}>
       {children}
     </span>
   );
@@ -183,8 +206,8 @@ function PIIBanner() {
     <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
       <Lock className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
       <span>
-        <strong>Privacy:</strong> Employer names are stored locally and never sent to AI. They are
-        automatically replaced with placeholders before any LLM call.
+        <strong>Privacy:</strong> Employer names and personal details are stored locally and never sent to AI — they are
+        automatically replaced with placeholders before any LLM call. Use the 🎭 button to preview how the page looks with your details hidden, with granular control over what's masked.
       </span>
     </div>
   );
@@ -761,7 +784,7 @@ function PersonalInfoSection({ profile, onSaved }: PersonalInfoSectionProps) {
       ) : (
         <p className="text-sm text-slate-800 dark:text-slate-200 truncate">
           {pii
-            ? <MaskedText>{(profile?.[key] as string) || '—'}</MaskedText>
+            ? <MaskedText field="personalInfo">{(profile?.[key] as string) || '—'}</MaskedText>
             : ((profile?.[key] as string) || <span className="text-slate-400 italic">—</span>)
           }
         </p>
@@ -2414,6 +2437,10 @@ export default function CandidateProfile() {
   const [inlineDesc, setInlineDesc] = useState('');
   const [inlineDetails, setInlineDetails] = useState('');
   const [masked, setMasked] = useState(false);
+  const [maskFields, setMaskFields] = useState<MaskFields>(DEFAULT_MASK_FIELDS);
+
+  const toggleMaskField = (field: keyof MaskFields) =>
+    setMaskFields(prev => ({ ...prev, [field]: !prev[field] }));
 
   const handleGroupingModeChange = useCallback(async (mode: 'flat' | 'by_org') => {
     setGroupingMode(mode);
@@ -2522,7 +2549,7 @@ export default function CandidateProfile() {
   }
 
   return (
-    <MaskContext.Provider value={masked}>
+    <MaskContext.Provider value={{ masked, fields: maskFields }}>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">Candidate Profile</h1>
@@ -2538,6 +2565,25 @@ export default function CandidateProfile() {
           🎭
         </button>
       </div>
+
+      {masked && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-slate-500 dark:text-slate-400">Masking:</span>
+          {(Object.keys(maskFields) as (keyof MaskFields)[]).map(f => (
+            <button
+              key={f}
+              onClick={() => toggleMaskField(f)}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                maskFields[f]
+                  ? 'bg-indigo-100 dark:bg-indigo-900 border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              {MASK_FIELD_LABELS[f]}
+            </button>
+          ))}
+        </div>
+      )}
 
       <PIIBanner />
 
@@ -2641,8 +2687,8 @@ export default function CandidateProfile() {
                           className="flex-1 min-w-0 text-left"
                         >
                           <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                            <MaskedText>{job.title}</MaskedText>
-                            <span className="font-normal text-slate-500 dark:text-slate-400"> | <MaskedText>{job.employer}</MaskedText></span>
+                            <MaskedText field="jobTitles">{job.title}</MaskedText>
+                            <span className="font-normal text-slate-500 dark:text-slate-400"> | <MaskedText field="employers">{job.employer}</MaskedText></span>
                           </p>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
                             {job.start_date ?? '?'}
@@ -2756,13 +2802,13 @@ export default function CandidateProfile() {
                               {job.description && (
                                 <div>
                                   <p className="text-xs font-medium text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Description</p>
-                                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap"><MaskedText>{job.description}</MaskedText></p>
+                                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap"><MaskedText field="descriptions">{job.description}</MaskedText></p>
                                 </div>
                               )}
                               {job.details && (
                                 <div>
                                   <p className="text-xs font-medium text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Details / Bullets</p>
-                                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap"><MaskedText>{job.details}</MaskedText></p>
+                                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap"><MaskedText field="descriptions">{job.details}</MaskedText></p>
                                 </div>
                               )}
                               {!job.description && !job.details && (
