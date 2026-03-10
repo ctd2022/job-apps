@@ -3,5 +3,20 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100;
+  @apply bg-stone-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100;
+}
+
+/* Soft light mode: remap harsh white/slate surfaces to warmer stone tones.
+   Scoped to html:not(.dark) so dark mode is completely unaffected. */
+@layer utilities {
+  html:not(.dark) .bg-white           { background-color: theme('colors.stone.50'); }
+  html:not(.dark) .bg-slate-50        { background-color: theme('colors.stone.100'); }
+  html:not(.dark) .bg-slate-100       { background-color: theme('colors.stone.200'); }
+  html:not(.dark) .bg-slate-200       { background-color: theme('colors.stone.300'); }
+
+  html:not(.dark) .hover\:bg-slate-50:hover   { background-color: theme('colors.stone.100'); }
+  html:not(.dark) .hover\:bg-slate-100:hover  { background-color: theme('colors.stone.200'); }
+  html:not(.dark) .hover\:bg-slate-200:hover  { background-color: theme('colors.stone.300'); }
+
+  html:not(.dark) .border-slate-200   { border-color: theme('colors.stone.300'); }
 }

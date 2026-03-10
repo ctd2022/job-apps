@@ -86,9 +86,9 @@ function App() {
   ];
   
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
+    <div className="min-h-screen bg-stone-100 dark:bg-slate-900">
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 dark:bg-slate-950 dark:border-slate-800">
+      <header className="bg-slate-600 border-b border-slate-500 dark:bg-slate-950 dark:border-slate-800">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-12">
             <div className="flex items-center space-x-3">
