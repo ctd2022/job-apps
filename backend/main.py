@@ -1410,7 +1410,10 @@ def _enrich_experience_gap(analysis: dict, user_id: str) -> None:
         if not start_str:
             continue
         try:
-            start = _date.fromisoformat(str(start_str)[:10])
+            clean = str(start_str)[:10]
+            if len(clean) == 7:  # YYYY-MM — pad to first of month
+                clean += "-01"
+            start = _date.fromisoformat(clean)
         except ValueError:
             continue
         if earliest_start is None or start < earliest_start:
