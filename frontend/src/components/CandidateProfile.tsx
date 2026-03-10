@@ -2393,6 +2393,7 @@ export default function CandidateProfile() {
   const [editingJob, setEditingJob] = useState<JobHistoryRecord | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [savingJob, setSavingJob] = useState(false);
+  const [expandedJobs, setExpandedJobs] = useState<Set<number>>(new Set());
 
   const handleGroupingModeChange = useCallback(async (mode: 'flat' | 'by_org') => {
     setGroupingMode(mode);
@@ -2537,12 +2538,29 @@ export default function CandidateProfile() {
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100">Work Experience</h2>
-              <button
-                onClick={() => setAddingJob(true)}
-                className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded hover:bg-blue-700"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Job
-              </button>
+              <div className="flex items-center gap-2">
+                {jobHistory.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const allExpanded = jobHistory.every(j => expandedJobs.has(j.id));
+                      setExpandedJobs(allExpanded ? new Set() : new Set(jobHistory.map(j => j.id)));
+                    }}
+                    className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 px-2 py-1 rounded border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    title={jobHistory.every(j => expandedJobs.has(j.id)) ? 'Collapse all' : 'Expand all'}
+                  >
+                    <ChevronRight
+                      className={`w-3.5 h-3.5 transition-transform ${jobHistory.every(j => expandedJobs.has(j.id)) ? 'rotate-90' : ''}`}
+                    />
+                    {jobHistory.every(j => expandedJobs.has(j.id)) ? 'Collapse all' : 'Expand all'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setAddingJob(true)}
+                  className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded hover:bg-blue-700"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Job
+                </button>
+              </div>
             </div>
 
             {jobHistory.length === 0 ? (
@@ -2551,79 +2569,123 @@ export default function CandidateProfile() {
               </p>
             ) : (
               <div className="space-y-2">
-                {jobHistory.map((job, idx) => (
-                  <div
-                    key={job.id}
-                    className="flex items-start gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3"
-                  >
-                    {/* Reorder arrows */}
-                    <div className="flex flex-col gap-0.5 mt-0.5">
-                      <button
-                        onClick={() => moveJob(idx, -1)}
-                        disabled={idx === 0}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
-                        title="Move up"
-                      >
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => moveJob(idx, 1)}
-                        disabled={idx === jobHistory.length - 1}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
-                        title="Move down"
-                      >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                {jobHistory.map((job, idx) => {
+                  const isExpanded = expandedJobs.has(job.id);
+                  const toggleExpand = () => setExpandedJobs(prev => {
+                    const next = new Set(prev);
+                    next.has(job.id) ? next.delete(job.id) : next.add(job.id);
+                    return next;
+                  });
+                  return (
+                    <div
+                      key={job.id}
+                      className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 overflow-hidden"
+                    >
+                      {/* Header row */}
+                      <div className="flex items-start gap-2 p-3">
+                        {/* Reorder arrows */}
+                        <div className="flex flex-col gap-0.5 mt-0.5">
+                          <button
+                            onClick={() => moveJob(idx, -1)}
+                            disabled={idx === 0}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
+                            title="Move up"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => moveJob(idx, 1)}
+                            disabled={idx === jobHistory.length - 1}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-25"
+                            title="Move down"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
 
-                    {/* Job info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                        {job.title}
-                        <span className="font-normal text-slate-500 dark:text-slate-400"> | {job.employer}</span>
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {job.start_date ?? '?'}
-                        {' – '}
-                        {job.is_current ? 'Present' : (job.end_date ?? '?')}
-                      </p>
-                      {job.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {job.tags.map(tag => (
-                            <span
-                              key={tag}
-                              className="inline-block bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs rounded px-1.5 py-0.5"
-                            >
-                              {tag}
-                            </span>
-                          ))}
+                        {/* Job info (clickable to expand) */}
+                        <button
+                          onClick={toggleExpand}
+                          className="flex-1 min-w-0 text-left"
+                        >
+                          <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                            {job.title}
+                            <span className="font-normal text-slate-500 dark:text-slate-400"> | {job.employer}</span>
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {job.start_date ?? '?'}
+                            {' – '}
+                            {job.is_current ? 'Present' : (job.end_date ?? '?')}
+                          </p>
+                          {job.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {job.tags.map(tag => (
+                                <span
+                                  key={tag}
+                                  className="inline-block bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs rounded px-1.5 py-0.5"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </button>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={toggleExpand}
+                            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded"
+                            title={isExpanded ? 'Collapse' : 'Expand'}
+                          >
+                            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          </button>
+                          <button
+                            onClick={() => setEditingJob(job)}
+                            className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded"
+                            title="Edit"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteJob(job.id)}
+                            disabled={deletingId === job.id}
+                            className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded disabled:opacity-50"
+                            title="Delete"
+                          >
+                            {deletingId === job.id
+                              ? <Loader className="w-3.5 h-3.5 animate-spin" />
+                              : <Trash2 className="w-3.5 h-3.5" />
+                            }
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Expanded content */}
+                      {isExpanded && (job.description || job.details) && (
+                        <div className="border-t border-slate-200 dark:border-slate-700 px-3 pb-3 pt-2 space-y-2">
+                          {job.description && (
+                            <div>
+                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Description</p>
+                              <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{job.description}</p>
+                            </div>
+                          )}
+                          {job.details && (
+                            <div>
+                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Details / Bullets</p>
+                              <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{job.details}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {isExpanded && !job.description && !job.details && (
+                        <div className="border-t border-slate-200 dark:border-slate-700 px-3 pb-3 pt-2">
+                          <p className="text-xs text-slate-400 dark:text-slate-500 italic">No description or details entered — click Edit to add content.</p>
                         </div>
                       )}
                     </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => setEditingJob(job)}
-                        className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded"
-                        title="Edit"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteJob(job.id)}
-                        disabled={deletingId === job.id}
-                        className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded disabled:opacity-50"
-                        title="Delete"
-                      >
-                        {deletingId === job.id
-                          ? <Loader className="w-3.5 h-3.5 animate-spin" />
-                          : <Trash2 className="w-3.5 h-3.5" />
-                        }
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
