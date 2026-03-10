@@ -2641,8 +2641,8 @@ export default function CandidateProfile() {
                           className="flex-1 min-w-0 text-left"
                         >
                           <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                            {job.title}
-                            <span className="font-normal text-slate-500 dark:text-slate-400"> | {job.employer}</span>
+                            <MaskedText>{job.title}</MaskedText>
+                            <span className="font-normal text-slate-500 dark:text-slate-400"> | <MaskedText>{job.employer}</MaskedText></span>
                           </p>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
                             {job.start_date ?? '?'}
@@ -2756,13 +2756,13 @@ export default function CandidateProfile() {
                               {job.description && (
                                 <div>
                                   <p className="text-xs font-medium text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Description</p>
-                                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{job.description}</p>
+                                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap"><MaskedText>{job.description}</MaskedText></p>
                                 </div>
                               )}
                               {job.details && (
                                 <div>
                                   <p className="text-xs font-medium text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Details / Bullets</p>
-                                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{job.details}</p>
+                                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap"><MaskedText>{job.details}</MaskedText></p>
                                 </div>
                               )}
                               {!job.description && !job.details && (
