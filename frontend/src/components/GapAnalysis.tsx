@@ -275,7 +275,7 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
                           >
                             <input
                               type="checkbox"
-                              checked={done || isExpanded}
+                              checked={done}
                               onChange={() => handleCheck(suggestion, key, done)}
                               disabled={addingSkills.has(suggestion.skill)}
                               className="w-3.5 h-3.5 accent-green-600 flex-shrink-0"
@@ -298,6 +298,7 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
                               <p className="text-amber-700 dark:text-amber-400 mb-2">
                                 Add a bullet to a relevant work experience entry to evidence{' '}
                                 <strong>{suggestion.skill}</strong>.
+                                After saving, use <em>Pull from Profile</em> in the CV editor to apply it.
                               </p>
                               <div className="flex gap-2">
                                 <button
@@ -305,7 +306,8 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
                                   onClick={e => {
                                     e.preventDefault();
                                     setExpandedExperienceKey(null);
-                                    toggle(key);
+                                    // Do NOT mark done here — work hasn't been done yet.
+                                    // User manually ticks the suggestion after updating the CV.
                                     if (onOpenExperiencePanel) {
                                       onOpenExperiencePanel(suggestion.skill);
                                     } else {
