@@ -2321,7 +2321,7 @@ function SummarySection({ profile, onSaved }: SummarySectionProps) {
             onClick={() => setShowDebug(v => !v)}
             className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded"
           >
-            <span>What was sent to the LLM</span>
+            <span>LLM payload / model details</span>
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDebug ? 'rotate-180' : ''}`} />
           </button>
           {showDebug && (
