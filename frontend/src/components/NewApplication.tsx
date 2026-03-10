@@ -10,8 +10,13 @@ import {
   Star,
   Trash2,
   User,
+  ChevronDown,
+  ChevronRight,
+  Download,
+  FileText,
 } from 'lucide-react';
-import { getBackends, createJob, subscribeToJobWithFallback, getJobFiles, getCVs, createCV, deleteCV, setDefaultCV, getProfile, listJobHistory } from '../api';
+import ReactMarkdown from 'react-markdown';
+import { getBackends, createJob, subscribeToJobWithFallback, getJobFiles, getCVs, createCV, deleteCV, setDefaultCV, getProfile, listJobHistory, getJobFileContent, getJobFileUrl } from '../api';
 import type { Backend, Job, OutputFile, StoredCV, CandidateProfile } from '../types';
 import FilePreview from './FilePreview';
 import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
@@ -50,6 +55,11 @@ function NewApplication() {
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
   const [outputFiles, setOutputFiles] = useState<OutputFile[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Results page state
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [cvPreviewContent, setCvPreviewContent] = useState<string | null>(null);
+  const [coverLetterPreviewContent, setCoverLetterPreviewContent] = useState<string | null>(null);
 
   useEffect(() => {
     loadInitialData();
@@ -234,6 +244,7 @@ function NewApplication() {
             try {
               const files = await getJobFiles(completedJob.id);
               setOutputFiles(files);
+              await loadPreviewsForJob(completedJob.id, files);
             } catch (err) {
               console.error('Failed to load output files:', err);
             }
@@ -275,6 +286,21 @@ function NewApplication() {
     }
   }
   
+  async function loadPreviewsForJob(jobId: string, files: OutputFile[]) {
+    const cvFile = files.find(f => f.name.includes('cv') && (f.name.endsWith('.md') || f.name.endsWith('.txt')));
+    const clFile = files.find(f => f.name.includes('cover_letter') && (f.name.endsWith('.md') || f.name.endsWith('.txt')));
+    const [cvResult, clResult] = await Promise.allSettled([
+      cvFile ? getJobFileContent(jobId, cvFile.name) : Promise.resolve(null),
+      clFile ? getJobFileContent(jobId, clFile.name) : Promise.resolve(null),
+    ]);
+    if (cvResult.status === 'fulfilled' && cvResult.value) setCvPreviewContent(cvResult.value.content);
+    if (clResult.status === 'fulfilled' && clResult.value) setCoverLetterPreviewContent(clResult.value.content);
+  }
+
+  function toggleSection(id: string) {
+    setCollapsedSections(prev => ({ ...prev, [id]: !prev[id] }));
+  }
+
   function resetForm() {
     setCvFile(null);
     setJobFile(null);
@@ -284,6 +310,9 @@ function NewApplication() {
     setCurrentJob(null);
     setOutputFiles([]);
     setError(null);
+    setCvPreviewContent(null);
+    setCoverLetterPreviewContent(null);
+    setCollapsedSections({});
   }
   
   const currentBackend = (backends || []).find(b => b.id === selectedBackend);
@@ -298,10 +327,15 @@ function NewApplication() {
   
   // Show results if job completed
   if (currentJob?.status === 'completed' && outputFiles.length > 0) {
+    const cvDocx = outputFiles.find(f => f.name.includes('cv') && f.name.endsWith('.docx'));
+    const clDocx = outputFiles.find(f => f.name.includes('cover_letter') && f.name.endsWith('.docx'));
+    const otherFiles = outputFiles.filter(f => !f.name.includes('cv') && !f.name.includes('cover_letter'));
+
     return (
-      <div className="w-full">
+      <div className="w-full space-y-2">
+        {/* Success header */}
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden">
-          <div className="bg-green-50 dark:bg-green-900/30 px-6 py-4 border-b border-green-100 dark:border-green-800">
+          <div className="bg-green-50 dark:bg-green-900/30 px-6 py-4">
             <div className="flex items-center space-x-3">
               <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
               <div>
@@ -310,56 +344,124 @@ function NewApplication() {
               </div>
             </div>
           </div>
+        </div>
 
-          {/* ATS Score */}
-          {currentJob.ats_score && (() => {
-            const tier = getMatchTier(currentJob.ats_score);
-            return (
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600 dark:text-slate-400">ATS Match Score</span>
-                  <div className="flex items-center space-x-3">
-                    {tier && (
-                      <span className={`text-sm px-2 py-0.5 ${tier.bgColor} ${tier.color} ${tier.darkBgColor} ${tier.darkTextColor}`}>
-                        {tier.label}
-                      </span>
-                    )}
-                    <span className={`text-2xl font-bold ${tier?.color || 'text-slate-600'} ${tier?.darkTextColor || 'dark:text-slate-400'}`}>
-                      {currentJob.ats_score}%
+        {/* ATS Score */}
+        {currentJob.ats_score && (() => {
+          const tier = getMatchTier(currentJob.ats_score);
+          return (
+            <ResultSection
+              title="ATS Score"
+              collapsed={!!collapsedSections['ats']}
+              onToggle={() => toggleSection('ats')}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600 dark:text-slate-400">ATS Match Score</span>
+                <div className="flex items-center space-x-3">
+                  {tier && (
+                    <span className={`text-sm px-2 py-0.5 ${tier.bgColor} ${tier.color} ${tier.darkBgColor} ${tier.darkTextColor}`}>
+                      {tier.label}
                     </span>
-                    {currentJob.ats_score >= 85 && <Sparkles className="w-5 h-5 text-green-500" />}
-                  </div>
-                </div>
-                <div className="mt-2 w-full bg-gray-200 dark:bg-slate-600 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full ${getScoreBarColor(currentJob.ats_score)}`}
-                    style={{ width: `${currentJob.ats_score}%` }}
-                  />
+                  )}
+                  <span className={`text-2xl font-bold ${tier?.color || 'text-slate-600'} ${tier?.darkTextColor || 'dark:text-slate-400'}`}>
+                    {currentJob.ats_score}%
+                  </span>
+                  {currentJob.ats_score >= 85 && <Sparkles className="w-5 h-5 text-green-500" />}
                 </div>
               </div>
-            );
-          })()}
+              <div className="mt-3 w-full bg-gray-200 dark:bg-slate-600 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full ${getScoreBarColor(currentJob.ats_score)}`}
+                  style={{ width: `${currentJob.ats_score}%` }}
+                />
+              </div>
+            </ResultSection>
+          );
+        })()}
 
-          {/* Output Files with Preview */}
-          <div className="px-6 py-4">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-3">Generated Files</h3>
-            <FilePreview jobId={currentJob.id} files={outputFiles} />
-          </div>
+        {/* Tailored CV */}
+        {(cvPreviewContent || cvDocx) && (
+          <ResultSection
+            title="Tailored CV"
+            collapsed={!!collapsedSections['cv']}
+            onToggle={() => toggleSection('cv')}
+            headerRight={cvDocx && (
+              <a
+                href={getJobFileUrl(currentJob.id, cvDocx.name)}
+                download
+                onClick={e => e.stopPropagation()}
+                className="flex items-center space-x-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 mr-2"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Word doc</span>
+                <Download className="w-3 h-3" />
+              </a>
+            )}
+          >
+            {cvPreviewContent ? (
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-gray-900 dark:prose-headings:text-slate-100 prose-p:text-gray-700 dark:prose-p:text-slate-300 prose-li:text-gray-700 dark:prose-li:text-slate-300 prose-strong:text-gray-900 dark:prose-strong:text-slate-100">
+                <ReactMarkdown>{cvPreviewContent}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-slate-400">Preview not available — download the Word doc above.</p>
+            )}
+          </ResultSection>
+        )}
 
-          <div className="px-6 py-4 bg-gray-50 dark:bg-slate-700 flex space-x-3">
-            <button
-              onClick={resetForm}
-              className="flex-1 px-4 py-2 bg-white dark:bg-slate-600 border border-gray-300 dark:border-slate-500 rounded-lg text-gray-700 dark:text-slate-200 font-medium hover:bg-gray-50 dark:hover:bg-slate-500"
-            >
-              New Application
-            </button>
-            <button
-              onClick={() => navigate('/history')}
-              className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700"
-            >
-              View All Applications
-            </button>
-          </div>
+        {/* Cover Letter */}
+        {(coverLetterPreviewContent || clDocx) && (
+          <ResultSection
+            title="Cover Letter"
+            collapsed={!!collapsedSections['cl']}
+            onToggle={() => toggleSection('cl')}
+            headerRight={clDocx && (
+              <a
+                href={getJobFileUrl(currentJob.id, clDocx.name)}
+                download
+                onClick={e => e.stopPropagation()}
+                className="flex items-center space-x-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 mr-2"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Word doc</span>
+                <Download className="w-3 h-3" />
+              </a>
+            )}
+          >
+            {coverLetterPreviewContent ? (
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-gray-900 dark:prose-headings:text-slate-100 prose-p:text-gray-700 dark:prose-p:text-slate-300 prose-li:text-gray-700 dark:prose-li:text-slate-300 prose-strong:text-gray-900 dark:prose-strong:text-slate-100">
+                <ReactMarkdown>{coverLetterPreviewContent}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-slate-400">Preview not available — download the Word doc above.</p>
+            )}
+          </ResultSection>
+        )}
+
+        {/* Other Files */}
+        {otherFiles.length > 0 && (
+          <ResultSection
+            title="Other Files"
+            collapsed={!!collapsedSections['other']}
+            onToggle={() => toggleSection('other')}
+          >
+            <FilePreview jobId={currentJob.id} files={otherFiles} />
+          </ResultSection>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex space-x-3">
+          <button
+            onClick={resetForm}
+            className="flex-1 px-4 py-2 bg-white dark:bg-slate-600 border border-gray-300 dark:border-slate-500 rounded-lg text-gray-700 dark:text-slate-200 font-medium hover:bg-gray-50 dark:hover:bg-slate-500"
+          >
+            New Application
+          </button>
+          <button
+            onClick={() => navigate('/history')}
+            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700"
+          >
+            View All Applications
+          </button>
         </div>
       </div>
     );
@@ -712,6 +814,44 @@ function NewApplication() {
           )}
         </form>
       </div>
+    </div>
+  );
+}
+
+function ResultSection({
+  title,
+  collapsed,
+  onToggle,
+  children,
+  headerRight,
+}: {
+  title: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  headerRight?: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 text-left bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors border-b border-gray-200 dark:border-slate-700"
+      >
+        <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{title}</span>
+        <div className="flex items-center">
+          {headerRight}
+          {collapsed
+            ? <ChevronRight className="w-4 h-4 text-gray-400 dark:text-slate-500" />
+            : <ChevronDown className="w-4 h-4 text-gray-400 dark:text-slate-500" />
+          }
+        </div>
+      </button>
+      {!collapsed && (
+        <div className="px-4 py-4 max-h-[500px] overflow-y-auto">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
