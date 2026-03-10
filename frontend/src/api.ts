@@ -240,7 +240,9 @@ export async function getJobDescription(jobId: string): Promise<JobDescription> 
 
 // ATS Analysis (Track 2.9.2)
 export async function getATSAnalysis(jobId: string): Promise<ATSAnalysisResponse> {
-  const response = await fetch(`${API_BASE}/jobs/${jobId}/ats-analysis`);
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/ats-analysis`, {
+    headers: { ...getUserHeaders() },
+  });
   return handleResponse(response);
 }
 
