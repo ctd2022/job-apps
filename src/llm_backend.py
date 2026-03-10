@@ -169,8 +169,24 @@ class GeminiBackend(LLMBackend):
             result = response.json()
             
             if 'candidates' in result and len(result['candidates']) > 0:
-                return result['candidates'][0]['content']['parts'][0]['text']
+                candidate = result['candidates'][0]
+                finish_reason = candidate.get('finishReason', '')
+                content = candidate.get('content', {})
+                parts = content.get('parts', [])
+                if parts:
+                    return parts[0].get('text', '')
+                # No parts — usually safety/recitation blocking
+                prompt_feedback = result.get('promptFeedback', {})
+                block_reason = (
+                    prompt_feedback.get('blockReason')
+                    or finish_reason
+                    or 'unknown reason'
+                )
+                raise RuntimeError(f"Gemini blocked response ({block_reason}). Try rephrasing or switching model.")
             else:
+                prompt_feedback = result.get('promptFeedback', {})
+                if 'blockReason' in prompt_feedback:
+                    raise RuntimeError(f"Gemini blocked prompt ({prompt_feedback['blockReason']}). Try a different job description or model.")
                 raise RuntimeError("No response from Gemini API")
                 
         except requests.exceptions.RequestException as e:
