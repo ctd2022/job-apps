@@ -14,8 +14,9 @@ import {
   Edit3,
   X
 } from 'lucide-react';
-import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills, listJobHistory } from '../api';
+import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills, listJobHistory, getCVVersionById, updateCVContent, rematchATS, assembleCV } from '../api';
 import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse, JobHistoryRecord } from '../types';
+import { applyProfileSections } from '../utils/pullFromProfile';
 import GapFillWizard from './GapFillWizard';
 import GapAnalysis from './GapAnalysis';
 import SlidingPanel from './SlidingPanel';
@@ -70,6 +71,7 @@ function JobDetail() {
   const [showExperiencePanel, setShowExperiencePanel] = useState(false);
   const [panelSkill, setPanelSkill] = useState<string | null>(null);
   const [jobHistory, setJobHistory] = useState<JobHistoryRecord[]>([]);
+  const [panelRematching, setPanelRematching] = useState(false);
 
   // Skill Suggester state (Idea #56)
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
@@ -190,12 +192,35 @@ function JobDetail() {
     setJobHistory(prev => prev.map(j => j.id === updated.id ? updated : j));
   }
 
-  function handlePanelClose() {
+  async function handlePanelClose() {
     setShowExperiencePanel(false);
     setPanelSkill(null);
-    // Note: ATS score is based on a CV text snapshot, not live Profile data.
-    // Profile edits here do not change the stored score. To get an updated score,
-    // the user should pull from Profile in the CV editor and then re-run ATS.
+
+    // Auto pull-from-profile + rematch if this job has a CV version and ATS enabled.
+    // This replaces the manual 4-step flow: Edit CV → Pull from Profile → Save → Re-run ATS.
+    if (!job || !job.cv_version_id || !job.enable_ats || job.status !== 'completed') return;
+
+    try {
+      setPanelRematching(true);
+      const [cvVersion, sections] = await Promise.all([
+        getCVVersionById(job.cv_version_id),
+        assembleCV(),
+      ]);
+      const updatedText = applyProfileSections(cvVersion.content ?? '', sections);
+      const savedCV = await updateCVContent(cvVersion.cv_id, {
+        content: updatedText,
+        change_summary: 'Auto-updated from profile',
+      });
+      const newVersionId = savedCV.current_version_id;
+      if (!newVersionId) return;
+      const rematchResult = await rematchATS(job.id, newVersionId);
+      setJob(prev => prev ? { ...prev, ats_score: rematchResult.new_score, cv_version_id: newVersionId } : prev);
+      setAtsAnalysis(rematchResult.ats_details);
+    } catch {
+      // Non-critical — score stays as-is; user can rematch manually via Edit CV
+    } finally {
+      setPanelRematching(false);
+    }
   }
 
   if (loading) {
@@ -474,6 +499,14 @@ function JobDetail() {
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600 flex items-center space-x-2 text-sm text-slate-500 dark:text-slate-400">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>Loading ATS analysis...</span>
+          </div>
+        )}
+
+        {/* Auto-rematch in progress after panel edit */}
+        {panelRematching && (
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600 flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Updating CV from profile and re-running ATS...</span>
           </div>
         )}
 
