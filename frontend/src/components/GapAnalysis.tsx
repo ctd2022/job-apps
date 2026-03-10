@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Lightbulb, Target, UserCheck, Zap } from 'lucide-react';
 import type { ActionableSuggestion, EvidenceGapDetail, GapAnalysis as GapAnalysisData } from '../types';
+import { createSkill } from '../api';
 import CollapsibleSection from './CollapsibleSection';
 
 interface GapAnalysisProps {
   gapAnalysis: GapAnalysisData;
   semanticAvailable?: boolean;
   evidenceGapDetails?: EvidenceGapDetail[];
-  onHighlightSkill?: (skill: string) => void;
 }
 
 // Priority badge styling
@@ -50,10 +51,20 @@ function getSectionBadgeStyle(section: string): string {
   }
 }
 
-function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails, onHighlightSkill }: GapAnalysisProps) {
+function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails }: GapAnalysisProps) {
   const { critical_gaps, evidence_gaps, semantic_gaps, experience_gaps, actionable_suggestions } = gapAnalysis;
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const toggle = (key: string) => setChecked(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
+  const navigate = useNavigate();
+  const [toast, setToast] = useState<string | null>(null);
+  const [toastError, setToastError] = useState(false);
+  const [addingSkills, setAddingSkills] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(id);
+  }, [toast]);
 
   // Merged, deduplicated list of missing critical + required skills
   const allCriticalMissing = [
@@ -68,6 +79,31 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
   const hasSemanticGaps = semanticAvailable && semantic_gaps.missing_concepts.length > 0;
   const hasExperienceGaps = experience_gaps.gap > 0;
   const hasActionableSuggestions = actionable_suggestions && actionable_suggestions.length > 0;
+
+  async function handleCheck(suggestion: ActionableSuggestion, key: string, done: boolean) {
+    if (done) { toggle(key); return; }
+    const section = suggestion.recommended_section.toLowerCase();
+    if (section.includes('skill')) {
+      if (addingSkills.has(suggestion.skill)) return;
+      setAddingSkills(prev => { const next = new Set(prev); next.add(suggestion.skill); return next; });
+      try {
+        await createSkill({ name: suggestion.skill, category: null, display_order: 0 });
+        toggle(key);
+        setToastError(false);
+        setToast(`Added "${suggestion.skill}" to Profile Skills`);
+      } catch {
+        setToastError(true);
+        setToast(`Failed to add "${suggestion.skill}" — please try again`);
+      } finally {
+        setAddingSkills(prev => { const next = new Set(prev); next.delete(suggestion.skill); return next; });
+      }
+    } else if (section.includes('experience')) {
+      navigate(`/profile?skill=${encodeURIComponent(suggestion.skill)}&hint=experience`);
+      toggle(key);
+    } else {
+      toggle(key);
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -205,6 +241,15 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
                   <Target className="h-5 w-5 text-green-500" />
                 </div>
                 <div className="ml-3 w-full">
+                  {toast && (
+                    <div className={`mb-2 px-3 py-2 rounded text-xs font-medium ${
+                      toastError
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                        : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                    }`}>
+                      {toast}
+                    </div>
+                  )}
                   <h3 className="text-sm font-medium text-green-800 dark:text-green-300">Actionable Suggestions</h3>
                   <p className="mt-1 text-xs text-green-600 dark:text-green-400">Where to add missing skills for maximum impact:</p>
                   <div className="mt-3 space-y-2">
@@ -223,10 +268,8 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
                           <input
                             type="checkbox"
                             checked={done}
-                            onChange={() => {
-                              toggle(key);
-                              if (!done && onHighlightSkill) onHighlightSkill(suggestion.skill);
-                            }}
+                            onChange={() => handleCheck(suggestion, key, done)}
+                            disabled={addingSkills.has(suggestion.skill)}
                             className="w-3.5 h-3.5 accent-green-600 flex-shrink-0"
                           />
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getPriorityStyle(suggestion.priority)}`}>

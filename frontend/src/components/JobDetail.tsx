@@ -353,7 +353,6 @@ function JobDetail() {
                 gapAnalysis={atsAnalysis.gap_analysis}
                 semanticAvailable={atsAnalysis.semantic_analysis?.available ?? false}
                 evidenceGapDetails={atsAnalysis.evidence_gap_details}
-                onHighlightSkill={(skill) => { setHighlightTerm(skill); setShowCVEditor(true); }}
               />
               <GapFillWizard
                 jobId={job.id}

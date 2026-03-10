@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, ExternalLink, ChevronRight, Eye, EyeOff, Wand2, RefreshCw } from 'lucide-react';
 import {
   getProfile,
@@ -2477,6 +2478,22 @@ export default function CandidateProfile() {
 
   useEffect(() => { load(); }, [load]);
 
+  const location = useLocation();
+  const [hintBanner, setHintBanner] = useState<{ skill: string } | null>(null);
+  const experienceSectionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const skill = params.get('skill');
+    const hint = params.get('hint');
+    if (skill && hint === 'experience') {
+      setHintBanner({ skill });
+      setTimeout(() => {
+        experienceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    }
+  }, [location.search]);
+
   // Reorder helpers
   const moveJob = useCallback(async (index: number, direction: -1 | 1) => {
     const newList = [...jobHistory];
@@ -2579,6 +2596,21 @@ export default function CandidateProfile() {
         </div>
       )}
 
+      {hintBanner && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-sm text-amber-800 dark:text-amber-200">
+          <span className="flex-1">
+            <strong>Tip:</strong> Add evidence for &ldquo;{hintBanner.skill}&rdquo;: add a bullet to a relevant work experience entry below.
+          </span>
+          <button
+            onClick={() => setHintBanner(null)}
+            className="flex-shrink-0 text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200"
+            aria-label="Dismiss hint"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <PIIBanner />
 
       <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-4 items-start">
@@ -2607,7 +2639,7 @@ export default function CandidateProfile() {
         <div className="space-y-4">
           <SummarySection profile={profile} onSaved={setProfile} />
           {/* Work Experience */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
+          <div ref={experienceSectionRef} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-800 dark:text-slate-100">Work Experience</h2>
               <div className="flex items-center gap-2">
