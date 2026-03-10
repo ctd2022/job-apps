@@ -2394,6 +2394,9 @@ export default function CandidateProfile() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [savingJob, setSavingJob] = useState(false);
   const [expandedJobs, setExpandedJobs] = useState<Set<number>>(new Set());
+  const [editingInlineId, setEditingInlineId] = useState<number | null>(null);
+  const [inlineDesc, setInlineDesc] = useState('');
+  const [inlineDetails, setInlineDetails] = useState('');
 
   const handleGroupingModeChange = useCallback(async (mode: 'flat' | 'by_org') => {
     setGroupingMode(mode);
@@ -2662,25 +2665,82 @@ export default function CandidateProfile() {
                       </div>
 
                       {/* Expanded content */}
-                      {isExpanded && (job.description || job.details) && (
+                      {isExpanded && (
                         <div className="border-t border-slate-200 dark:border-slate-700 px-3 pb-3 pt-2 space-y-2">
-                          {job.description && (
-                            <div>
-                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Description</p>
-                              <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{job.description}</p>
-                            </div>
+                          {editingInlineId === job.id ? (
+                            <>
+                              <div>
+                                <p className="text-xs font-medium text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Description</p>
+                                <textarea
+                                  className={`${inputCls} resize-none`}
+                                  rows={4}
+                                  value={inlineDesc}
+                                  onChange={e => setInlineDesc(e.target.value)}
+                                />
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Details / Bullets</p>
+                                <textarea
+                                  className={`${inputCls} resize-none`}
+                                  rows={6}
+                                  value={inlineDetails}
+                                  onChange={e => setInlineDetails(e.target.value)}
+                                />
+                              </div>
+                              <div className="flex gap-2 pt-1">
+                                <button
+                                  onClick={async () => {
+                                    const updated = await updateJobHistoryRecord(job.id, {
+                                      description: inlineDesc.trim() || null,
+                                      details: inlineDetails.trim() || null,
+                                    });
+                                    setJobHistory(prev => prev.map(j => j.id === job.id ? updated : j));
+                                    setEditingInlineId(null);
+                                  }}
+                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                  <Check className="w-3 h-3" /> Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingInlineId(null)}
+                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                                >
+                                  <X className="w-3 h-3" /> Cancel
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={() => {
+                                    setInlineDesc(job.description ?? '');
+                                    setInlineDetails(job.details ?? '');
+                                    setEditingInlineId(job.id);
+                                  }}
+                                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400"
+                                  title="Edit description and details"
+                                >
+                                  <Pencil className="w-3 h-3" /> Edit
+                                </button>
+                              </div>
+                              {job.description && (
+                                <div>
+                                  <p className="text-xs font-medium text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Description</p>
+                                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{job.description}</p>
+                                </div>
+                              )}
+                              {job.details && (
+                                <div>
+                                  <p className="text-xs font-medium text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Details / Bullets</p>
+                                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{job.details}</p>
+                                </div>
+                              )}
+                              {!job.description && !job.details && (
+                                <p className="text-xs text-slate-400 dark:text-slate-500 italic">No description or details — click Edit above to add content.</p>
+                              )}
+                            </>
                           )}
-                          {job.details && (
-                            <div>
-                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Details / Bullets</p>
-                              <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{job.details}</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {isExpanded && !job.description && !job.details && (
-                        <div className="border-t border-slate-200 dark:border-slate-700 px-3 pb-3 pt-2">
-                          <p className="text-xs text-slate-400 dark:text-slate-500 italic">No description or details entered — click Edit to add content.</p>
                         </div>
                       )}
                     </div>
