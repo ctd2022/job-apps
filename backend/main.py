@@ -1380,8 +1380,56 @@ def _enrich_evidence_gaps(ats: dict) -> list[dict]:
     return result
 
 
+def _enrich_experience_gap(analysis: dict, user_id: str) -> None:
+    """Idea #309: Replace CV text-parsed years with career span calculated from Profile job history.
+
+    Mutates analysis in place. Adds two fields to experience_gaps:
+      - cv_years_source: 'profile' | 'cv_text'
+      - experience_match: True when profile years >= JD required years
+    Sets gap to 0 when profile years meet the requirement.
+    """
+    from datetime import date as _date
+
+    gap_analysis = analysis.get("gap_analysis")
+    if not gap_analysis:
+        return
+
+    exp_gaps = gap_analysis.get("experience_gaps", {})
+    jd_years = exp_gaps.get("jd_years")
+    if not jd_years:
+        return  # Nothing to compare against
+
+    job_history = profile_store.list_job_history(user_id)
+    if not job_history:
+        return  # No profile data — keep CV text parsing result
+
+    today = _date.today()
+    earliest_start = None
+    for record in job_history:
+        start_str = record.get("start_date")
+        if not start_str:
+            continue
+        try:
+            start = _date.fromisoformat(str(start_str)[:10])
+        except ValueError:
+            continue
+        if earliest_start is None or start < earliest_start:
+            earliest_start = start
+
+    if earliest_start is None:
+        return  # No parseable start dates
+
+    career_years = round((today - earliest_start).days / 365.25, 1)
+    is_match = career_years >= jd_years
+
+    exp_gaps["cv_years"] = career_years
+    exp_gaps["gap"] = 0 if is_match else round(jd_years - career_years, 1)
+    exp_gaps["cv_years_source"] = "profile"
+    exp_gaps["experience_match"] = is_match
+
+
 @app.get("/api/jobs/{job_id}/ats-analysis")
-async def get_ats_analysis(job_id: str):
+async def get_ats_analysis(job_id: str, user_id: str = Header(None, alias="X-User-ID")):
     """
     Get detailed ATS analysis for a completed job (Track 2.9.2).
 
@@ -1409,6 +1457,7 @@ async def get_ats_analysis(job_id: str):
             analysis = json.loads(ats_details)
             analysis["keyword_placement"] = _generate_placement_suggestions(analysis)
             analysis["evidence_gap_details"] = _enrich_evidence_gaps(analysis)
+            _enrich_experience_gap(analysis, user_id or "default")
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),

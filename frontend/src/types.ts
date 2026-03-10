@@ -245,6 +245,8 @@ export interface ExperienceGaps {
   cv_years: number | null;
   jd_years: number | null;
   gap: number;
+  cv_years_source?: 'profile' | 'cv_text';
+  experience_match?: boolean;
 }
 
 // Idea #87: Smart CV Gap Analysis with Actionable Suggestions

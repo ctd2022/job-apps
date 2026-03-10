@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Lightbulb, Target, UserCheck, Zap } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Lightbulb, Target, UserCheck, Zap } from 'lucide-react';
 import type { ActionableSuggestion, EvidenceGapDetail, GapAnalysis as GapAnalysisData } from '../types';
 import { createSkill } from '../api';
 import CollapsibleSection from './CollapsibleSection';
@@ -80,6 +80,7 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
   const hasEvidenceGaps = evidence_gaps.weak_evidence_skills.length > 0;
   const hasSemanticGaps = semanticAvailable && semantic_gaps.missing_concepts.length > 0;
   const hasExperienceGaps = experience_gaps.gap > 0;
+  const hasExperienceMatch = experience_gaps.experience_match === true;
   const hasActionableSuggestions = actionable_suggestions && actionable_suggestions.length > 0;
 
   async function handleCheck(suggestion: ActionableSuggestion, key: string, done: boolean) {
@@ -118,6 +119,7 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
           (hasEvidenceGaps ? 1 : 0) +
           (hasSemanticGaps ? 1 : 0) +
           (hasExperienceGaps ? 1 : 0)
+          // hasExperienceMatch is a positive signal — not counted as a gap
         }
         badgeColor="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
       >
@@ -215,7 +217,30 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
             </div>
           )}
 
-          {/* Experience Gaps */}
+          {/* Experience — positive match */}
+          {hasExperienceMatch && (
+            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-green-800 dark:text-green-300">Experience Match</h3>
+                  <div className="mt-1 text-xs text-green-700 dark:text-green-400">
+                    <p>
+                      Your <strong>{experience_gaps.cv_years} years</strong> of experience meets the{' '}
+                      <strong>{experience_gaps.jd_years}-year</strong> requirement.
+                      {experience_gaps.cv_years_source === 'profile' && (
+                        <span className="ml-1 opacity-70">(calculated from your Profile)</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Experience Gap */}
           {hasExperienceGaps && (
             <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20">
               <div className="flex items-start">
@@ -226,8 +251,15 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
                   <h3 className="text-sm font-medium text-purple-800 dark:text-purple-300">Experience Gap</h3>
                   <div className="mt-2 text-xs text-purple-700 dark:text-purple-400">
                     <p>
-                      The job requires <strong>{experience_gaps.jd_years}</strong> years of experience, and your CV shows <strong>{experience_gaps.cv_years}</strong> years.
-                      This is a gap of <strong>{experience_gaps.gap}</strong> years.
+                      The job requires <strong>{experience_gaps.jd_years}</strong> years of experience
+                      {experience_gaps.cv_years
+                        ? <>, and your profile shows <strong>{experience_gaps.cv_years}</strong> years</>
+                        : null
+                      }.
+                      {' '}This is a gap of <strong>{experience_gaps.gap}</strong> years.
+                      {experience_gaps.cv_years_source === 'profile' && (
+                        <span className="ml-1 opacity-70">(calculated from your Profile)</span>
+                      )}
                     </p>
                   </div>
                 </div>
