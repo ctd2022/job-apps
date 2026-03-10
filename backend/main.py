@@ -2472,12 +2472,13 @@ def _build_profile_context(
             if start or end:
                 header += f" ({start} - {end})"
             lines.append(header)
-            description = (job.get("description") or "").strip()
-            if description:
-                for line in description.splitlines():
-                    stripped = line.strip()
-                    if stripped:
-                        lines.append(f"  {stripped}")
+            for field in ("description", "details"):
+                content = (job.get(field) or "").strip()
+                if content:
+                    for line in content.splitlines():
+                        stripped = line.strip()
+                        if stripped:
+                            lines.append(f"  {stripped}")
         parts.append("\n".join(lines))
 
     if skills:
