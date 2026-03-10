@@ -14,10 +14,12 @@ import {
   Edit3,
   X
 } from 'lucide-react';
-import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills } from '../api';
-import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse } from '../types';
+import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills, listJobHistory } from '../api';
+import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse, JobHistoryRecord } from '../types';
 import GapFillWizard from './GapFillWizard';
 import GapAnalysis from './GapAnalysis';
+import SlidingPanel from './SlidingPanel';
+import WorkExperiencePanelBody from './WorkExperiencePanelBody';
 import FilePreview from './FilePreview';
 import CVTextEditor from './CVTextEditor';
 import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
@@ -63,6 +65,11 @@ function JobDetail() {
   const [showCVEditor, setShowCVEditor] = useState(false);
   const [gapFillResult, setGapFillResult] = useState<ApplySuggestionsResponse | null>(null);
   const [highlightTerm, setHighlightTerm] = useState<string | undefined>(undefined);
+
+  // Experience panel state (Idea #304)
+  const [showExperiencePanel, setShowExperiencePanel] = useState(false);
+  const [panelSkill, setPanelSkill] = useState<string | null>(null);
+  const [jobHistory, setJobHistory] = useState<JobHistoryRecord[]>([]);
 
   // Skill Suggester state (Idea #56)
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
@@ -164,6 +171,32 @@ function JobDetail() {
   function handleGapFillRevised(result: ApplySuggestionsResponse) {
     setGapFillResult(result);
     setShowCVEditor(true);
+  }
+
+  async function handleOpenExperiencePanel(skill: string) {
+    if (jobHistory.length === 0) {
+      try {
+        const history = await listJobHistory();
+        setJobHistory(history);
+      } catch {
+        // proceed with empty list — WorkExperiencePanelBody handles this gracefully
+      }
+    }
+    setPanelSkill(skill);
+    setShowExperiencePanel(true);
+  }
+
+  function handleJobUpdated(updated: JobHistoryRecord) {
+    setJobHistory(prev => prev.map(j => j.id === updated.id ? updated : j));
+  }
+
+  function handlePanelClose() {
+    setShowExperiencePanel(false);
+    setPanelSkill(null);
+    // Re-run ATS analysis so the score reflects any profile changes
+    if (job && job.status === 'completed' && job.enable_ats) {
+      loadJob();
+    }
   }
 
   if (loading) {
@@ -353,6 +386,7 @@ function JobDetail() {
                 gapAnalysis={atsAnalysis.gap_analysis}
                 semanticAvailable={atsAnalysis.semantic_analysis?.available ?? false}
                 evidenceGapDetails={atsAnalysis.evidence_gap_details}
+                onOpenExperiencePanel={handleOpenExperiencePanel}
               />
               <GapFillWizard
                 jobId={job.id}
@@ -494,6 +528,23 @@ function JobDetail() {
           highlightTerm={highlightTerm}
         />
       )}
+
+      {/* Work Experience Panel (Idea #304) */}
+      <SlidingPanel
+        open={showExperiencePanel}
+        onClose={handlePanelClose}
+        title={panelSkill ? `Add evidence \u2014 ${panelSkill}` : 'Work Experience'}
+        subtitle="Edit entries to include evidence for this skill. Done triggers an ATS re-run."
+      >
+        {panelSkill && (
+          <WorkExperiencePanelBody
+            skill={panelSkill}
+            jobs={jobHistory}
+            onJobUpdated={handleJobUpdated}
+            onClose={handlePanelClose}
+          />
+        )}
+      </SlidingPanel>
 
       {/* Job Description Modal */}
       {showJD && (

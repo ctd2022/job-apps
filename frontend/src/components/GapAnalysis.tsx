@@ -9,6 +9,7 @@ interface GapAnalysisProps {
   gapAnalysis: GapAnalysisData;
   semanticAvailable?: boolean;
   evidenceGapDetails?: EvidenceGapDetail[];
+  onOpenExperiencePanel?: (skill: string) => void;
 }
 
 // Priority badge styling
@@ -51,7 +52,7 @@ function getSectionBadgeStyle(section: string): string {
   }
 }
 
-function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails }: GapAnalysisProps) {
+function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails, onOpenExperiencePanel }: GapAnalysisProps) {
   const { critical_gaps, evidence_gaps, semantic_gaps, experience_gaps, actionable_suggestions } = gapAnalysis;
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const toggle = (key: string) => setChecked(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
@@ -59,6 +60,7 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
   const [toast, setToast] = useState<string | null>(null);
   const [toastError, setToastError] = useState(false);
   const [addingSkills, setAddingSkills] = useState<Set<string>>(new Set());
+  const [expandedExperienceKey, setExpandedExperienceKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -98,8 +100,8 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
         setAddingSkills(prev => { const next = new Set(prev); next.delete(suggestion.skill); return next; });
       }
     } else if (section.includes('experience')) {
-      navigate(`/profile?skill=${encodeURIComponent(suggestion.skill)}&hint=experience`);
-      toggle(key);
+      // Two-step inline routing prompt (Tier 2.5 panel flow)
+      setExpandedExperienceKey(prev => prev === key ? null : key);
     } else {
       toggle(key);
     }
@@ -256,33 +258,78 @@ function GapAnalysis({ gapAnalysis, semanticAvailable = true, evidenceGapDetails
                     {actionable_suggestions!.map((suggestion, idx) => {
                       const key = `${suggestion.skill}-${idx}`;
                       const done = checked.has(key);
+                      const section = suggestion.recommended_section.toLowerCase();
+                      const isExperience = section.includes('experience');
+                      const isExpanded = expandedExperienceKey === key;
+
                       return (
-                        <label
-                          key={key}
-                          className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 border cursor-pointer select-none transition-opacity ${
-                            done
-                              ? 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-50'
-                              : 'bg-white dark:bg-gray-800 border-green-200 dark:border-green-800'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={done}
-                            onChange={() => handleCheck(suggestion, key, done)}
-                            disabled={addingSkills.has(suggestion.skill)}
-                            className="w-3.5 h-3.5 accent-green-600 flex-shrink-0"
-                          />
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getPriorityStyle(suggestion.priority)}`}>
-                            {getPriorityLabel(suggestion.priority)}
-                          </span>
-                          <span className={`font-medium text-gray-800 dark:text-gray-200 ${done ? 'line-through' : ''}`}>
-                            {suggestion.skill}
-                          </span>
-                          <span className="text-gray-400 dark:text-gray-500">→</span>
-                          <span className={`text-gray-600 dark:text-gray-400 ${done ? 'line-through' : ''}`}>
-                            {suggestion.recommended_section}
-                          </span>
-                        </label>
+                        <div key={key}>
+                          <label
+                            className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 border cursor-pointer select-none transition-opacity ${
+                              done
+                                ? 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-50'
+                                : isExpanded
+                                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                                  : 'bg-white dark:bg-gray-800 border-green-200 dark:border-green-800'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={done || isExpanded}
+                              onChange={() => handleCheck(suggestion, key, done)}
+                              disabled={addingSkills.has(suggestion.skill)}
+                              className="w-3.5 h-3.5 accent-green-600 flex-shrink-0"
+                            />
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getPriorityStyle(suggestion.priority)}`}>
+                              {getPriorityLabel(suggestion.priority)}
+                            </span>
+                            <span className={`font-medium text-gray-800 dark:text-gray-200 ${done ? 'line-through' : ''}`}>
+                              {suggestion.skill}
+                            </span>
+                            <span className="text-gray-400 dark:text-gray-500">→</span>
+                            <span className={`text-gray-600 dark:text-gray-400 ${done ? 'line-through' : ''}`}>
+                              {suggestion.recommended_section}
+                            </span>
+                          </label>
+
+                          {/* Inline routing prompt — experience suggestions only (Tier 2.5) */}
+                          {isExperience && isExpanded && !done && (
+                            <div className="mx-1 mb-1 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-t-0 border-amber-300 dark:border-amber-700 rounded-b text-xs">
+                              <p className="text-amber-700 dark:text-amber-400 mb-2">
+                                Add a bullet to a relevant work experience entry to evidence{' '}
+                                <strong>{suggestion.skill}</strong>.
+                              </p>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.preventDefault();
+                                    setExpandedExperienceKey(null);
+                                    toggle(key);
+                                    if (onOpenExperiencePanel) {
+                                      onOpenExperiencePanel(suggestion.skill);
+                                    } else {
+                                      navigate(`/profile?skill=${encodeURIComponent(suggestion.skill)}&hint=experience`);
+                                    }
+                                  }}
+                                  className="px-3 py-1 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700"
+                                >
+                                  Open Work Experience
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.preventDefault();
+                                    setExpandedExperienceKey(null);
+                                  }}
+                                  className="px-3 py-1 text-amber-700 dark:text-amber-400 text-xs hover:text-amber-900 dark:hover:text-amber-200"
+                                >
+                                  Dismiss
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
