@@ -145,11 +145,13 @@ function normalizeApplication(data: any): Application {
 export async function createJob(data: JobCreate): Promise<Job> {
   const formData = new FormData();
 
-  // CV: either upload file OR use stored CV ID
+  // CV: upload file, stored CV ID, or assemble from profile
   if (data.cv_file) {
     formData.append('cv_file', data.cv_file);
   } else if (data.cv_id !== undefined) {
     formData.append('cv_id', String(data.cv_id));
+  } else if (data.use_profile) {
+    formData.append('use_profile', 'true');
   }
 
   // Job description (always required)

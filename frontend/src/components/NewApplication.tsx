@@ -8,10 +8,11 @@ import {
   AlertCircle,
   Sparkles,
   Star,
-  Trash2
+  Trash2,
+  User,
 } from 'lucide-react';
-import { getBackends, createJob, subscribeToJobWithFallback, getJobFiles, getCVs, createCV, deleteCV, setDefaultCV } from '../api';
-import type { Backend, Job, OutputFile, StoredCV } from '../types';
+import { getBackends, createJob, subscribeToJobWithFallback, getJobFiles, getCVs, createCV, deleteCV, setDefaultCV, getProfile, listJobHistory } from '../api';
+import type { Backend, Job, OutputFile, StoredCV, CandidateProfile } from '../types';
 import FilePreview from './FilePreview';
 import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
 
@@ -22,11 +23,15 @@ function NewApplication() {
   const [loading, setLoading] = useState(true);
 
   // CV selection state
-  const [cvMode, setCvMode] = useState<'stored' | 'upload'>('stored');
+  const [cvMode, setCvMode] = useState<'stored' | 'upload' | 'profile'>('stored');
   const [selectedCvId, setSelectedCvId] = useState<number | null>(null);
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [saveCvName, setSaveCvName] = useState('');
   const [saveAsDefault, setSaveAsDefault] = useState(false);
+
+  // Profile CV state
+  const [profileData, setProfileData] = useState<CandidateProfile | null>(null);
+  const [profileJobCount, setProfileJobCount] = useState(0);
 
   // Job description state
   const [jobDescMode, setJobDescMode] = useState<'upload' | 'paste'>('upload');
@@ -52,9 +57,11 @@ function NewApplication() {
 
   async function loadInitialData() {
     try {
-      const [backendData, cvData] = await Promise.all([
+      const [backendData, cvData, profile, jobHistory] = await Promise.all([
         getBackends(),
         getCVs(),
+        getProfile().catch(() => null),
+        listJobHistory().catch(() => []),
       ]);
 
       // Handle various response formats
@@ -77,16 +84,26 @@ function NewApplication() {
       // Set stored CVs
       setStoredCVs(cvData);
 
-      // Select default CV if available
-      const defaultCv = cvData.find((cv: StoredCV) => cv.is_default);
-      if (defaultCv) {
-        setSelectedCvId(defaultCv.id);
-        setCvMode('stored');
-      } else if (cvData.length > 0) {
-        setSelectedCvId(cvData[0].id);
-        setCvMode('stored');
+      // Store profile data
+      if (profile) {
+        setProfileData(profile);
+        setProfileJobCount(Array.isArray(jobHistory) ? jobHistory.length : 0);
+      }
+
+      // Default to profile mode if profile has work history, else stored/upload
+      if (profile && Array.isArray(jobHistory) && jobHistory.length > 0) {
+        setCvMode('profile');
       } else {
-        setCvMode('upload');
+        const defaultCv = cvData.find((cv: StoredCV) => cv.is_default);
+        if (defaultCv) {
+          setSelectedCvId(defaultCv.id);
+          setCvMode('stored');
+        } else if (cvData.length > 0) {
+          setSelectedCvId(cvData[0].id);
+          setCvMode('stored');
+        } else {
+          setCvMode('upload');
+        }
       }
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -164,11 +181,17 @@ function NewApplication() {
     e.preventDefault();
 
     // Validate CV selection
-    const hasCV = cvMode === 'stored' ? selectedCvId !== null : cvFile !== null;
+    const hasCV = cvMode === 'profile'
+      ? profileJobCount > 0
+      : cvMode === 'stored' ? selectedCvId !== null : cvFile !== null;
     // Validate job description: either file uploaded or text pasted
     const hasJobDesc = jobDescMode === 'upload' ? jobFile !== null : jobDescText.trim().length > 0;
     if (!hasCV || !hasJobDesc) {
-      setError('Please select a CV and provide a job description');
+      setError(
+        !hasCV && cvMode === 'profile'
+          ? 'Your profile has no work history. Add jobs to your profile first.'
+          : 'Please select a CV and provide a job description'
+      );
       return;
     }
 
@@ -181,10 +204,11 @@ function NewApplication() {
         ? jobFile!
         : new File([jobDescText], 'pasted_job_description.txt', { type: 'text/plain' });
 
-      // Create job with either stored CV ID or uploaded file
+      // Create job with CV from stored, uploaded, or assembled profile
       const job = await createJob({
         cv_id: cvMode === 'stored' ? selectedCvId! : undefined,
         cv_file: cvMode === 'upload' ? cvFile! : undefined,
+        use_profile: cvMode === 'profile' ? true : undefined,
         job_file: jobFileToSubmit,
         company_name: companyName || undefined,
         job_title: jobTitle || undefined,
@@ -369,9 +393,21 @@ function NewApplication() {
                 <div className="flex">
                   <button
                     type="button"
+                    onClick={() => setCvMode('profile')}
+                    disabled={submitting}
+                    className={`px-2 py-0.5 text-xs border-y border-l transition-colors ${
+                      cvMode === 'profile'
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-600'
+                    }`}
+                  >
+                    Profile
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setCvMode('stored')}
                     disabled={submitting || storedCVs.length === 0}
-                    className={`px-2 py-0.5 text-xs border-y border-l transition-colors ${
+                    className={`px-2 py-0.5 text-xs border-y border-x transition-colors ${
                       cvMode === 'stored'
                         ? 'bg-slate-700 text-white border-slate-700 dark:bg-slate-600 dark:border-slate-600'
                         : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-600'
@@ -393,6 +429,40 @@ function NewApplication() {
                   </button>
                 </div>
               </div>
+
+              {/* Profile mode */}
+              {cvMode === 'profile' && (
+                <div className="border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-2.5">
+                  {profileJobCount > 0 ? (
+                    <div className="flex items-start space-x-2">
+                      <User className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-indigo-800 dark:text-indigo-300 truncate">
+                          {profileData?.full_name || 'Your Profile'}
+                        </p>
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                          {profileJobCount} job{profileJobCount !== 1 ? 's' : ''} in work history
+                        </p>
+                        <p className="text-xs text-indigo-500 dark:text-indigo-500 mt-0.5">
+                          CV assembled live from profile data
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start space-x-2">
+                      <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">Profile is empty</p>
+                        <p className="text-xs text-amber-600 dark:text-amber-500">
+                          Add work history in your{' '}
+                          <a href="/profile" className="underline hover:no-underline">Profile</a>{' '}
+                          to use this mode.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Stored CVs - Compact */}
               {cvMode === 'stored' && storedCVs.length > 0 && (
@@ -597,7 +667,13 @@ function NewApplication() {
 
             <button
               type="submit"
-              disabled={!(cvMode === 'stored' ? selectedCvId : cvFile) || !(jobDescMode === 'upload' ? jobFile : jobDescText.trim()) || submitting}
+              disabled={
+                !(cvMode === 'profile'
+                  ? profileJobCount > 0
+                  : cvMode === 'stored' ? selectedCvId : cvFile)
+                || !(jobDescMode === 'upload' ? jobFile : jobDescText.trim())
+                || submitting
+              }
               className="px-6 py-1.5 bg-slate-800 text-white text-sm font-medium hover:bg-slate-900 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed flex items-center space-x-1.5"
             >
               {submitting ? (

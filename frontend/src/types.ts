@@ -22,6 +22,7 @@ export interface Backend {
 export interface JobCreate {
   cv_file?: File;
   cv_id?: number;
+  use_profile?: boolean;
   job_file: File;
   company_name?: string;
   job_title?: string;

@@ -938,6 +938,7 @@ async def create_job(
     cv_file: Optional[UploadFile] = File(None),
     job_desc_file: UploadFile = File(...),
     cv_id: Optional[int] = Form(None),
+    use_profile: bool = Form(False),
     company_name: Optional[str] = Form(None),
     job_title: Optional[str] = Form(None),
     enable_ats: bool = Form(True),
@@ -949,7 +950,8 @@ async def create_job(
     """
     Create a new job application processing task.
 
-    Provide CV either by uploading cv_file OR by specifying cv_id (stored CV).
+    Provide CV either by uploading cv_file, specifying cv_id (stored CV),
+    or setting use_profile=true to assemble CV from the candidate profile.
     Upload job description file, configure backend, and start processing.
     """
     # Default to 'default' user if not specified
@@ -962,11 +964,11 @@ async def create_job(
             detail="Workflow modules not available. Check server logs and ensure src/ folder contains the required modules."
         )
 
-    # Must provide either cv_file or cv_id
-    if not cv_file and not cv_id:
+    # Must provide one CV source
+    if not cv_file and not cv_id and not use_profile:
         raise HTTPException(
             status_code=400,
-            detail="Must provide either cv_file (upload) or cv_id (stored CV)"
+            detail="Must provide either cv_file (upload), cv_id (stored CV), or use_profile=true"
         )
 
     # Generate unique job ID
@@ -978,20 +980,49 @@ async def create_job(
     try:
         cv_version_id = None  # Track which CV version is used (stored CVs only)
 
-        # Handle CV - either from upload or from stored CV
+        # Handle CV - upload, stored CV, or assembled from profile
         if cv_file:
             # Use uploaded file
             cv_path = settings.UPLOADS_DIR / f"{job_id}_cv{Path(cv_file.filename).suffix}"
             with open(cv_path, "wb") as f:
                 content = await cv_file.read()
                 f.write(content)
-        else:
+        elif cv_id:
             # Use stored CV (verify user ownership)
             cv_data = cv_store.get_cv(cv_id, user_id=user_id)
             if not cv_data:
                 raise HTTPException(status_code=404, detail=f"CV {cv_id} not found")
             cv_content = cv_data.get("content", "")
             cv_version_id = cv_data.get("current_version_id")
+            cv_path = settings.UPLOADS_DIR / f"{job_id}_cv.txt"
+            with open(cv_path, "w", encoding="utf-8") as f:
+                f.write(cv_content)
+        else:
+            # Assemble CV from candidate profile
+            profile = profile_store.get_or_create_profile(user_id)
+            job_history = profile_store.list_job_history(user_id)
+            certifications = profile_store.list_certifications(user_id)
+            skills = profile_store.list_skills(user_id)
+            pd_items = profile_store.list_professional_development(user_id)
+            education = profile_store.list_education(user_id)
+            orgs = profile_store.list_orgs()
+            grouping_mode = profile.get("cert_grouping_mode") or "flat"
+            contact_header = cv_assembler.format_contact_header(profile)
+            summary_text = cv_assembler.assemble_summary_section(profile)
+            experience_text = cv_assembler.assemble_experience_section(job_history)
+            education_text = cv_assembler.assemble_education_section(education)
+            certifications_text = cv_assembler.assemble_certifications_section(certifications, orgs, grouping_mode)
+            skills_text = cv_assembler.assemble_skills_section(skills)
+            pd_text = cv_assembler.assemble_professional_development_section(pd_items)
+            cv_content = "\n\n".join(filter(None, [
+                contact_header, summary_text, experience_text,
+                education_text, certifications_text, skills_text, pd_text,
+            ]))
+            if not cv_content.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Profile has no content. Please build your profile before using it as a CV source."
+                )
             cv_path = settings.UPLOADS_DIR / f"{job_id}_cv.txt"
             with open(cv_path, "w", encoding="utf-8") as f:
                 f.write(cv_content)
