@@ -193,10 +193,9 @@ function JobDetail() {
   function handlePanelClose() {
     setShowExperiencePanel(false);
     setPanelSkill(null);
-    // Re-run ATS analysis so the score reflects any profile changes
-    if (job && job.status === 'completed' && job.enable_ats) {
-      loadJob();
-    }
+    // Note: ATS score is based on a CV text snapshot, not live Profile data.
+    // Profile edits here do not change the stored score. To get an updated score,
+    // the user should pull from Profile in the CV editor and then re-run ATS.
   }
 
   if (loading) {
@@ -534,7 +533,7 @@ function JobDetail() {
         open={showExperiencePanel}
         onClose={handlePanelClose}
         title={panelSkill ? `Add evidence \u2014 ${panelSkill}` : 'Work Experience'}
-        subtitle="Edit entries to include evidence for this skill. Done triggers an ATS re-run."
+        subtitle="Saves to your Profile. To update the ATS score, pull from Profile in the CV editor and re-run."
       >
         {panelSkill && (
           <WorkExperiencePanelBody
