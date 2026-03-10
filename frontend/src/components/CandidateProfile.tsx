@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, ExternalLink, ChevronRight, Eye, EyeOff, Wand2, RefreshCw } from 'lucide-react';
 import {
   getProfile,
@@ -162,6 +162,19 @@ function formToCertCreate(form: CertFormState, display_order = 0): Certification
 // ─── Shared input class ───────────────────────────────────────────────────────
 
 const inputCls = "w-full px-2.5 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+// ─── PII Mask Context ─────────────────────────────────────────────────────────
+
+const MaskContext = createContext(false);
+
+function MaskedText({ children }: { children: React.ReactNode }) {
+  const masked = useContext(MaskContext);
+  return (
+    <span className={masked ? 'blur-sm select-none transition-[filter] duration-300 cursor-default' : 'transition-[filter] duration-300'}>
+      {children}
+    </span>
+  );
+}
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -735,7 +748,7 @@ function PersonalInfoSection({ profile, onSaved }: PersonalInfoSectionProps) {
     }
   };
 
-  const field = (label: string, key: keyof ProfileUpdate, placeholder = '') => (
+  const field = (label: string, key: keyof ProfileUpdate, placeholder = '', pii = false) => (
     <div>
       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">{label}</label>
       {editing ? (
@@ -747,7 +760,10 @@ function PersonalInfoSection({ profile, onSaved }: PersonalInfoSectionProps) {
         />
       ) : (
         <p className="text-sm text-slate-800 dark:text-slate-200 truncate">
-          {(profile?.[key] as string) || <span className="text-slate-400 italic">—</span>}
+          {pii
+            ? <MaskedText>{(profile?.[key] as string) || '—'}</MaskedText>
+            : ((profile?.[key] as string) || <span className="text-slate-400 italic">—</span>)
+          }
         </p>
       )}
     </div>
@@ -785,13 +801,13 @@ function PersonalInfoSection({ profile, onSaved }: PersonalInfoSectionProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-        {field('Full Name', 'full_name', 'David Smith')}
+        {field('Full Name', 'full_name', 'David Smith', true)}
         {field('Headline', 'headline', 'Senior Software Engineer')}
-        {field('Email', 'email', 'david@example.com')}
-        {field('Phone', 'phone', '+44 7700 000000')}
-        {field('Location', 'location', 'London, UK')}
-        {field('LinkedIn', 'linkedin', 'linkedin.com/in/david')}
-        {field('Website', 'website', 'davidsmith.dev')}
+        {field('Email', 'email', 'david@example.com', true)}
+        {field('Phone', 'phone', '+44 7700 000000', true)}
+        {field('Location', 'location', 'London, UK', true)}
+        {field('LinkedIn', 'linkedin', 'linkedin.com/in/david', true)}
+        {field('Website', 'website', 'davidsmith.dev', true)}
       </div>
     </div>
   );
@@ -2397,6 +2413,7 @@ export default function CandidateProfile() {
   const [editingInlineId, setEditingInlineId] = useState<number | null>(null);
   const [inlineDesc, setInlineDesc] = useState('');
   const [inlineDetails, setInlineDetails] = useState('');
+  const [masked, setMasked] = useState(false);
 
   const handleGroupingModeChange = useCallback(async (mode: 'flat' | 'by_org') => {
     setGroupingMode(mode);
@@ -2505,9 +2522,21 @@ export default function CandidateProfile() {
   }
 
   return (
+    <MaskContext.Provider value={masked}>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">Candidate Profile</h1>
+        <button
+          onClick={() => setMasked(m => !m)}
+          title={masked ? 'Show personal info' : 'Hide personal info'}
+          className={`text-xl leading-none rounded-full w-8 h-8 flex items-center justify-center transition-colors ${
+            masked
+              ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-400'
+              : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+          }`}
+        >
+          🎭
+        </button>
       </div>
 
       <PIIBanner />
@@ -2781,5 +2810,6 @@ export default function CandidateProfile() {
         />
       )}
     </div>
+    </MaskContext.Provider>
   );
 }
