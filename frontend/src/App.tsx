@@ -172,8 +172,6 @@ function App() {
           {(localStorage.getItem('llm_backend') || 'ollama') === 'gemini' ? (
             <p className="text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center space-x-1">
               <Shield className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-              <span>Local storage</span>
-              <span>•</span>
               <span>PII scrubbed before Gemini cloud call</span>
               <span>•</span>
               <span>{currentUserName}</span>

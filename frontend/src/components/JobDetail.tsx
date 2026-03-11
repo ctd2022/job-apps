@@ -15,7 +15,7 @@ import {
   X,
   Link as LinkIcon,
   Briefcase,
-  DollarSign
+  PoundSterling
 } from 'lucide-react';
 import { getJob, getJobFiles, updateJobOutcome, updateJobMetadata, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills, listJobHistory, getCVVersionById, updateCVContent, rematchATS, assembleCV } from '../api';
 import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse, JobHistoryRecord } from '../types';
@@ -436,7 +436,7 @@ function JobDetail() {
             
             <div className="flex flex-col space-y-1">
               <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
-                <DollarSign className="w-3 h-3 mr-1" />
+                <PoundSterling className="w-3 h-3 mr-1" />
                 Salary
               </span>
               {editingMetadata ? (
