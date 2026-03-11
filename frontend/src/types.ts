@@ -78,6 +78,9 @@ export interface Job {
   notes?: string;
   // CV version tracking
   cv_version_id?: number;
+  employment_type?: string | null;
+  salary?: string | null;
+  listing_url?: string | null;
 }
 
 export interface OutputFile {
@@ -104,6 +107,9 @@ export interface Application {
   response_at?: string;
   outcome_at?: string;
   notes?: string;
+  employment_type?: string | null;
+  salary?: string | null;
+  listing_url?: string | null;
   // Position profiling corpus flag (Idea #242)
   include_in_profile?: boolean;
 }
@@ -122,6 +128,12 @@ export interface HealthStatus {
 export interface OutcomeUpdate {
   outcome_status: OutcomeStatus;
   notes?: string;
+}
+
+export interface JobMetadataUpdate {
+  employment_type?: string | null;
+  salary?: string | null;
+  listing_url?: string | null;
 }
 
 export interface Metrics {

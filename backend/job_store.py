@@ -148,6 +148,9 @@ def init_db():
         ("ats_details", "TEXT"),  # Track 2.9.2: Full ATS analysis JSON
         ("cv_version_id", "INTEGER"),  # Track 2.9.3: Link to specific CV version used
         ("include_in_profile", "INTEGER DEFAULT 1"),  # Idea #242: Position profiling corpus
+        ("employment_type", "TEXT"),
+        ("salary", "TEXT"),
+        ("listing_url", "TEXT"),
     ]
 
     for col_name, col_type in outcome_columns:
@@ -509,6 +512,9 @@ class JobStore:
             "outcome_at": None,
             "notes": None,
             "job_description_text": None,
+            "employment_type": None,
+            "salary": None,
+            "listing_url": None,
         }
 
         cursor.execute('''
@@ -516,15 +522,17 @@ class JobStore:
                 job_id, user_id, status, progress, current_step, message,
                 created_at, updated_at, output_dir, ats_score, files,
                 error, cv_path, job_desc_path, company_name, job_title, backend_type,
-                outcome_status, submitted_at, response_at, outcome_at, notes, job_description_text
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                outcome_status, submitted_at, response_at, outcome_at, notes, job_description_text,
+                employment_type, salary, listing_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             job["job_id"], job["user_id"], job["status"], job["progress"], job["current_step"],
             job["message"], job["created_at"], job["updated_at"], job["output_dir"],
             job["ats_score"], json.dumps(job["files"]), job["error"],
             job["cv_path"], job["job_desc_path"], job["company_name"], job["job_title"], job["backend_type"],
             job["outcome_status"], job["submitted_at"], job["response_at"],
-            job["outcome_at"], job["notes"], job["job_description_text"]
+            job["outcome_at"], job["notes"], job["job_description_text"],
+            job["employment_type"], job["salary"], job["listing_url"]
         ))
 
         conn.commit()
@@ -1003,6 +1011,21 @@ class JobStore:
         except (IndexError, KeyError):
             include_in_profile = True
 
+        try:
+            employment_type = row["employment_type"]
+        except (IndexError, KeyError):
+            employment_type = None
+
+        try:
+            salary = row["salary"]
+        except (IndexError, KeyError):
+            salary = None
+
+        try:
+            listing_url = row["listing_url"]
+        except (IndexError, KeyError):
+            listing_url = None
+
         return {
             "job_id": row["job_id"],
             "user_id": row["user_id"] or "default",
@@ -1028,6 +1051,9 @@ class JobStore:
             "outcome_at": row["outcome_at"],
             "notes": row["notes"],
             "job_description_text": job_description_text,
+            "employment_type": employment_type,
+            "salary": salary,
+            "listing_url": listing_url,
             # Track 2.9.2: ATS analysis details
             "ats_details": ats_details,
             # Track 2.9.3: CV version used for this job

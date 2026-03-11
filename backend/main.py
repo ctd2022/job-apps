@@ -197,6 +197,13 @@ class OutcomeUpdateRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class JobMetadataRequest(BaseModel):
+    """Request to update optional job metadata."""
+    employment_type: Optional[str] = None
+    salary: Optional[str] = None
+    listing_url: Optional[str] = None
+
+
 class CVContentUpdateRequest(BaseModel):
     """Request to update CV content (creates new version)"""
     content: str
@@ -1206,6 +1213,30 @@ async def update_job_outcome(
             outcome_status=request.outcome_status,
             notes=request.notes,
             user_id=user_id
+        )
+        return job
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+
+@app.patch("/api/jobs/{job_id}/metadata")
+async def update_job_metadata(
+    job_id: str,
+    request: JobMetadataRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """
+    Update optional metadata for a job application.
+    """
+    user_id = user_id or "default"
+
+    try:
+        job = job_store.update_job(
+            job_id,
+            user_id=user_id,
+            employment_type=request.employment_type,
+            salary=request.salary,
+            listing_url=request.listing_url,
         )
         return job
     except KeyError:
