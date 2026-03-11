@@ -331,7 +331,16 @@ function ApplicationRow({
         <td className="px-3 py-2 text-slate-400">
           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </td>
-        <td className="px-3 py-2 text-slate-800 dark:text-slate-200 font-medium truncate max-w-[200px]">{application.job_name}</td>
+        <td className="px-3 py-2 text-slate-800 dark:text-slate-200 font-medium max-w-[200px]">
+          <div className="flex items-center space-x-2">
+            <span className="truncate">{application.job_name}</span>
+            {application.employment_type && (
+              <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 whitespace-nowrap border border-slate-200 dark:border-slate-600 rounded-sm">
+                {application.employment_type}
+              </span>
+            )}
+          </div>
+        </td>
         <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{application.company_name || '-'}</td>
         <td className="px-3 py-2">
           <span className={`text-xs px-1.5 py-0.5 ${statusConfig.className}`}>

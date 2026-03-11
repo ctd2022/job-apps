@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, JobMetadataUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate } from './types';
 
 const API_BASE = '/api';
 
@@ -114,6 +114,9 @@ function normalizeJob(data: any): Job {
     notes: data.notes,
     // CV version tracking
     cv_version_id: data.cv_version_id,
+    employment_type: data.employment_type,
+    salary: data.salary,
+    listing_url: data.listing_url,
   };
 }
 
@@ -137,6 +140,9 @@ function normalizeApplication(data: any): Application {
     response_at: data.response_at,
     outcome_at: data.outcome_at,
     notes: data.notes,
+    employment_type: data.employment_type,
+    salary: data.salary,
+    listing_url: data.listing_url,
     // Position profiling corpus flag
     include_in_profile: data.include_in_profile !== false,
   };
@@ -344,6 +350,19 @@ export async function updateJobOutcome(
   update: OutcomeUpdate
 ): Promise<Job> {
   const response = await fetch(`${API_BASE}/jobs/${jobId}/outcome`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(update),
+  });
+  const data = await handleResponse<any>(response);
+  return normalizeJob(data);
+}
+
+export async function updateJobMetadata(
+  jobId: string,
+  update: JobMetadataUpdate
+): Promise<Job> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/metadata`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
     body: JSON.stringify(update),

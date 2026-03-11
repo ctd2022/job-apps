@@ -12,9 +12,12 @@ import {
   Calendar,
   FileText,
   Edit3,
-  X
+  X,
+  Link as LinkIcon,
+  Briefcase,
+  DollarSign
 } from 'lucide-react';
-import { getJob, getJobFiles, updateJobOutcome, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills, listJobHistory, getCVVersionById, updateCVContent, rematchATS, assembleCV } from '../api';
+import { getJob, getJobFiles, updateJobOutcome, updateJobMetadata, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills, listJobHistory, getCVVersionById, updateCVContent, rematchATS, assembleCV } from '../api';
 import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse, JobHistoryRecord } from '../types';
 import { applyProfileSections } from '../utils/pullFromProfile';
 import GapFillWizard from './GapFillWizard';
@@ -83,6 +86,14 @@ function JobDetail() {
   const [jobDescription, setJobDescription] = useState<JobDescription | null>(null);
   const [loadingJD, setLoadingJD] = useState(false);
 
+  // Job Metadata state
+  const [editingMetadata, setEditingMetadata] = useState(false);
+  const [metadataForm, setMetadataForm] = useState({
+    employment_type: '',
+    salary: '',
+    listing_url: ''
+  });
+
   useEffect(() => {
     if (!id) return;
     loadJob();
@@ -98,6 +109,11 @@ function JobDetail() {
       setJob(jobData);
       setFiles(filesData);
       setError(null);
+      setMetadataForm({
+        employment_type: jobData.employment_type || '',
+        salary: jobData.salary || '',
+        listing_url: jobData.listing_url || ''
+      });
 
       // Fetch ATS analysis and match history for completed jobs
       if (jobData.status === 'completed' && jobData.enable_ats) {
@@ -131,6 +147,20 @@ function JobDetail() {
       setJob(updated);
     } catch (err) {
       console.error('Failed to update outcome:', err);
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  async function handleMetadataSave() {
+    if (!job) return;
+    setUpdating(true);
+    try {
+      const updated = await updateJobMetadata(job.id, metadataForm);
+      setJob(updated);
+      setEditingMetadata(false);
+    } catch (err) {
+      console.error('Failed to update metadata:', err);
     } finally {
       setUpdating(false);
     }
@@ -343,6 +373,113 @@ function JobDetail() {
               <span className="text-slate-500 dark:text-slate-400">CV version tracked</span>
             </div>
           )}
+        </div>
+
+        {/* Job Metadata */}
+        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">Job Metadata</h3>
+            {!editingMetadata ? (
+              <button 
+                onClick={() => setEditingMetadata(true)}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center"
+              >
+                <Edit3 className="w-3 h-3 mr-1" />
+                Edit
+              </button>
+            ) : (
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => {
+                    setEditingMetadata(false);
+                    setMetadataForm({
+                      employment_type: job.employment_type || '',
+                      salary: job.salary || '',
+                      listing_url: job.listing_url || ''
+                    });
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleMetadataSave}
+                  disabled={updating}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium"
+                >
+                  {updating ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="flex flex-col space-y-1">
+              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
+                <Briefcase className="w-3 h-3 mr-1" />
+                Employment Type
+              </span>
+              {editingMetadata ? (
+                <input 
+                  type="text" 
+                  value={metadataForm.employment_type}
+                  onChange={(e) => setMetadataForm({...metadataForm, employment_type: e.target.value})}
+                  className="border rounded px-2 py-1 text-sm bg-white dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200"
+                  placeholder="e.g. Full-time, Contract"
+                />
+              ) : (
+                <span className="text-slate-800 dark:text-slate-200">
+                  {job.employment_type || <span className="text-slate-400 italic">Not specified</span>}
+                </span>
+              )}
+            </div>
+            
+            <div className="flex flex-col space-y-1">
+              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
+                <DollarSign className="w-3 h-3 mr-1" />
+                Salary
+              </span>
+              {editingMetadata ? (
+                <input 
+                  type="text" 
+                  value={metadataForm.salary}
+                  onChange={(e) => setMetadataForm({...metadataForm, salary: e.target.value})}
+                  className="border rounded px-2 py-1 text-sm bg-white dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200"
+                  placeholder="e.g. £60k - £80k"
+                />
+              ) : (
+                <span className="text-slate-800 dark:text-slate-200">
+                  {job.salary || <span className="text-slate-400 italic">Not specified</span>}
+                </span>
+              )}
+            </div>
+            
+            <div className="flex flex-col space-y-1">
+              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
+                <LinkIcon className="w-3 h-3 mr-1" />
+                Listing URL
+              </span>
+              {editingMetadata ? (
+                <input 
+                  type="text" 
+                  value={metadataForm.listing_url}
+                  onChange={(e) => setMetadataForm({...metadataForm, listing_url: e.target.value})}
+                  className="border rounded px-2 py-1 text-sm bg-white dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200"
+                  placeholder="https://..."
+                />
+              ) : (
+                <span className="text-slate-800 dark:text-slate-200 truncate">
+                  {job.listing_url ? (
+                    <a href={job.listing_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                      {job.listing_url}
+                    </a>
+                  ) : (
+                    <span className="text-slate-400 italic">Not specified</span>
+                  )}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* View Original JD / Edit CV Buttons */}
