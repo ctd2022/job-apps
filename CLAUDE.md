@@ -163,6 +163,7 @@ When delegating bug investigation to Gemini via TODO.md:
 - **Include known clues**: Share server logs, error messages, and what you've already ruled out
 - **Set clear boundaries**: Specify what NOT to change (e.g., "do not modify source code")
 - **Stale process warning**: Always mention that Windows zombie processes are a common root cause
+- **Feature work**: Always create a feature branch first; Gemini works on it, does not commit; user verifies app before Claude commits and merges
 
 ---
 
@@ -215,13 +216,20 @@ When you discover a workflow improvement, new convention, or fix a recurring pro
 
 ### Handover protocol:
 1. **Claude finishes all active work** and stops any background tasks that Gemini might conflict with
-2. **Claude writes instructions** into `TODO.md` with specific file paths, patterns to follow, and acceptance criteria
-3. **User fully exits Claude**, then switches to Gemini CLI - Gemini reads `GEMINI.md` and `TODO.md`
-4. **Gemini implements** and writes a summary of changes back into `TODO.md`
-5. **User fully exits Gemini**, then switches back to Claude - Claude reviews via `TODO.md` and git diff
+2. **Claude creates a feature branch** (`git checkout -b feature/idea-NNN-short-name`) and notes it in `TODO.md`
+3. **Claude writes instructions** into `TODO.md` with specific file paths, patterns to follow, and acceptance criteria
+4. **User fully exits Claude**, then switches to Gemini CLI - Gemini reads `GEMINI.md` and `TODO.md`
+5. **Gemini implements on the feature branch** — all changes stay on that branch, nothing merged to `main`
+6. **Gemini does NOT commit** — when done, it starts the services and tells the user to verify the app manually before committing
+7. **User checks the app**, then **fully exits Gemini** and switches back to Claude
+8. **Claude reviews** via `TODO.md` and git diff, then commits and merges to `main`
+
+### Branch naming
+- Always `feature/idea-NNN-short-description` for idea-tracked work
+- Claude creates the branch before writing TODO.md so Gemini just checks it out
 
 ### Key files:
 - `GEMINI.md` - Gemini's project context (mirrors CLAUDE.md but scoped for secondary role)
 - `TODO.md` - Handover instructions and completion summaries between agents
 
-**Last Updated**: 20 February 2026
+**Last Updated**: 11 March 2026
