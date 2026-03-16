@@ -1,4 +1,4 @@
-# GEMINI.md - Secondary Agent Context
+﻿# GEMINI.md - Secondary Agent Context
 
 **Role**: You (Gemini) are a **Secondary Agent** on this project. Claude Code is the **Lead Architect**.
 
@@ -142,7 +142,7 @@ cd frontend && npm run dev
 cd frontend && npx tsc --noEmit
 
 # View ideas backlog
-python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" list --project job_applications
+python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py" list --project job_applications
 
 # Health check
 curl http://localhost:8000/api/health
@@ -169,7 +169,7 @@ Do not attempt `read_file` or `write_file` on gitignored files — go straight t
 ## FEATURE DEVELOPMENT WORKFLOW
 
 ```bash
-IDEAS='python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py"'
+IDEAS='python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py"'
 ```
 
 1. **Check backlog** - `$IDEAS list --project job_applications --status Idea` - find the relevant idea ID

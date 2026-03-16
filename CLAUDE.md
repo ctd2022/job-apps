@@ -1,4 +1,4 @@
-# CLAUDE.md - Job Application Workflow
+﻿# CLAUDE.md - Job Application Workflow
 
 AI-powered tool that generates tailored CVs, cover letters, and ATS analysis.
 
@@ -16,8 +16,8 @@ curl -s http://localhost:8000/api/health  # Backend (expect JSON)
 curl -s -o /dev/null -w "%{http_code}" http://localhost:5173  # Frontend (expect 200)
 
 # If not running, start in background:
-cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications" && python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications/frontend" && npm run dev
+cd "H:/Stuff2Backup/kaizen/job_applications" && python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+cd "H:/Stuff2Backup/kaizen/job_applications/frontend" && npm run dev
 ```
 
 ---
@@ -41,10 +41,11 @@ cd "C:/Users/davidgp2022/My Drive/Kaizen/job_applications/frontend" && npm run d
 **YOU MUST funnel ALL new features through `ideas.db` before implementing:**
 
 1. **Capture** → Add idea to database (see below)
-2. **Start Work** → Update status to "In Progress"
-3. **Plan** → Enter plan mode, explore codebase, design approach
-4. **Implement** → Follow the plan
-5. **Complete** → Update status to "Done", update docs, create diary entry with Quick Resume section
+2. **Spec** → Every idea must have a description before starting. The description IS the spec — even two sentences is enough for a small fix. Set it: `ideas.py update ID --description "..."`. No discrimination on size.
+3. **Start Work** → The FIRST command — before reading any files or making any changes — is to mark In Progress (records `started_at` for time tracking). The script blocks this if description is empty.
+4. **Plan** → Enter plan mode, explore codebase, design approach
+5. **Implement** → Follow the plan
+6. **Complete** → Update status to "Done" (auto-calculates `actual_time` from `started_at`). If you forgot to mark In Progress first, you MUST pass `--actual-time` — the script will error otherwise.
 
 ### Updating Idea Status
 
@@ -52,13 +53,13 @@ Ideas are managed at programme level. Use the programme CLI:
 
 ```bash
 # Mark idea as In Progress
-python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" update ID --status "In Progress"
+python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py" update ID --status "In Progress"
 
 # Mark idea as Done
-python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" update ID --status "Done"
+python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py" update ID --status "Done"
 
 # List this project's ideas
-python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" list --project job_applications
+python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py" list --project job_applications
 ```
 
 **Status values**: Idea -> In Progress -> Done (or Rejected/Deferred)
@@ -68,7 +69,7 @@ python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" l
 **When the user suggests a feature or improvement, add it via the programme CLI:**
 
 ```bash
-python "C:/Users/davidgp2022/My Drive/Kaizen/programme/scripts/ideas/ideas.py" add
+python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py" add
 # Set stream=career-tools, project=job_applications when prompted
 ```
 
