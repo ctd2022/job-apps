@@ -40,6 +40,23 @@ cd "H:/Stuff2Backup/kaizen/job_applications/frontend" && npm run dev
 
 **YOU MUST funnel ALL new features through `ideas.db` before implementing:**
 
+### Backlog Review (mandatory before adding 3+ ideas in one session)
+
+Before adding a cluster of new ideas, always run a scoped review of related open ideas first:
+
+```bash
+python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py" list --project job_applications --status Idea
+```
+
+For each related existing idea, decide: **Keep / Merge / Supersede / Reject**.
+- If superseded: mark the old idea `Deferred` with a note referencing the new idea(s)
+- If merged: update the existing idea's description and tasks; don't create a duplicate
+- Never add ideas that duplicate existing open ones without resolving the conflict first
+
+This prevents backlog drift — old ideas written with stale context accumulating alongside new ones that contradict them.
+
+---
+
 1. **Capture** → Add idea to database (see below)
 2. **Spec** → Every idea must have a description before starting. The description IS the spec — even two sentences is enough for a small fix. Set it: `ideas.py update ID --description "..."`. No discrimination on size.
 3. **Start Work** → The FIRST command — before reading any files or making any changes — is to mark In Progress (records `started_at` for time tracking). The script blocks this if description is empty.
@@ -56,7 +73,7 @@ Ideas are managed at programme level. Use the programme CLI:
 python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py" update ID --status "In Progress"
 
 # Mark idea as Done
-python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py" update ID --status "Done"
+python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py" update ID --status "Done" --user-prompts N  # N = times agent asked user to respond
 
 # List this project's ideas
 python "H:/Stuff2Backup/kaizen/programme/scripts/ideas/ideas.py" list --project job_applications
