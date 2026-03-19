@@ -2,7 +2,7 @@
 
 **Date**: 2026-03-19
 **Track**: 4.0 Planning — Application Intelligence
-**Ideas completed**: #490
+**Ideas completed**: #490, #491–#500 (epic created), #501, #502
 
 ---
 
@@ -11,11 +11,11 @@
 > **Read this first when returning to the project after a break.**
 
 - **Branch**: main
-- **Track**: 4.0 — Application Intelligence (planning phase complete, ideas not yet created)
-- **Last session**: Competitive research session. Planned Track 4.0 epic (success tracking, Kanban, response analysis, adaptive intelligence). Completed #490 (backlog review process). Deferred #91, #231, #72 into Track 4.0 scope. Updated CLAUDE.md with backlog review step.
-- **Next steps**: Create Track 4.0 epic + 10 new ideas (Phase 1: Saved state + Kanban + timestamps; Phase 2: Outcome capture + ghosting; Phase 3: Analytics + adaptive intelligence)
+- **Track**: 4.0 — Application Intelligence (planning complete, epic #21 created, ready to implement)
+- **Last session**: Full planning session. Competitive research. Created Epic #21 (10 ideas, ~33h). Created #501 (branching rules, programme-level). Created #502 (Quality & Control self-improvement dashboard, programme-level). Completed #490 (backlog review process). Deferred #91, #231, #72.
 - **Blocked/broken**: Nothing
-- **Ideas backlog**: Track 4.0 ideas to be created next session. #490 Done.
+- **Ideas backlog**: Epic #21 ready to execute. See programme diary 2026-03-19 for full next-session prompt and recommended order of attack.
+- **Next steps**: See programme diary 2026-03-19 — start with #501 (branching rules) then #493 (stage history foundation).
 
 ---
 
