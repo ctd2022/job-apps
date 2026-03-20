@@ -121,6 +121,7 @@ export interface HealthStatus {
     ollama: boolean;
     llamacpp: boolean;
     gemini: boolean;
+    mistral: boolean;
   };
   workflow_available: boolean;
 }

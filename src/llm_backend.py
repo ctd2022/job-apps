@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Unified LLM Backend
-Supports multiple LLM providers: Ollama, Llama.cpp server, and Gemini API
+Supports multiple LLM providers: Ollama, Llama.cpp server, Gemini API, and Mistral API
 """
 
 import os
@@ -196,42 +196,89 @@ class GeminiBackend(LLMBackend):
         return f"Gemini ({self.model})"
 
 
+class MistralBackend(LLMBackend):
+    """Mistral API backend (OpenAI-compatible endpoint)"""
+
+    def __init__(self, api_key: Optional[str] = None, model_name: str = "mistral-small-latest"):
+        self.api_key = api_key or os.environ.get('MISTRAL_API_KEY')
+        if not self.api_key:
+            raise ValueError("Mistral API key not provided. Set MISTRAL_API_KEY environment variable.")
+        self.model = model_name
+        self.base_url = "https://api.mistral.ai/v1"
+
+    def chat(self, messages: List[Dict[str, str]], **kwargs) -> str:
+        """Call Mistral API using OpenAI-compatible chat completions endpoint"""
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": kwargs.get('temperature', 0.7),
+            "max_tokens": kwargs.get('max_tokens', 8192),
+            "top_p": kwargs.get('top_p', 0.9),
+        }
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/chat/completions",
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=300,
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result['choices'][0]['message']['content']
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(f"Mistral API error: {str(e)}")
+
+    def get_backend_name(self) -> str:
+        return f"Mistral ({self.model})"
+
+
 class LLMBackendFactory:
     """Factory for creating LLM backends"""
-    
+
     @staticmethod
     def create_backend(backend_type: str, **kwargs) -> LLMBackend:
         """
         Create an LLM backend based on type
-        
+
         Args:
-            backend_type: 'ollama', 'llamacpp', or 'gemini'
+            backend_type: 'ollama', 'llamacpp', 'gemini', or 'mistral'
             **kwargs: Backend-specific arguments
                 - For Ollama: model_name
                 - For Llama.cpp: base_url, model_name
                 - For Gemini: api_key, model_name, requests_per_minute
+                - For Mistral: api_key, model_name
         """
         backend_type = backend_type.lower()
-        
+
         if backend_type == 'ollama':
             return OllamaBackend(model_name=kwargs.get('model_name', 'llama3.1:8b'))
-        
+
         elif backend_type == 'llamacpp':
             return LlamaCppBackend(
                 base_url=kwargs.get('base_url', 'http://localhost:8080'),
                 model_name=kwargs.get('model_name', 'llama-cpp')
             )
-        
+
         elif backend_type == 'gemini':
             return GeminiBackend(
                 api_key=kwargs.get('api_key'),
                 model_name=kwargs.get('model_name', 'gemini-2.0-flash'),
                 requests_per_minute=kwargs.get('requests_per_minute', 10)
             )
-        
+
+        elif backend_type == 'mistral':
+            return MistralBackend(
+                api_key=kwargs.get('api_key'),
+                model_name=kwargs.get('model_name', 'mistral-small-latest'),
+            )
+
         else:
             raise ValueError(f"Unknown backend type: {backend_type}. "
-                           "Must be 'ollama', 'llamacpp', or 'gemini'")
+                           "Must be 'ollama', 'llamacpp', 'gemini', or 'mistral'")
 
 
 def test_backend(backend: LLMBackend):
@@ -291,6 +338,17 @@ def main():
         test_backend(gemini_backend)
     except Exception as e:
         print(f"[FAIL] Gemini test failed: {e}")
+
+    # Test Mistral (if API key available)
+    print("\n4. Testing Mistral Backend")
+    try:
+        mistral_backend = LLMBackendFactory.create_backend(
+            'mistral',
+            model_name='mistral-small-latest',
+        )
+        test_backend(mistral_backend)
+    except Exception as e:
+        print(f"[FAIL] Mistral test failed: {e}")
 
 
 if __name__ == "__main__":

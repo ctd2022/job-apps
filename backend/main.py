@@ -21,7 +21,7 @@ from enum import Enum
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Header
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,6 +95,7 @@ class BackendType(str, Enum):
     ollama = "ollama"
     llamacpp = "llamacpp"
     gemini = "gemini"
+    mistral = "mistral"
 
 
 # Import from job_store module
@@ -120,6 +121,9 @@ class BackendConfig(BaseModel):
     # Gemini specific
     gemini_api_key: Optional[str] = None
     gemini_model: Optional[str] = "gemini-2.0-flash"
+    # Mistral specific
+    mistral_api_key: Optional[str] = None
+    mistral_model: Optional[str] = "mistral-small-latest"
 
 
 class JobRequest(BaseModel):
@@ -532,6 +536,28 @@ async def update_job_and_broadcast(job_id: str, **kwargs):
     return job
 
 
+def _build_backend_config(backend_type: str, model_name: Optional[str] = None) -> Dict[str, Any]:
+    """Build kwargs dict for LLMBackendFactory.create_backend() given a backend type."""
+    if backend_type == "ollama":
+        return {"model_name": model_name or "llama3.1:8b"}
+    elif backend_type == "llamacpp":
+        return {"model_name": model_name or "gemma-3-27B", "base_url": "http://localhost:8080"}
+    elif backend_type == "gemini":
+        return {"model_name": model_name or "gemini-2.0-flash", "api_key": os.environ.get("GEMINI_API_KEY")}
+    elif backend_type == "mistral":
+        return {"model_name": model_name or "mistral-small-latest", "api_key": os.environ.get("MISTRAL_API_KEY")}
+    return {}
+
+
+def _default_cloud_backend() -> str:
+    """Return the best available cloud backend based on configured API keys."""
+    if os.environ.get("GEMINI_API_KEY"):
+        return "gemini"
+    if os.environ.get("MISTRAL_API_KEY"):
+        return "mistral"
+    return "gemini"  # Will fail at runtime if no key is set
+
+
 async def process_job_application(
     job_id: str,
     cv_path: str,
@@ -840,9 +866,10 @@ async def root():
     backends_available = {
         "ollama": False,
         "llamacpp": False,
-        "gemini": False
+        "gemini": False,
+        "mistral": False,
     }
-    
+
     # Check Ollama
     try:
         import ollama
@@ -850,13 +877,17 @@ async def root():
         backends_available["ollama"] = True
     except:
         pass
-    
+
     # Check Llama.cpp (just check if requests works)
     backends_available["llamacpp"] = True  # Assume available, will fail at runtime if not
-    
+
     # Check Gemini (check for API key)
     if os.environ.get("GEMINI_API_KEY"):
         backends_available["gemini"] = True
+
+    # Check Mistral (check for API key)
+    if os.environ.get("MISTRAL_API_KEY"):
+        backends_available["mistral"] = True
     
     return HealthResponse(
         status="healthy",
@@ -934,6 +965,15 @@ async def list_backends():
             "default_model": "gemini-2.0-flash",
             "models": ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"],
             "config_fields": ["gemini_api_key", "gemini_model"]
+        },
+        {
+            "id": "mistral",
+            "name": "Mistral AI",
+            "description": "Use Mistral's API (requires API key)",
+            "available": bool(os.environ.get("MISTRAL_API_KEY")),
+            "default_model": "mistral-small-latest",
+            "models": ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
+            "config_fields": ["mistral_api_key", "mistral_model"]
         }
     ]
     return BackendListResponse(backends=backends)
@@ -1068,15 +1108,7 @@ async def create_job(
                 job_description_text = None
 
         # Build backend config
-        backend_config = {}
-        if backend_type == "ollama":
-            backend_config["model_name"] = backend_model or "llama3.1:8b"
-        elif backend_type == "llamacpp":
-            backend_config["model_name"] = backend_model or "gemma-3-27B"
-            backend_config["base_url"] = "http://localhost:8080"
-        elif backend_type == "gemini":
-            backend_config["model_name"] = backend_model or "gemini-2.0-flash"
-            backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+        backend_config = _build_backend_config(backend_type, backend_model)
         
         # Update job with file paths, JD text, and CV version link
         update_kwargs: dict = dict(
@@ -1555,15 +1587,7 @@ async def rematch_ats(
 
     # Reconstruct LLM backend from job's stored backend_type
     backend_type = job.get("backend_type", "ollama")
-    backend_config: Dict[str, Any] = {}
-    if backend_type == "ollama":
-        backend_config["model_name"] = "llama3.1:8b"
-    elif backend_type == "llamacpp":
-        backend_config["model_name"] = "gemma-3-27B"
-        backend_config["base_url"] = "http://localhost:8080"
-    elif backend_type == "gemini":
-        backend_config["model_name"] = "gemini-2.0-flash"
-        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+    backend_config = _build_backend_config(backend_type)
 
     backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
     ats_optimizer = ATSOptimizer(
@@ -1657,15 +1681,7 @@ async def apply_suggestions(
 
     # Use request overrides or fall back to job's original backend
     backend_type = request.backend_type or job.get("backend_type", "ollama")
-    backend_config: Dict[str, Any] = {}
-    if backend_type == "ollama":
-        backend_config["model_name"] = request.model_name or "llama3.1:8b"
-    elif backend_type == "llamacpp":
-        backend_config["model_name"] = request.model_name or "gemma-3-27B"
-        backend_config["base_url"] = "http://localhost:8080"
-    elif backend_type == "gemini":
-        backend_config["model_name"] = request.model_name or "gemini-2.0-flash"
-        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+    backend_config = _build_backend_config(backend_type, request.model_name)
 
     backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
     ats_optimizer = ATSOptimizer(
@@ -1765,17 +1781,9 @@ async def suggest_skills(
             detail="Job description text not available for this job",
         )
 
-    # Use job's backend or default to gemini (fast for suggestions)
-    backend_type = job.get("backend_type", "gemini")
-    backend_config: Dict[str, Any] = {}
-    if backend_type == "ollama":
-        backend_config["model_name"] = "llama3.1:8b"
-    elif backend_type == "llamacpp":
-        backend_config["model_name"] = "gemma-3-27B"
-        backend_config["base_url"] = "http://localhost:8080"
-    elif backend_type == "gemini":
-        backend_config["model_name"] = "gemini-2.0-flash"
-        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+    # Use job's backend or default to best available cloud backend
+    backend_type = job.get("backend_type") or _default_cloud_backend()
+    backend_config = _build_backend_config(backend_type)
 
     backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
     ats_optimizer = ATSOptimizer(
@@ -1847,15 +1855,7 @@ async def gap_fill(
         )
 
     backend_type = request.backend_type or job.get("backend_type", "ollama")
-    backend_config: Dict[str, Any] = {}
-    if backend_type == "ollama":
-        backend_config["model_name"] = request.model_name or "llama3.1:8b"
-    elif backend_type == "llamacpp":
-        backend_config["model_name"] = request.model_name or "gemma-3-27B"
-        backend_config["base_url"] = "http://localhost:8080"
-    elif backend_type == "gemini":
-        backend_config["model_name"] = request.model_name or "gemini-2.0-flash"
-        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+    backend_config = _build_backend_config(backend_type, request.model_name)
 
     backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
     ats_optimizer = ATSOptimizer(
@@ -2679,16 +2679,8 @@ async def generate_summary_endpoint(
     if not WORKFLOW_AVAILABLE:
         raise HTTPException(status_code=503, detail="Workflow modules not available")
 
-    backend_type = request.backend_type or "gemini"
-    backend_config: Dict[str, Any] = {}
-    if backend_type == "ollama":
-        backend_config["model_name"] = request.model_name or "llama3.1:8b"
-    elif backend_type == "llamacpp":
-        backend_config["model_name"] = request.model_name or "gemma-3-27B"
-        backend_config["base_url"] = "http://localhost:8080"
-    elif backend_type == "gemini":
-        backend_config["model_name"] = request.model_name or "gemini-2.0-flash"
-        backend_config["api_key"] = os.environ.get("GEMINI_API_KEY")
+    backend_type = request.backend_type or _default_cloud_backend()
+    backend_config = _build_backend_config(backend_type, request.model_name)
 
     backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
     optimizer = ATSOptimizer(backend=backend)

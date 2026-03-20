@@ -48,6 +48,7 @@ const mockHealth: HealthStatus = {
     ollama: true,
     llamacpp: false,
     gemini: true,
+    mistral: false,
   },
   workflow_available: true,
 };
