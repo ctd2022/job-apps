@@ -124,23 +124,11 @@ function Dashboard() {
       {/* Application Funnel Metrics */}
       {metrics && metrics.funnel.submitted > 0 && (
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-          <div className="px-3 py-2 bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600 flex items-center space-x-2">
-            <TrendingUp className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+          <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600 flex items-center space-x-2">
+            <TrendingUp className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Application Funnel</span>
           </div>
-          <div className="p-3">
-            <FunnelChart metrics={metrics} />
-            <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-200 dark:border-slate-600">
-              <RateBox label="Response Rate" value={metrics.rates.response_rate} />
-              <RateBox label="Interview Rate" value={metrics.rates.interview_rate} />
-              <RateBox label="Offer Rate" value={metrics.rates.offer_rate} />
-            </div>
-            {metrics.avg_time_to_response_days !== null && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">
-                Avg time to response: {metrics.avg_time_to_response_days} days
-              </p>
-            )}
-          </div>
+          <CompactFunnel metrics={metrics} />
         </div>
       )}
 
@@ -225,54 +213,43 @@ function BackendStatus({ name, available }: { name: string; available: boolean }
   );
 }
 
-function FunnelChart({ metrics }: { metrics: Metrics }) {
+function CompactFunnel({ metrics }: { metrics: Metrics }) {
   const stages = [
-    { key: 'submitted', label: 'Submitted', count: metrics.funnel.submitted, color: 'bg-blue-500' },
-    { key: 'response', label: 'Response', count: metrics.funnel.response, color: 'bg-indigo-500' },
-    { key: 'interview', label: 'Interview', count: metrics.funnel.interview, color: 'bg-purple-500' },
-    { key: 'offer', label: 'Offer', count: metrics.funnel.offer, color: 'bg-green-500' },
+    { label: 'Submitted', count: metrics.funnel.submitted, color: 'text-blue-600 dark:text-blue-400' },
+    { label: 'Response',  count: metrics.funnel.response,  color: 'text-indigo-600 dark:text-indigo-400' },
+    { label: 'Interview', count: metrics.funnel.interview, color: 'text-purple-600 dark:text-purple-400' },
+    { label: 'Offer',     count: metrics.funnel.offer,     color: 'text-green-600 dark:text-green-400' },
   ];
-
-  const maxCount = Math.max(...stages.map(s => s.count), 1);
-
   return (
-    <div className="space-y-2">
-      {stages.map((stage, index) => {
-        const width = Math.max((stage.count / maxCount) * 100, stage.count > 0 ? 10 : 0);
-        const prevCount = index > 0 ? stages[index - 1].count : metrics.funnel.submitted;
-        const conversionRate = prevCount > 0 ? Math.round((stage.count / prevCount) * 100) : 0;
-
-        return (
-          <div key={stage.key} className="flex items-center space-x-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400 w-20">{stage.label}</span>
-            <div className="flex-1 bg-slate-100 dark:bg-slate-600 h-5 relative">
-              <div
-                className={`${stage.color} h-5 transition-all`}
-                style={{ width: `${width}%` }}
-              />
-              <span className="absolute inset-0 flex items-center justify-center text-xs font-mono text-slate-700 dark:text-slate-200">
-                {stage.count}
-              </span>
-            </div>
-            {index > 0 && stage.count > 0 && (
-              <span className="text-xs text-slate-400 w-12 text-right">{conversionRate}%</span>
-            )}
-          </div>
-        );
-      })}
+    <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-slate-600">
+      {stages.map(stage => (
+        <div key={stage.label} className="px-3 py-2 text-center">
+          <div className={`text-xl font-semibold font-mono ${stage.color}`}>{stage.count}</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide mt-0.5">{stage.label}</div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function RateBox({ label, value }: { label: string; value: number }) {
-  const color = value >= 30 ? 'text-green-600 dark:text-green-400' : value >= 15 ? 'text-yellow-600 dark:text-yellow-400' : 'text-slate-600 dark:text-slate-400';
-  return (
-    <div className="text-center">
-      <div className={`text-lg font-semibold font-mono ${color}`}>{value}%</div>
-      <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
-    </div>
-  );
+function getAtsRag(score: number | undefined | null): 'green' | 'amber' | 'red' | null {
+  if (score == null) return null;
+  if (score >= 80) return 'green';
+  if (score >= 50) return 'amber';
+  return 'red';
 }
+
+const RAG_ROW: Record<string, string> = {
+  green: 'bg-green-50 hover:bg-green-100 dark:bg-green-900/10 dark:hover:bg-green-900/20',
+  amber: 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/10 dark:hover:bg-amber-900/20',
+  red:   'bg-red-50   hover:bg-red-100   dark:bg-red-900/10   dark:hover:bg-red-900/20',
+};
+
+const RAG_SCORE_PILL: Record<string, string> = {
+  green: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+  amber: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  red:   'bg-red-100   text-red-700   dark:bg-red-900/40   dark:text-red-300',
+};
 
 function JobRow({ job }: { job: Job }) {
   const navigate = useNavigate();
@@ -313,6 +290,7 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 function ApplicationTableRow({ application }: { application: Application }) {
   const navigate = useNavigate();
   const tier = getMatchTier(application.ats_score);
+  const rag = getAtsRag(application.ats_score);
   const statusConfig = STATUS_CONFIG[application.outcome_status] || STATUS_CONFIG.draft;
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<MatchHistoryEntry[] | null>(null);
@@ -349,7 +327,7 @@ function ApplicationTableRow({ application }: { application: Application }) {
 
   return (
     <tr
-      className="hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
+      className={`cursor-pointer ${rag ? RAG_ROW[rag] : 'hover:bg-slate-50 dark:hover:bg-slate-700'}`}
       onClick={() => navigate(`/job/${application.job_id}`)}
     >
       <td className="px-3 py-2 text-slate-800 dark:text-slate-200 font-medium truncate max-w-[200px]">{application.job_title || application.job_name}</td>
@@ -364,7 +342,14 @@ function ApplicationTableRow({ application }: { application: Application }) {
         {application.model || '-'}
       </td>
       <td className="px-3 py-2 text-right relative" onClick={handleScoreClick}>
-        {tier ? (
+        {tier && rag ? (
+          <div className="flex flex-col items-end cursor-pointer select-none" title="Click to see score history">
+            <span className={`text-xs px-1.5 py-0.5 font-medium ${RAG_SCORE_PILL[rag]}`}>
+              {tier.label}
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{application.ats_score}%</span>
+          </div>
+        ) : tier ? (
           <div className="flex flex-col items-end cursor-pointer select-none" title="Click to see score history">
             <span className={`text-xs px-1.5 py-0.5 ${tier.bgColor} ${tier.color} ${tier.darkBgColor} ${tier.darkTextColor}`}>
               {tier.label}
