@@ -136,6 +136,22 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_match_history_job ON match_history(job_id, created_at)
     ''')
 
+    # Stage transition history table (Idea #493)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS job_stage_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT NOT NULL,
+            from_stage TEXT,
+            to_stage TEXT NOT NULL,
+            transitioned_at TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'manual',
+            FOREIGN KEY (job_id) REFERENCES jobs(job_id)
+        )
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_stage_history_job ON job_stage_history(job_id, transitioned_at)
+    ''')
+
     # Migration: Add outcome tracking columns (for existing databases)
     # These ALTER TABLE statements are idempotent - they'll fail silently if columns exist
     outcome_columns = [
@@ -180,6 +196,30 @@ def init_db():
         except sqlite3.OperationalError:
             # Column already exists, ignore
             pass
+
+    # Migration: Seed job_stage_history from existing timestamp columns (Idea #493)
+    # Only runs once — skipped if any history rows already exist
+    existing_count = cursor.execute("SELECT COUNT(*) FROM job_stage_history").fetchone()[0]
+    if existing_count == 0:
+        cursor.execute("""
+            SELECT job_id, outcome_status, submitted_at, response_at, outcome_at
+            FROM jobs
+            WHERE submitted_at IS NOT NULL OR response_at IS NOT NULL OR outcome_at IS NOT NULL
+        """)
+        rows = cursor.fetchall()
+        seed_rows = []
+        for row in rows:
+            if row["submitted_at"]:
+                seed_rows.append((row["job_id"], None, "submitted", row["submitted_at"], "migration"))
+            if row["response_at"]:
+                seed_rows.append((row["job_id"], "submitted", "response", row["response_at"], "migration"))
+            if row["outcome_at"] and row["outcome_status"] in ("offer", "rejected", "withdrawn"):
+                seed_rows.append((row["job_id"], "response", row["outcome_status"], row["outcome_at"], "migration"))
+        if seed_rows:
+            cursor.executemany(
+                "INSERT INTO job_stage_history (job_id, from_stage, to_stage, transitioned_at, source) VALUES (?, ?, ?, ?, ?)",
+                seed_rows,
+            )
 
     # Candidate profiles table (Idea #233)
     cursor.execute('''
@@ -835,10 +875,36 @@ class JobStore:
         params = list(updates.values()) + [job_id]
         cursor.execute(f"UPDATE jobs SET {set_clause} WHERE job_id = ?", params)
 
+        # Write stage transition history row (Idea #493)
+        from_stage = row["outcome_status"] if row["outcome_status"] else None
+        cursor.execute(
+            "INSERT INTO job_stage_history (job_id, from_stage, to_stage, transitioned_at, source) VALUES (?, ?, ?, ?, ?)",
+            (job_id, from_stage, outcome_status, now, "manual"),
+        )
+
         conn.commit()
         conn.close()
 
         return self.get_job(job_id)
+
+    def get_stage_history(self, job_id: str, user_id: str = None) -> List[Dict[str, Any]]:
+        """Return stage transition history for a job, oldest first."""
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        if user_id:
+            cursor.execute("SELECT job_id FROM jobs WHERE job_id = ? AND user_id = ?", (job_id, user_id))
+            if not cursor.fetchone():
+                conn.close()
+                raise KeyError(f"Job {job_id} not found")
+
+        cursor.execute(
+            "SELECT id, job_id, from_stage, to_stage, transitioned_at, source FROM job_stage_history WHERE job_id = ? ORDER BY transitioned_at ASC",
+            (job_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
 
     def set_profile_include(self, job_id: str, include: bool, user_id: str = None) -> Dict[str, Any]:
         """Toggle a job's inclusion in the position profiling corpus (Idea #242)."""

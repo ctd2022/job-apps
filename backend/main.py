@@ -1356,6 +1356,20 @@ async def get_position_profile(user_id: str = Header(None, alias="X-User-ID")):
     return job_store.get_position_profile(user_id=user_id)
 
 
+@app.get("/api/jobs/{job_id}/stage-history")
+async def get_job_stage_history(
+    job_id: str,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Return stage transition history for a job (Idea #493)."""
+    user_id = user_id or "default"
+    try:
+        history = job_store.get_stage_history(job_id, user_id=user_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    return {"job_id": job_id, "history": history}
+
+
 @app.get("/api/jobs/{job_id}/description")
 async def get_job_description(job_id: str):
     """
