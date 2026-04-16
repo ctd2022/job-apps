@@ -1164,6 +1164,45 @@ async def create_job(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ── Saved Jobs (Wishlist) — must be defined BEFORE /api/jobs/{job_id} ─────────
+
+@app.post("/api/jobs/saved")
+async def create_saved_job(
+    request: SavedJobCreate,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """Create a wishlist job entry without triggering any workflow."""
+    user_id = user_id or "default"
+    job = job_store.create_saved_job(
+        user_id=user_id,
+        job_title=request.job_title,
+        company_name=request.company_name,
+        listing_url=request.listing_url,
+        job_description_text=request.job_description_text,
+        salary=request.salary,
+        employment_type=request.employment_type,
+    )
+    return job
+
+
+@app.get("/api/jobs/saved")
+async def list_saved_jobs(user_id: str = Header(None, alias="X-User-ID")):
+    """List all saved (wishlist) jobs for the current user."""
+    user_id = user_id or "default"
+    jobs = job_store.list_jobs(user_id=user_id, limit=200, outcome_status="saved")
+    return {"jobs": jobs}
+
+
+@app.delete("/api/jobs/saved/{job_id}")
+async def delete_saved_job(job_id: str, user_id: str = Header(None, alias="X-User-ID")):
+    """Remove a job from the wishlist."""
+    user_id = user_id or "default"
+    deleted = job_store.delete_saved_job(job_id=job_id, user_id=user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Saved job {job_id} not found")
+    return {"message": f"Saved job {job_id} removed"}
+
+
 @app.get("/api/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str):
     """Get the status of a job application processing task"""
@@ -1221,45 +1260,6 @@ async def delete_job(job_id: str, user_id: str = Header(None, alias="X-User-ID")
             f.unlink()
 
     return {"message": f"Job {job_id} deleted"}
-
-
-# ── Saved Jobs (Wishlist) ──────────────────────────────────────────────────────
-
-@app.post("/api/jobs/saved")
-async def create_saved_job(
-    request: SavedJobCreate,
-    user_id: str = Header(None, alias="X-User-ID"),
-):
-    """Create a wishlist job entry without triggering any workflow."""
-    user_id = user_id or "default"
-    job = job_store.create_saved_job(
-        user_id=user_id,
-        job_title=request.job_title,
-        company_name=request.company_name,
-        listing_url=request.listing_url,
-        job_description_text=request.job_description_text,
-        salary=request.salary,
-        employment_type=request.employment_type,
-    )
-    return job
-
-
-@app.get("/api/jobs/saved")
-async def list_saved_jobs(user_id: str = Header(None, alias="X-User-ID")):
-    """List all saved (wishlist) jobs for the current user."""
-    user_id = user_id or "default"
-    jobs = job_store.list_jobs(user_id=user_id, limit=200, outcome_status="saved")
-    return {"jobs": jobs}
-
-
-@app.delete("/api/jobs/saved/{job_id}")
-async def delete_saved_job(job_id: str, user_id: str = Header(None, alias="X-User-ID")):
-    """Remove a job from the wishlist."""
-    user_id = user_id or "default"
-    deleted = job_store.delete_saved_job(job_id=job_id, user_id=user_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail=f"Saved job {job_id} not found")
-    return {"message": f"Saved job {job_id} removed"}
 
 
 @app.patch("/api/jobs/{job_id}/outcome")
