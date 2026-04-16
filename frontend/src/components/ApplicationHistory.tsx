@@ -19,6 +19,7 @@ import { getMatchTier } from '../utils/matchTier';
 
 // Status configuration for display
 const STATUS_CONFIG: Record<OutcomeStatus, { label: string; className: string }> = {
+  saved: { label: 'Saved', className: 'bg-amber-100 text-amber-700' },
   draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600' },
   submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-700' },
   response: { label: 'Response', className: 'bg-indigo-100 text-indigo-700' },

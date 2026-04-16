@@ -2,6 +2,7 @@
 
 // Outcome status for application tracking
 export type OutcomeStatus =
+  | 'saved'
   | 'draft'
   | 'submitted'
   | 'response'
@@ -9,6 +10,27 @@ export type OutcomeStatus =
   | 'offer'
   | 'rejected'
   | 'withdrawn';
+
+// Wishlist job quick-add (Idea #491)
+export interface SavedJobCreate {
+  job_title: string;
+  company_name: string;
+  listing_url?: string;
+  job_description_text?: string;
+  salary?: string;
+  employment_type?: string;
+}
+
+export interface SavedJob {
+  job_id: string;
+  job_title: string;
+  company_name: string;
+  listing_url?: string | null;
+  job_description_text?: string | null;
+  salary?: string | null;
+  employment_type?: string | null;
+  created_at: string;
+}
 
 export interface Backend {
   id: string;

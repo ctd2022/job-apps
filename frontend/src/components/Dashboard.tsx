@@ -9,9 +9,13 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Bookmark,
+  Plus,
+  X,
+  ExternalLink,
 } from 'lucide-react';
-import { getHealth, getJobs, getApplications, getMetrics, getMatchHistory } from '../api';
-import type { Job, Application, HealthStatus, MatchHistoryEntry, Metrics } from '../types';
+import { getHealth, getJobs, getApplications, getMetrics, getMatchHistory, getSavedJobs, createSavedJob, deleteSavedJob } from '../api';
+import type { Job, Application, HealthStatus, MatchHistoryEntry, Metrics, SavedJob } from '../types';
 import { getMatchTier } from '../utils/matchTier';
 import PipelineDiagnosis from './PipelineDiagnosis';
 
@@ -20,6 +24,7 @@ function Dashboard() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [savedJobs, setSavedJobs] = useState<SavedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,16 +36,18 @@ function Dashboard() {
 
   async function loadData() {
     try {
-      const [healthData, jobsData, appsData, metricsData] = await Promise.all([
+      const [healthData, jobsData, appsData, metricsData, savedData] = await Promise.all([
         getHealth(),
         getJobs(),
         getApplications(),
         getMetrics(),
+        getSavedJobs(),
       ]);
       setHealth(healthData);
       setJobs(Array.isArray(jobsData) ? jobsData : ((jobsData as any)?.jobs || []));
       setApplications(appsData);
       setMetrics(metricsData);
+      setSavedJobs(savedData);
       setError(null);
     } catch (err) {
       console.error('API Error:', err);
@@ -48,6 +55,11 @@ function Dashboard() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleDeleteSaved(jobId: string) {
+    await deleteSavedJob(jobId);
+    setSavedJobs(prev => prev.filter(j => j.job_id !== jobId));
   }
 
   const [visibleCount, setVisibleCount] = useState(8);
@@ -147,6 +159,13 @@ function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Saved Jobs (Wishlist) */}
+      <SavedJobsSection
+        savedJobs={savedJobs}
+        onDelete={handleDeleteSaved}
+        onCreated={(job) => setSavedJobs(prev => [job, ...prev])}
+      />
 
       {/* Recent Applications */}
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
@@ -431,6 +450,241 @@ function formatTimestamp(timestamp: string): string {
   if (!match) return timestamp;
   const [, , month, day, hour, minute] = match;
   return `${day}/${month} ${hour}:${minute}`;
+}
+
+// ── Saved Jobs / Wishlist (Idea #491) ─────────────────────────────────────────
+
+const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Freelance', 'Internship'];
+
+function SavedJobsSection({
+  savedJobs,
+  onDelete,
+  onCreated,
+}: {
+  savedJobs: SavedJob[];
+  onDelete: (jobId: string) => void;
+  onCreated: (job: SavedJob) => void;
+}) {
+  const navigate = useNavigate();
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const [title, setTitle] = useState('');
+  const [company, setCompany] = useState('');
+  const [url, setUrl] = useState('');
+  const [jdText, setJdText] = useState('');
+  const [salary, setSalary] = useState('');
+  const [empType, setEmpType] = useState('');
+
+  function resetForm() {
+    setTitle(''); setCompany(''); setUrl(''); setJdText(''); setSalary(''); setEmpType('');
+    setFormError(null);
+    setShowForm(false);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim() || !company.trim()) {
+      setFormError('Job title and company are required.');
+      return;
+    }
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      const job = await createSavedJob({
+        job_title: title.trim(),
+        company_name: company.trim(),
+        listing_url: url.trim() || undefined,
+        job_description_text: jdText.trim() || undefined,
+        salary: salary.trim() || undefined,
+        employment_type: empType || undefined,
+      });
+      onCreated(job as SavedJob);
+      resetForm();
+    } catch (err: any) {
+      setFormError(err?.message || 'Failed to save job.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handlePromote(job: SavedJob) {
+    navigate('/new', {
+      state: {
+        savedJob: {
+          title: job.job_title,
+          company: job.company_name,
+          jdText: job.job_description_text || '',
+        },
+      },
+    });
+  }
+
+  return (
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+      {/* Header */}
+      <div className="px-3 py-2 bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600 flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Bookmark className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+          <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+            Saved Jobs
+          </span>
+          {savedJobs.length > 0 && (
+            <span className="text-xs text-slate-400 font-mono">({savedJobs.length})</span>
+          )}
+        </div>
+        <button
+          onClick={() => setShowForm(v => !v)}
+          className="flex items-center space-x-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+        >
+          {showForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+          <span>{showForm ? 'Cancel' : 'Add'}</span>
+        </button>
+      </div>
+
+      {/* Quick-add form */}
+      {showForm && (
+        <form onSubmit={handleSubmit} className="px-3 py-3 border-b border-slate-100 dark:border-slate-700 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-0.5">Job Title *</label>
+              <input
+                className="w-full text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 px-2 py-1 focus:outline-none focus:border-slate-400"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="e.g. Senior Engineer"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-0.5">Company *</label>
+              <input
+                className="w-full text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 px-2 py-1 focus:outline-none focus:border-slate-400"
+                value={company}
+                onChange={e => setCompany(e.target.value)}
+                placeholder="e.g. Acme Ltd"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-0.5">Listing URL</label>
+              <input
+                className="w-full text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 px-2 py-1 focus:outline-none focus:border-slate-400"
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-0.5">Salary</label>
+              <input
+                className="w-full text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 px-2 py-1 focus:outline-none focus:border-slate-400"
+                value={salary}
+                onChange={e => setSalary(e.target.value)}
+                placeholder="e.g. 60,000"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-0.5">Employment Type</label>
+            <select
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 px-2 py-1 focus:outline-none focus:border-slate-400"
+              value={empType}
+              onChange={e => setEmpType(e.target.value)}
+            >
+              <option value="">— select —</option>
+              {EMPLOYMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-0.5">Job Description</label>
+            <textarea
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 px-2 py-1 focus:outline-none focus:border-slate-400 resize-none"
+              rows={4}
+              value={jdText}
+              onChange={e => setJdText(e.target.value)}
+              placeholder="Paste the job description here..."
+            />
+          </div>
+          {formError && (
+            <p className="text-xs text-red-600 dark:text-red-400">{formError}</p>
+          )}
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 dark:bg-slate-600 text-white text-xs font-medium hover:bg-slate-900 dark:hover:bg-slate-500 disabled:opacity-50"
+            >
+              {submitting && <Loader2 className="w-3 h-3 animate-spin" />}
+              <span>{submitting ? 'Saving...' : 'Save Job'}</span>
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Saved jobs list */}
+      {savedJobs.length === 0 && !showForm ? (
+        <div className="p-4 text-center text-sm text-slate-400">
+          No saved jobs. Click Add to capture a job before you apply.
+        </div>
+      ) : savedJobs.length > 0 ? (
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-700 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+            <tr>
+              <th className="text-left px-3 py-2 font-medium">Job</th>
+              <th className="text-left px-3 py-2 font-medium">Company</th>
+              <th className="text-left px-3 py-2 font-medium">Type</th>
+              <th className="text-left px-3 py-2 font-medium">Salary</th>
+              <th className="text-right px-3 py-2 font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+            {savedJobs.map(job => (
+              <tr key={job.job_id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
+                <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200 max-w-[200px] truncate">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="truncate">{job.job_title}</span>
+                    {job.listing_url && (
+                      <a
+                        href={job.listing_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex-shrink-0"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                </td>
+                <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{job.company_name}</td>
+                <td className="px-3 py-2 text-slate-500 dark:text-slate-400 text-xs">{job.employment_type || '-'}</td>
+                <td className="px-3 py-2 text-slate-500 dark:text-slate-400 text-xs">{job.salary || '-'}</td>
+                <td className="px-3 py-2 text-right">
+                  <div className="flex items-center justify-end space-x-2">
+                    <button
+                      onClick={() => handlePromote(job)}
+                      className="text-xs px-2 py-0.5 bg-slate-800 dark:bg-slate-600 text-white hover:bg-slate-900 dark:hover:bg-slate-500"
+                    >
+                      Apply
+                    </button>
+                    <button
+                      onClick={() => onDelete(job.job_id)}
+                      className="text-slate-400 hover:text-red-500 dark:hover:text-red-400"
+                      title="Remove from saved"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </div>
+  );
 }
 
 export default Dashboard;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Upload,
   Loader2,
@@ -23,6 +23,7 @@ import { getMatchTier, getScoreBarColor } from '../utils/matchTier';
 
 function NewApplication() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [backends, setBackends] = useState<Backend[]>([]);
   const [storedCVs, setStoredCVs] = useState<StoredCV[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +64,18 @@ function NewApplication() {
 
   useEffect(() => {
     loadInitialData();
+  }, []);
+
+  // Pre-fill from a promoted saved job (Idea #491)
+  useEffect(() => {
+    const saved = (location.state as any)?.savedJob;
+    if (!saved) return;
+    if (saved.title) setJobTitle(saved.title);
+    if (saved.company) setCompanyName(saved.company);
+    if (saved.jdText) {
+      setJobDescText(saved.jdText);
+      setJobDescMode('paste');
+    }
   }, []);
 
   async function loadInitialData() {

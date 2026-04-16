@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, JobMetadataUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, JobMetadataUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate, SavedJobCreate, SavedJob } from './types';
 
 const API_BASE = '/api';
 
@@ -965,6 +965,33 @@ export async function reorderProfessionalDevelopment(orderedIds: number[]): Prom
 }
 
 export { ApiError };
+
+// ============================================================================
+// Saved Jobs / Wishlist (Idea #491)
+// ============================================================================
+
+export async function getSavedJobs(): Promise<SavedJob[]> {
+  const response = await fetch(`${API_BASE}/jobs/saved`, { headers: getUserHeaders() });
+  const data = await handleResponse<{ jobs: SavedJob[] }>(response);
+  return data.jobs || [];
+}
+
+export async function createSavedJob(data: SavedJobCreate): Promise<SavedJob> {
+  const response = await fetch(`${API_BASE}/jobs/saved`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(data),
+  });
+  return handleResponse(response);
+}
+
+export async function deleteSavedJob(jobId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/jobs/saved/${jobId}`, {
+    method: 'DELETE',
+    headers: getUserHeaders(),
+  });
+  await handleResponse(response);
+}
 
 // ============================================================================
 // Theme Management

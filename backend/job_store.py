@@ -22,6 +22,7 @@ class JobStatus(str, Enum):
 
 class OutcomeStatus(str, Enum):
     """Application outcome status - tracks what happens after documents are generated."""
+    saved = "saved"           # Wishlist — captured before applying, no workflow triggered
     draft = "draft"           # Documents generated, not yet submitted
     submitted = "submitted"   # Application submitted to company
     response = "response"     # Got a response (not interview)
@@ -538,6 +539,70 @@ class JobStore:
         conn.commit()
         conn.close()
         return job
+
+    def create_saved_job(
+        self,
+        user_id: str,
+        job_title: str,
+        company_name: str,
+        listing_url: Optional[str] = None,
+        job_description_text: Optional[str] = None,
+        salary: Optional[str] = None,
+        employment_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a wishlist (Saved) job record — no workflow triggered."""
+        import uuid
+        job_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO jobs (
+                job_id, user_id, status, progress, current_step, message,
+                created_at, updated_at, outcome_status,
+                company_name, job_title, listing_url, job_description_text,
+                salary, employment_type,
+                output_dir, ats_score, files, error, cv_path, job_desc_path, backend_type,
+                submitted_at, response_at, outcome_at, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            job_id, user_id, "completed", 100, "Saved", "Saved to wishlist",
+            now, now, OutcomeStatus.saved.value,
+            company_name, job_title, listing_url, job_description_text,
+            salary, employment_type,
+            None, None, "[]", None, None, None, None,
+            None, None, None, None,
+        ))
+        conn.commit()
+        conn.close()
+
+        return {
+            "job_id": job_id,
+            "user_id": user_id,
+            "status": "completed",
+            "outcome_status": OutcomeStatus.saved.value,
+            "company_name": company_name,
+            "job_title": job_title,
+            "listing_url": listing_url,
+            "job_description_text": job_description_text,
+            "salary": salary,
+            "employment_type": employment_type,
+            "created_at": now,
+        }
+
+    def delete_saved_job(self, job_id: str, user_id: str) -> bool:
+        """Delete a saved (wishlist) job. Only removes jobs with outcome_status='saved'."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM jobs WHERE job_id = ? AND user_id = ? AND outcome_status = 'saved'",
+            (job_id, user_id),
+        )
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
 
     def update_job(self, job_id: str, user_id: str = None, **kwargs) -> Dict[str, Any]:
         """Update job status. If user_id provided, verifies ownership."""
