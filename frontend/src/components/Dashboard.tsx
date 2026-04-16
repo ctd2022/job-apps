@@ -667,7 +667,7 @@ function SavedJobsSection({
                       onClick={() => handlePromote(job)}
                       className="text-xs px-2 py-0.5 bg-slate-800 dark:bg-slate-600 text-white hover:bg-slate-900 dark:hover:bg-slate-500"
                     >
-                      Apply
+                      Prepare
                     </button>
                     <button
                       onClick={() => onDelete(job.job_id)}
