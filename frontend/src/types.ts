@@ -605,6 +605,13 @@ export interface CorpusJob {
   ats_score: number | null;
 }
 
+// Epic #36: Onboarding wizard
+export interface OnboardingStatus {
+  has_profile: boolean;
+  has_cv: boolean;
+  has_saved_job: boolean;
+}
+
 export interface PositionProfileData {
   job_count: number;
   skill_frequency: SkillFrequency[];

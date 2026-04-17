@@ -10,7 +10,8 @@ import CvCoach from './components/CvCoach';
 import CandidateProfile from './components/CandidateProfile';
 import PositionProfile from './components/PositionProfile';
 import ErrorBoundary from './components/ErrorBoundary';
-import { getUsers, createUser, setCurrentUser, getCurrentUser, initTheme, setTheme, Theme } from './api';
+import OnboardingWizard from './components/OnboardingWizard';
+import { getUsers, createUser, setCurrentUser, getCurrentUser, initTheme, setTheme, getOnboardingStatus, Theme } from './api';
 import type { User as UserType } from './types';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
   const [newUserName, setNewUserName] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [theme, setThemeState] = useState<Theme>('light');
+  const [onboardingStep, setOnboardingStep] = useState<number | null>(null); // null = not yet determined
 
   // Initialize theme on mount
   useEffect(() => {
@@ -51,10 +53,37 @@ function App() {
     setThemeState(newTheme);
   }, [theme]);
 
+  // Check onboarding status whenever the active user changes
+  useEffect(() => {
+    const dismissed = localStorage.getItem(`onboarding_dismissed_${currentUserId}`);
+    if (dismissed) { setOnboardingStep(null); return; }
+    getOnboardingStatus()
+      .then(status => {
+        if (!status.has_profile) { setOnboardingStep(1); return; }
+        if (!status.has_cv) { setOnboardingStep(2); return; }
+        if (!status.has_saved_job) { setOnboardingStep(3); return; }
+        // All done — mark dismissed so we don't re-check on next load
+        localStorage.setItem(`onboarding_dismissed_${currentUserId}`, 'true');
+        setOnboardingStep(null);
+      })
+      .catch(() => setOnboardingStep(null)); // Never block the app
+  }, [currentUserId]);
+
+  const refreshUsers = useCallback(() => {
+    getUsers().then(u => setUsers(u)).catch(() => {});
+  }, []);
+
+  const handleOnboardingComplete = useCallback(() => {
+    localStorage.setItem(`onboarding_dismissed_${currentUserId}`, 'true');
+    setOnboardingStep(null);
+    setRefreshKey(prev => prev + 1);
+  }, [currentUserId]);
+
   // Handle user change
   const handleUserChange = useCallback((userId: string) => {
     setCurrentUser(userId);
     setCurrentUserId(userId);
+    setOnboardingStep(null); // Re-evaluate for new user
     setRefreshKey(prev => prev + 1); // Trigger refresh of child components
   }, []);
 
@@ -188,6 +217,16 @@ function App() {
           )}
         </div>
       </footer>
+
+      {/* Onboarding Wizard (Epic #36) */}
+      {onboardingStep !== null && (
+        <OnboardingWizard
+          userId={currentUserId}
+          initialStep={onboardingStep}
+          onComplete={handleOnboardingComplete}
+          onUsersUpdated={refreshUsers}
+        />
+      )}
 
       {/* New User Modal */}
       {showNewUserModal && (

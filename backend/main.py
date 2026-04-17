@@ -946,6 +946,21 @@ async def get_user(user_id: str):
     return UserResponse(**user)
 
 
+class UserRenameRequest(BaseModel):
+    name: str
+
+
+@app.patch("/api/users/{user_id}", response_model=UserResponse)
+async def rename_user(user_id: str, request: UserRenameRequest):
+    """Rename a user (updates the dropdown display name)."""
+    if not request.name.strip():
+        raise HTTPException(status_code=422, detail="Name cannot be empty")
+    user = user_store.rename_user(user_id, request.name)
+    if not user:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+    return UserResponse(**user)
+
+
 @app.get("/api/backends", response_model=BackendListResponse)
 async def list_backends():
     """List available LLM backends and their configuration options"""
@@ -2834,6 +2849,20 @@ async def websocket_job_progress(websocket: WebSocket, job_id: str):
 # ============================================================================
 # Candidate Profile Endpoints (Idea #233)
 # ============================================================================
+
+@app.get("/api/onboarding/status")
+async def get_onboarding_status(user_id: str = Header(None, alias="X-User-ID")):
+    """Return checklist of onboarding steps the user has completed (Epic #36)."""
+    uid = user_id or "default"
+    profile = profile_store.get_or_create_profile(uid)
+    cvs = cv_store.list_cvs(uid)
+    saved = job_store.list_jobs(user_id=uid, limit=1, outcome_status="saved")
+    return {
+        "has_profile": bool(profile.get("full_name")),
+        "has_cv": len(cvs) > 0,
+        "has_saved_job": len(saved) > 0,
+    }
+
 
 @app.get("/api/profile")
 async def get_profile(user_id: str = Header(None, alias="X-User-ID")):

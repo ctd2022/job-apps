@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, JobMetadataUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate, SavedJobCreate, SavedJob } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, JobMetadataUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate, SavedJobCreate, SavedJob, OnboardingStatus } from './types';
 
 const API_BASE = '/api';
 
@@ -78,6 +78,15 @@ export async function createUser(name: string): Promise<User> {
 
 export async function getUser(userId: string): Promise<User> {
   const response = await fetch(`${API_BASE}/users/${userId}`);
+  return handleResponse(response);
+}
+
+export async function renameUser(userId: string, name: string): Promise<User> {
+  const response = await fetch(`${API_BASE}/users/${userId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
   return handleResponse(response);
 }
 
@@ -969,6 +978,12 @@ export { ApiError };
 // ============================================================================
 // Saved Jobs / Wishlist (Idea #491)
 // ============================================================================
+
+// Epic #36: Onboarding wizard
+export async function getOnboardingStatus(): Promise<OnboardingStatus> {
+  const response = await fetch(`${API_BASE}/onboarding/status`, { headers: getUserHeaders() });
+  return handleResponse<OnboardingStatus>(response);
+}
 
 export async function getSavedJobs(): Promise<SavedJob[]> {
   const response = await fetch(`${API_BASE}/jobs/saved`, { headers: getUserHeaders() });

@@ -176,8 +176,17 @@ function Dashboard() {
           </Link>
         </div>
         {recentApps.length === 0 ? (
-          <div className="p-4 text-center text-sm text-slate-400">
-            No applications yet
+          <div className="p-6 text-center space-y-3">
+            <p className="text-sm text-slate-500 dark:text-slate-400">No applications yet.</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              Save a job below, then generate a tailored CV and cover letter.
+            </p>
+            <Link
+              to="/new"
+              className="inline-block px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+            >
+              Start first application
+            </Link>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -625,8 +634,11 @@ function SavedJobsSection({
 
       {/* Saved jobs list */}
       {savedJobs.length === 0 && !showForm ? (
-        <div className="p-4 text-center text-sm text-slate-400">
-          No saved jobs. Click Add to capture a job before you apply.
+        <div className="p-6 text-center space-y-2">
+          <p className="text-sm text-slate-500 dark:text-slate-400">No saved jobs yet.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Click <span className="font-medium">Add</span> above to capture a role before you apply — keeps your pipeline organised.
+          </p>
         </div>
       ) : savedJobs.length > 0 ? (
         <table className="w-full text-sm">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Upload,
   Star,
@@ -316,9 +317,18 @@ function CVManager() {
 
       {/* CV list */}
       {cvs.length === 0 ? (
-        <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+        <div className="text-center py-12 text-slate-500 dark:text-slate-400 space-y-3">
           <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p className="text-sm">No CVs uploaded yet. Click "Upload CV" to get started.</p>
+          <p className="text-sm font-medium">No CVs stored yet.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 max-w-xs mx-auto">
+            Upload a PDF or DOCX above, or build your CV from your work history in Profile.
+          </p>
+          <Link
+            to="/profile"
+            className="inline-block px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+          >
+            Go to Profile
+          </Link>
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">

@@ -515,6 +515,17 @@ class UserStore:
             "created_at": row["created_at"],
         } for row in rows]
 
+    def rename_user(self, user_id: str, name: str) -> Optional[Dict[str, Any]]:
+        """Update a user's display name."""
+        conn = get_connection()
+        conn.execute(
+            "UPDATE users SET name = ? WHERE id = ?",
+            (name.strip(), user_id),
+        )
+        conn.commit()
+        conn.close()
+        return self.get_user(user_id)
+
 
 class JobStore:
     """SQLite-backed store for job processing status."""
