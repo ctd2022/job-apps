@@ -1,4 +1,9 @@
-﻿# GEMINI.md - Secondary Agent Context
+﻿---
+inherits:
+  - ../../../GEMINI.md
+---
+
+# GEMINI.md - Secondary Agent Context
 
 **Role**: You (Gemini) are a **Secondary Agent** on this project. Claude Code is the **Lead Architect**.
 
@@ -113,6 +118,7 @@ See `docs/API.md` for all endpoints. Key pattern: most endpoints accept `X-User-
 - Use `JobStore` class for all database operations
 - Encoding: handle Windows cp1252 - use text labels `[OK]` not emojis
 - Error handling: graceful degradation (e.g., semantic scorer falls back when unavailable)
+- **Error handling (user-facing)**: never silently discard errors on user-initiated operations. Helper functions doing external I/O (LLM calls, HTTP, subprocesses) must raise on failure or return `(result, error_str)` — never swallow and return empty. Ask: *will the user know this failed?*
 
 ### TypeScript / React
 - Functional components with hooks (no class components)
