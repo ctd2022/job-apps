@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, ExternalLink, ChevronRight, Eye, EyeOff, Wand2, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, Loader2, ExternalLink, ChevronRight, Eye, EyeOff, Wand2, RefreshCw } from 'lucide-react';
 import {
   getProfile,
   updateProfile,
@@ -34,7 +34,9 @@ import {
   reorderEducation,
   assembleCV,
   generateSummary,
+  refreshCPDSuggestions,
 } from '../api';
+import SlidingPanel from './SlidingPanel';
 import type {
   CandidateProfile as ProfileType,
   JobHistoryRecord,
@@ -56,6 +58,7 @@ import type {
   Education,
   EducationCreate,
   SectionConfig,
+  CPDSuggestion,
 } from '../types';
 
 // ─── Job modal form state ────────────────────────────────────────────────────
@@ -1581,6 +1584,73 @@ function ProfessionalDevelopmentSection({ pdItems, certifications, onChange, onC
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [savingPD, setSavingPD] = useState(false);
 
+  // CPD Intelligence state (Epic #37)
+  const [cpdPanelOpen, setCpdPanelOpen] = useState(false);
+  const [cpdLoading, setCpdLoading] = useState(false);
+  const [cpdSuggestions, setCpdSuggestions] = useState<CPDSuggestion[]>([]);
+  const [cpdError, setCpdError] = useState<string | null>(null);
+  const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
+  const [addingFromCPD, setAddingFromCPD] = useState(false);
+
+  const handleCPDRefresh = async () => {
+    setCpdLoading(true);
+    setCpdError(null);
+    try {
+      const result = await refreshCPDSuggestions();
+      setCpdSuggestions(result.suggestions);
+      setCheckedItems(new Set());
+      setCpdPanelOpen(true);
+    } catch (e) {
+      setCpdError(e instanceof Error ? e.message : 'Failed to generate suggestions');
+    } finally {
+      setCpdLoading(false);
+    }
+  };
+
+  const toggleItem = (idx: number) => {
+    setCheckedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const handleAddFromCPD = async () => {
+    const toAdd = cpdSuggestions.filter((_, i) => checkedItems.has(i));
+    if (toAdd.length === 0) return;
+    setAddingFromCPD(true);
+    setCpdError(null);
+    const added: ProfessionalDevelopment[] = [];
+    try {
+      for (let i = 0; i < toAdd.length; i++) {
+        const s = toAdd[i];
+        const created = await createProfessionalDevelopment({
+          type: s.type,
+          title: s.title,
+          provider: s.provider || null,
+          status: 'In Progress',
+          start_date: null,
+          target_completion: null,
+          completed_date: null,
+          leads_to_credential: s.type === 'Certification',
+          credential_url: null,
+          show_on_cv: true,
+          notes: s.relevance,
+          display_order: pdItems.length + added.length,
+        });
+        added.push(created);
+      }
+      onChange([...pdItems, ...added]);
+      setCpdPanelOpen(false);
+      setCheckedItems(new Set());
+    } catch (e) {
+      setCpdError(e instanceof Error ? e.message : 'Failed to add some activities');
+      if (added.length > 0) onChange([...pdItems, ...added]);
+    } finally {
+      setAddingFromCPD(false);
+    }
+  };
+
   const movePD = useCallback(async (index: number, direction: -1 | 1) => {
     const newList = [...pdItems];
     const swapIdx = index + direction;
@@ -1686,12 +1756,25 @@ function ProfessionalDevelopmentSection({ pdItems, certifications, onChange, onC
       <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-slate-800 dark:text-slate-100">Professional Development</h2>
-          <button
-            onClick={() => setAddingPD(true)}
-            className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded hover:bg-blue-700"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add Activity
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCPDRefresh}
+              disabled={cpdLoading}
+              title="Get AI-powered CPD suggestions"
+              className="flex items-center gap-1 text-xs bg-violet-600 text-white px-2.5 py-1.5 rounded hover:bg-violet-700 disabled:opacity-60"
+            >
+              {cpdLoading
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Wand2 className="w-3.5 h-3.5" />}
+              Refresh CPD
+            </button>
+            <button
+              onClick={() => setAddingPD(true)}
+              className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded hover:bg-blue-700"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Activity
+            </button>
+          </div>
         </div>
 
         {pdItems.length === 0 ? (
@@ -1798,6 +1881,108 @@ function ProfessionalDevelopmentSection({ pdItems, certifications, onChange, onC
           onClose={() => setEditingPD(null)}
         />
       )}
+
+      <SlidingPanel
+        open={cpdPanelOpen}
+        onClose={() => setCpdPanelOpen(false)}
+        title="CPD Suggestions"
+        subtitle="Select activities to add to your Professional Development"
+      >
+        <div className="flex flex-col h-full">
+          {/* Select all bar */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex-shrink-0">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {cpdSuggestions.length} suggestion{cpdSuggestions.length !== 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={() =>
+                setCheckedItems(
+                  checkedItems.size === cpdSuggestions.length
+                    ? new Set()
+                    : new Set(cpdSuggestions.map((_, i) => i))
+                )
+              }
+              className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+            >
+              {checkedItems.size === cpdSuggestions.length ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
+
+          {/* Suggestion list */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {cpdError && (
+              <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
+                {cpdError}
+              </div>
+            )}
+            {cpdSuggestions.map((s, idx) => (
+              <label
+                key={idx}
+                className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer hover:border-violet-300 dark:hover:border-violet-600 transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={checkedItems.has(idx)}
+                  onChange={() => toggleItem(idx)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-violet-600 accent-violet-600 flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${PD_TYPE_COLOURS[s.type]}`}>
+                      {s.type}
+                    </span>
+                    {/* priority dots */}
+                    <span className="flex gap-0.5" title={`Priority ${s.priority}/5`}>
+                      {[1,2,3,4,5].map(n => (
+                        <span
+                          key={n}
+                          className={`w-1.5 h-1.5 rounded-full ${n <= s.priority ? 'bg-violet-500' : 'bg-slate-200 dark:bg-slate-600'}`}
+                        />
+                      ))}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug">{s.title}</p>
+                  {s.provider && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.provider}</p>
+                  )}
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">{s.relevance}</p>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    {s.estimated_time && (
+                      <span className="text-xs text-slate-400 dark:text-slate-500">{s.estimated_time}</span>
+                    )}
+                    {s.url && (
+                      <a
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        <ExternalLink className="w-3 h-3" /> More info
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {/* Sticky footer */}
+          <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between flex-shrink-0 bg-white dark:bg-slate-800">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {checkedItems.size} selected
+            </span>
+            <button
+              onClick={handleAddFromCPD}
+              disabled={checkedItems.size === 0 || addingFromCPD}
+              className="flex items-center gap-1.5 text-xs bg-violet-600 text-white px-3 py-1.5 rounded hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {addingFromCPD && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              Add {checkedItems.size > 0 ? checkedItems.size : ''} selected
+            </button>
+          </div>
+        </div>
+      </SlidingPanel>
     </>
   );
 }

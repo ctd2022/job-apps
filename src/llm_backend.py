@@ -101,14 +101,15 @@ class GeminiBackend(LLMBackend):
     """Google Gemini API backend with rate limiting"""
     
     def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-2.0-flash",
-                 requests_per_minute: int = 10):
+                 requests_per_minute: int = 10, enable_search: bool = False):
         self.api_key = api_key or os.environ.get('GEMINI_API_KEY')
         if not self.api_key:
             raise ValueError("Gemini API key not provided. Set GEMINI_API_KEY environment variable.")
-        
+
         self.model = model_name
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
-        
+        self.enable_search = enable_search
+
         # Rate limiting
         self.requests_per_minute = requests_per_minute
         self.min_interval = 60.0 / requests_per_minute
@@ -159,7 +160,10 @@ class GeminiBackend(LLMBackend):
             payload["systemInstruction"] = {
                 "parts": [{"text": system_instruction}]
             }
-        
+
+        if self.enable_search:
+            payload["tools"] = [{"google_search": {}}]
+
         url = f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}"
         
         try:
@@ -267,7 +271,8 @@ class LLMBackendFactory:
             return GeminiBackend(
                 api_key=kwargs.get('api_key'),
                 model_name=kwargs.get('model_name', 'gemini-2.0-flash'),
-                requests_per_minute=kwargs.get('requests_per_minute', 10)
+                requests_per_minute=kwargs.get('requests_per_minute', 10),
+                enable_search=kwargs.get('enable_search', False),
             )
 
         elif backend_type == 'mistral':

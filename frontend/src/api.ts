@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, JobMetadataUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate, SavedJobCreate, SavedJob, OnboardingStatus } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, JobMetadataUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate, SavedJobCreate, SavedJob, OnboardingStatus, CPDRefreshResponse } from './types';
 
 const API_BASE = '/api';
 
@@ -1036,4 +1036,24 @@ export function initTheme(): Theme {
   const theme = getTheme();
   setTheme(theme);
   return theme;
+}
+
+// ============================================================================
+// CPD Intelligence (Epic #37)
+// ============================================================================
+
+export async function refreshCPDSuggestions(
+  backendType?: string,
+  modelName?: string,
+  enableSearch = true,
+): Promise<CPDRefreshResponse> {
+  const body: Record<string, unknown> = { enable_search: enableSearch };
+  if (backendType) body.backend_type = backendType;
+  if (modelName) body.model_name = modelName;
+  const response = await fetch(`${API_BASE}/profile/cpd-refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify(body),
+  });
+  return handleResponse<CPDRefreshResponse>(response);
 }

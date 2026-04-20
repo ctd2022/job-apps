@@ -278,6 +278,12 @@ class GenerateSummaryRequest(BaseModel):
     model_name: Optional[str] = None
 
 
+class CPDRefreshRequest(BaseModel):
+    backend_type: Optional[str] = None
+    model_name: Optional[str] = None
+    enable_search: bool = True
+
+
 # Idea #233: Candidate Profile models
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -546,14 +552,14 @@ async def update_job_and_broadcast(job_id: str, **kwargs):
     return job
 
 
-def _build_backend_config(backend_type: str, model_name: Optional[str] = None) -> Dict[str, Any]:
+def _build_backend_config(backend_type: str, model_name: Optional[str] = None, enable_search: bool = False) -> Dict[str, Any]:
     """Build kwargs dict for LLMBackendFactory.create_backend() given a backend type."""
     if backend_type == "ollama":
         return {"model_name": model_name or "llama3.1:8b"}
     elif backend_type == "llamacpp":
         return {"model_name": model_name or "gemma-3-27B", "base_url": "http://localhost:8080"}
     elif backend_type == "gemini":
-        return {"model_name": model_name or "gemini-2.0-flash", "api_key": os.environ.get("GEMINI_API_KEY")}
+        return {"model_name": model_name or "gemini-2.0-flash", "api_key": os.environ.get("GEMINI_API_KEY"), "enable_search": enable_search}
     elif backend_type == "mistral":
         return {"model_name": model_name or "mistral-small-latest", "api_key": os.environ.get("MISTRAL_API_KEY")}
     return {}
@@ -2802,6 +2808,155 @@ async def generate_summary_endpoint(
         f"{'─' * 60}\n"
     )
     return {"summary": summary, "debug_prompt": debug_header + debug_prompt}
+
+
+# ============================================================================
+# CPD Intelligence: AI-Powered Development Recommendations (Epic #37)
+# ============================================================================
+
+_CPD_VALID_TYPES = {
+    "Certification",
+    "Course / Training",
+    "Degree / Qualification",
+    "Professional Membership",
+    "Conference / Event",
+    "Self-directed",
+}
+
+_CPD_SYSTEM_PROMPT = (
+    "You are a professional development adviser. Analyse the candidate profile provided and "
+    "recommend specific certifications, courses, qualifications, and memberships that would "
+    "genuinely advance their career. Focus on current, recognised credentials they do not yet hold. "
+    "Respond ONLY with a JSON array — no markdown fences, no prose before or after the array."
+)
+
+_CPD_USER_TEMPLATE = """\
+CANDIDATE PROFILE:
+{profile_context}
+
+Return 5 to 10 CPD suggestions tailored to this specific candidate.
+
+Each suggestion must be a JSON object with exactly these keys:
+  "title"          – exact name of the certification, course, or qualification
+  "provider"       – issuing organisation or platform
+  "type"           – one of: Certification, Course / Training, Degree / Qualification, \
+Professional Membership, Conference / Event, Self-directed
+  "relevance"      – 1-2 sentences explaining why this suits this specific candidate
+  "url"            – official URL if known, otherwise null
+  "estimated_time" – e.g. "3 months", "6-12 months", "1 week"
+  "priority"       – integer 1 (low) to 5 (highest relevance to this candidate)
+
+JSON array only:"""
+
+
+@app.post("/api/profile/cpd-refresh")
+async def cpd_refresh(
+    request: CPDRefreshRequest,
+    x_user_id: Optional[str] = Header(None),
+):
+    """Generate AI-powered CPD recommendations for the candidate profile (Epic #37, Idea #656)."""
+    user_id = x_user_id or "default"
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Workflow modules not available")
+
+    backend_type = request.backend_type or _default_cloud_backend()
+    # Google Search grounding is only supported by the Gemini backend
+    effective_search = request.enable_search and backend_type == "gemini"
+    backend_config = _build_backend_config(backend_type, request.model_name, enable_search=effective_search)
+
+    try:
+        backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Could not initialise LLM backend: {e}")
+
+    profile = profile_store.get_or_create_profile(user_id)
+    job_history_records = profile_store.list_job_history(user_id)
+    certifications = profile_store.list_certifications(user_id)
+    skills = profile_store.list_skills(user_id)
+    education = profile_store.list_education(user_id)
+    pd_items = profile_store.list_professional_development(user_id)
+
+    profile_context = _build_profile_context(
+        profile, job_history_records, certifications, skills, education, pd_items
+    )
+    if not profile_context.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="No profile content found — add work experience, skills, or certifications first",
+        )
+
+    scrub_result = pii_scrubber.scrub(profile_context, profile, job_history_records)
+    user_message = _CPD_USER_TEMPLATE.format(profile_context=scrub_result.scrubbed_text)
+    messages = [
+        {"role": "system", "content": _CPD_SYSTEM_PROMPT},
+        {"role": "user", "content": user_message},
+    ]
+
+    loop = asyncio.get_event_loop()
+    try:
+        raw_response = await loop.run_in_executor(
+            None, lambda: backend.chat(messages, temperature=0.4, max_tokens=4096)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
+
+    # Strip accidental markdown fences before parsing
+    cleaned = raw_response.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    try:
+        suggestions_raw = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"LLM returned non-JSON output ({exc}). Raw: {raw_response[:500]}",
+        )
+
+    if not isinstance(suggestions_raw, list):
+        raise HTTPException(status_code=502, detail="LLM response was not a JSON array")
+
+    # Validate and filter — silently drop items with invalid type
+    suggestions = [s for s in suggestions_raw if isinstance(s, dict) and s.get("type") in _CPD_VALID_TYPES]
+
+    generated_at = datetime.now().isoformat(timespec="seconds")
+    model_label = backend_config.get("model_name", backend_type)
+
+    report = profile_store.create_cpd_report(user_id, {
+        "generated_at": generated_at,
+        "backend_type": backend_type,
+        "model_name": model_label,
+        "search_enabled": effective_search,
+        "suggestions_json": json.dumps(suggestions),
+    })
+
+    return {
+        "report_id": report["id"],
+        "suggestions": suggestions,
+        "generated_at": generated_at,
+        "backend_type": backend_type,
+        "search_enabled": effective_search,
+    }
+
+
+@app.get("/api/profile/cpd-refresh/latest")
+async def cpd_refresh_latest(x_user_id: Optional[str] = Header(None)):
+    """Return the most recent CPD refresh report without re-generating (Epic #37, Idea #656)."""
+    user_id = x_user_id or "default"
+    report = profile_store.get_latest_cpd_report(user_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="No CPD refresh report found")
+    return report
+
+
+@app.delete("/api/profile/cpd-refresh/{report_id}", status_code=204)
+async def delete_cpd_report(report_id: int, x_user_id: Optional[str] = Header(None)):
+    """Delete a CPD refresh report (Epic #37, Idea #656)."""
+    user_id = x_user_id or "default"
+    deleted = profile_store.delete_cpd_report(report_id, user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Report not found")
 
 
 # ============================================================================

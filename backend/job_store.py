@@ -352,6 +352,24 @@ def init_db():
         )
     ''')
 
+    # CPD Refresh Reports table (Idea #654, Epic #37)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS cpd_refresh_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'default',
+            generated_at TEXT NOT NULL,
+            backend_type TEXT,
+            model_name TEXT,
+            search_enabled INTEGER DEFAULT 0,
+            suggestions_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_cpd_reports_user_generated
+        ON cpd_refresh_reports(user_id, generated_at DESC)
+    ''')
+
     # Education table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS education (
@@ -2169,6 +2187,79 @@ class ProfileStore:
             )
         conn.commit()
         conn.close()
+
+    # ── CPD Refresh Reports ───────────────────────────────────────────────────
+
+    def _row_to_cpd_report(self, row: sqlite3.Row) -> Dict[str, Any]:
+        d = dict(row)
+        d["search_enabled"] = bool(d.get("search_enabled"))
+        try:
+            d["suggestions"] = json.loads(d.pop("suggestions_json", "[]"))
+        except (json.JSONDecodeError, TypeError):
+            d["suggestions"] = []
+        return d
+
+    def create_cpd_report(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert a new CPD refresh report. Returns the created record."""
+        now = datetime.now().isoformat()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO cpd_refresh_reports
+               (user_id, generated_at, backend_type, model_name, search_enabled, suggestions_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                user_id,
+                data.get("generated_at", now),
+                data.get("backend_type"),
+                data.get("model_name"),
+                1 if data.get("search_enabled") else 0,
+                data.get("suggestions_json", "[]"),
+                now,
+            ),
+        )
+        report_id = cursor.lastrowid
+        conn.commit()
+        cursor.execute("SELECT * FROM cpd_refresh_reports WHERE id = ?", (report_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return self._row_to_cpd_report(row)
+
+    def get_latest_cpd_report(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Return the most recent CPD refresh report for user, or None."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM cpd_refresh_reports WHERE user_id = ? ORDER BY generated_at DESC LIMIT 1",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return self._row_to_cpd_report(row) if row else None
+
+    def list_cpd_reports(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Return CPD refresh reports for user, most recent first."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM cpd_refresh_reports WHERE user_id = ? ORDER BY generated_at DESC LIMIT ?",
+            (user_id, limit),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [self._row_to_cpd_report(r) for r in rows]
+
+    def delete_cpd_report(self, report_id: int, user_id: str) -> bool:
+        """Delete a CPD refresh report. Returns True if deleted."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM cpd_refresh_reports WHERE id = ? AND user_id = ?", (report_id, user_id)
+        )
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
 
     # ── Education ────────────────────────────────────────────────────────────
 

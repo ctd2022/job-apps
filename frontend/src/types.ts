@@ -620,3 +620,22 @@ export interface PositionProfileData {
   role_distribution: { title: string; count: number }[];
   corpus_jobs: CorpusJob[];
 }
+
+// CPD Intelligence: AI-Powered Development Recommendations (Epic #37)
+export interface CPDSuggestion {
+  title: string;
+  provider: string;
+  type: PDType;
+  relevance: string;
+  url: string | null;
+  estimated_time: string | null;
+  priority: number;
+}
+
+export interface CPDRefreshResponse {
+  report_id: number;
+  suggestions: CPDSuggestion[];
+  generated_at: string;
+  backend_type: string;
+  search_enabled: boolean;
+}
