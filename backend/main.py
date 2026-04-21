@@ -680,6 +680,16 @@ async def process_job_application(
                     _job_title, job_description, workflow.backend
                 )
 
+            # Idea #32: JD red-flag analysis — runs independently of CV matching
+            try:
+                from jd_analyzer import JDAnalyzer
+                jd_analyzer = JDAnalyzer(workflow.backend)
+                jd_result = jd_analyzer.analyze(job_description)
+                job_store.save_jd_analysis(job_id, jd_result)
+                print(f"[OK] JD analysis complete: {jd_result['total_red_flags']} red flags, risk={jd_result['overall_risk']}")
+            except Exception as jd_err:
+                print(f"WARNING: JD analysis failed (non-fatal): {jd_err}")
+
             # Track 2.9.2: Store full ATS analysis details
             ats_details_json = json.dumps(ats_score) if ats_score else None
 
@@ -1772,6 +1782,23 @@ async def get_ats_analysis(job_id: str, user_id: str = Header(None, alias="X-Use
             # Idea #661: inferred interview criteria (already cached in ats_details; ensure key present)
             if "inferred_interview_criteria" not in analysis:
                 analysis["inferred_interview_criteria"] = []
+            # Idea #58: backfill keyword_priorities for older records
+            if "keyword_priorities" not in analysis:
+                cat_base = {
+                    'tools': 'HIGH', 'methodologies': 'HIGH', 'certifications': 'HIGH',
+                    'management': 'HIGH', 'industry_terms': 'MEDIUM', 'transferable_skills': 'MEDIUM',
+                    'experience_level': 'MEDIUM', 'regulations': 'MEDIUM', 'metrics': 'MEDIUM',
+                    'preferred': 'LOW', 'frequency_keywords': 'LOW',
+                }
+                kp: dict[str, str] = {}
+                for cat, data in (analysis.get("scores_by_category") or {}).items():
+                    base = cat_base.get(cat, 'LOW')
+                    for kw in data.get("items_matched", []) + data.get("items_missing", []):
+                        kp.setdefault(kw.lower().strip(), base)
+                analysis["keyword_priorities"] = kp
+            # Idea #23: backfill confidence score for older records
+            if "confidence" not in analysis:
+                analysis["confidence"] = ats_optimizer.compute_confidence_score(analysis)
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),
@@ -1788,6 +1815,18 @@ async def get_ats_analysis(job_id: str, user_id: str = Header(None, alias="X-Use
         "analysis": None,
         "source": None,
         "message": "Detailed ATS analysis not available for this job (created before Track 2.9.2)"
+    }
+
+
+@app.get("/api/jobs/{job_id}/jd-analysis")
+async def get_jd_analysis(job_id: str):
+    """Get JD red-flag analysis for a job (Idea #32)."""
+    job = job_store.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    return {
+        "job_id": job_id,
+        "jd_analysis": job_store.get_jd_analysis(job_id),
     }
 
 
