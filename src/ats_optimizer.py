@@ -950,7 +950,7 @@ PREFERRED: keyword1, keyword2"""
         seen = set()
         unique_missing = [x for x in all_missing if not (x.lower() in seen or seen.add(x.lower()))]
 
-        return {
+        result = {
             'score': round(final_score, 1),
             'matched': len(unique_matched),
             'total': len(unique_matched) + len(unique_missing),
@@ -1049,6 +1049,99 @@ PREFERRED: keyword1, keyword2"""
                     section_matches, semantic_result, scores
                 )
             }
+        }
+
+        # Idea #58: Keyword priority ranking (HIGH/MEDIUM/LOW) based on JD position + frequency
+        jd_words = self._normalize_text(job_description).split()
+        jd_first_200_words = set(jd_words[:200])
+        jd_word_counts: dict[str, int] = {}
+        for w in jd_words:
+            jd_word_counts[w] = jd_word_counts.get(w, 0) + 1
+        keyword_priorities: dict[str, str] = {}
+        for category, data in scores.items():
+            for kw in data['matched'] + data['missing']:
+                kw_key = kw.lower().strip()
+                if kw_key not in keyword_priorities:
+                    keyword_priorities[kw_key] = self._compute_keyword_priority(
+                        kw, jd_first_200_words, jd_word_counts, category
+                    )
+        result['keyword_priorities'] = keyword_priorities
+
+        # Idea #23: Presentation quality confidence score
+        result['confidence'] = self.compute_confidence_score(result)
+
+        return result
+
+    @staticmethod
+    def _compute_keyword_priority(
+        keyword: str,
+        jd_first_200_words: set[str],
+        jd_word_counts: dict[str, int],
+        category: str,
+    ) -> str:
+        """Idea #58: Assign HIGH/MEDIUM/LOW priority to a keyword using category weight + JD signals."""
+        CATEGORY_BASE: dict[str, str] = {
+            'tools': 'HIGH',
+            'methodologies': 'HIGH',
+            'certifications': 'HIGH',
+            'management': 'HIGH',
+            'industry_terms': 'MEDIUM',
+            'transferable_skills': 'MEDIUM',
+            'experience_level': 'MEDIUM',
+            'regulations': 'MEDIUM',
+            'metrics': 'MEDIUM',
+            'preferred': 'LOW',
+            'frequency_keywords': 'LOW',
+        }
+        base = CATEGORY_BASE.get(category, 'LOW')
+        kw = keyword.lower().strip()
+        if kw in jd_first_200_words or any(kw in w for w in jd_first_200_words):
+            return 'HIGH'
+        freq = jd_word_counts.get(kw, 0)
+        if freq >= 3:
+            if base == 'LOW':
+                return 'MEDIUM'
+            if base == 'MEDIUM':
+                return 'HIGH'
+        return base
+
+    @staticmethod
+    def compute_confidence_score(analysis: dict) -> dict:
+        """Idea #23: Presentation quality confidence score from existing analysis data."""
+        hybrid = analysis.get('hybrid_scoring', {})
+        matched = analysis.get('matched', 0)
+        total = analysis.get('total', 1) or 1
+        avg_strength = (analysis.get('evidence_analysis') or {}).get('average_strength', 0.5)
+        evidence = min(100.0, max(0.0, (avg_strength - 0.5) / 1.5 * 100))
+        if hybrid.get('semantic_available'):
+            clarity = float(hybrid.get('semantic_score', 0))  # already 0-100
+        else:
+            clarity = (matched / total) * 100
+        coverage = (matched / total) * 100
+        score = min(100.0, round(evidence * 0.4 + clarity * 0.4 + coverage * 0.2, 1))
+        if score >= 85:
+            narrative = "Your qualifications are well-presented for this role"
+        elif score >= 70:
+            narrative = "Your experience communicates well for this role"
+        elif score >= 55:
+            narrative = "Your qualifications come through moderately — there's room to improve"
+        else:
+            narrative = "Several key qualifications aren't clearly coming through in your CV"
+        components = {'evidence': evidence, 'clarity': clarity, 'coverage': coverage}
+        weakest = min(components, key=lambda k: components[k])
+        hints = {
+            'evidence': "Add concrete examples and metrics to your experience descriptions",
+            'clarity': "Align your CV language more closely with the job description",
+            'coverage': "Several role requirements have limited coverage in your CV",
+        }
+        hint = hints[weakest] if components[weakest] < 75 else ''
+        message = f"{score:.0f}% — {narrative}. {hint}".rstrip('. ') + '.'
+        return {
+            'confidence_score': score,
+            'confidence_message': message,
+            'evidence_component': round(evidence, 1),
+            'clarity_component': round(clarity, 1),
+            'coverage_component': round(coverage, 1),
         }
 
     def generate_ats_optimized_cv(self, base_cv: str, job_description: str, key_requirements: str) -> str:

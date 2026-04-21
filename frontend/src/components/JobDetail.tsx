@@ -17,8 +17,8 @@ import {
   Briefcase,
   PoundSterling
 } from 'lucide-react';
-import { getJob, getJobFiles, updateJobOutcome, updateJobMetadata, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills, listJobHistory, getCVVersionById, updateCVContent, rematchATS, assembleCV } from '../api';
-import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse, JobHistoryRecord } from '../types';
+import { getJob, getJobFiles, updateJobOutcome, updateJobMetadata, getJobDescription, getATSAnalysis, getMatchHistory, suggestSkills, listJobHistory, getCVVersionById, updateCVContent, rematchATS, assembleCV, getJDAnalysis } from '../api';
+import type { Job, OutputFile, OutcomeStatus, JobDescription, ATSAnalysisData, MatchHistoryEntry, ApplySuggestionsResponse, JobHistoryRecord, JDAnalysisData } from '../types';
 import { applyProfileSections } from '../utils/pullFromProfile';
 import GapFillWizard from './GapFillWizard';
 import GapAnalysis from './GapAnalysis';
@@ -35,6 +35,8 @@ import KeywordPlacementSuggestions from './KeywordPlacementSuggestions';
 import ATSExplainability from './ATSExplainability';
 import QualificationChecklist from './QualificationChecklist';
 import InferredInterviewCriteria from './InferredInterviewCriteria';
+import JDRedFlagPanel from './JDRedFlagPanel';
+import ConfidenceScorePanel from './ConfidenceScorePanel';
 import CollapsibleSection from './CollapsibleSection';
 import ExtractedSkillsList from './ExtractedSkillsList';
 import EvidenceStrengthPanel from './EvidenceStrengthPanel';
@@ -64,6 +66,7 @@ function JobDetail() {
 
   // ATS Analysis state
   const [atsAnalysis, setAtsAnalysis] = useState<ATSAnalysisData | null>(null);
+  const [jdAnalysis, setJdAnalysis] = useState<JDAnalysisData | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([]);
 
@@ -121,12 +124,14 @@ function JobDetail() {
       if (jobData.status === 'completed' && jobData.enable_ats) {
         setLoadingAnalysis(true);
         try {
-          const [atsResult, historyResult] = await Promise.all([
+          const [atsResult, historyResult, jdResult] = await Promise.all([
             getATSAnalysis(id!),
             getMatchHistory(id!).catch(() => ({ job_id: id!, history: [] })),
+            getJDAnalysis(id!).catch(() => ({ jd_analysis: null })),
           ]);
           setAtsAnalysis(atsResult.analysis);
           setMatchHistory(historyResult.history);
+          setJdAnalysis(jdResult.jd_analysis);
         } catch {
           // ATS analysis is optional - don't fail the page
         } finally {
@@ -558,6 +563,20 @@ function JobDetail() {
                 onRevised={handleGapFillRevised}
               />
             </div>
+          </div>
+        )}
+
+        {/* Idea #32: JD Red-flag Analysis */}
+        {job.status === 'completed' && jdAnalysis && (
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
+            <JDRedFlagPanel analysis={jdAnalysis} />
+          </div>
+        )}
+
+        {/* Idea #23: Presentation Quality (Confidence Score) */}
+        {job.status === 'completed' && atsAnalysis?.confidence && (
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
+            <ConfidenceScorePanel confidence={atsAnalysis.confidence} />
           </div>
         )}
 

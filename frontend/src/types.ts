@@ -380,6 +380,40 @@ export interface ATSAnalysisData {
   gap_analysis?: GapAnalysis;
   keyword_placement?: PlacementSuggestion[];
   evidence_gap_details?: EvidenceGapDetail[];
+  keyword_priorities?: Record<string, 'HIGH' | 'MEDIUM' | 'LOW'>;  // idea #58
+  confidence?: ConfidenceData;  // idea #23
+}
+
+// Idea #23: ATS Confidence Score (Presentation Quality)
+export interface ConfidenceData {
+  confidence_score: number;
+  confidence_message: string;
+  evidence_component: number;
+  clarity_component: number;
+  coverage_component: number;
+}
+
+// Idea #32: JD Red-flag Analysis
+export interface JDRedFlag {
+  category: 'unrealistic_requirements' | 'culture_warning' | 'scope_overload' | 'transparency';
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  detail: string;
+  evidence?: string;
+}
+
+export interface JDGreenFlag {
+  category: string;
+  title: string;
+  detail: string;
+}
+
+export interface JDAnalysisData {
+  red_flags: JDRedFlag[];
+  green_flags: JDGreenFlag[];
+  overall_risk: 'low' | 'medium' | 'high' | 'critical';
+  summary: string;
+  total_red_flags: number;
 }
 
 export interface ATSAnalysisResponse {

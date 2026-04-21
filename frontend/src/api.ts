@@ -1,4 +1,4 @@
-import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, JobMetadataUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate, SavedJobCreate, SavedJob, OnboardingStatus, CPDRefreshResponse } from './types';
+import type { Backend, Job, JobCreate, OutputFile, Application, HealthStatus, StoredCV, CVVersion, OutcomeUpdate, JobMetadataUpdate, Metrics, PipelineDiagnosis, OutcomeStatus, User, JobDescription, ATSAnalysisResponse, RematchResponse, MatchHistoryResponse, ApplySuggestionsResponse, GapAnswer, CVCoachAssessment, CandidateProfile, JobHistoryRecord, ProfileUpdate, JobHistoryCreate, JobHistoryUpdate, SummaryGenerationResponse, Certification, CertificationCreate, CertificationUpdate, Skill, SkillCreate, SkillUpdate, ProfessionalDevelopment, ProfessionalDevelopmentCreate, ProfessionalDevelopmentUpdate, IssuingOrganisation, IssuingOrgCreate, IssuingOrgUpdate, Education, EducationCreate, EducationUpdate, SavedJobCreate, SavedJob, OnboardingStatus, CPDRefreshResponse, JDAnalysisData } from './types';
 
 const API_BASE = '/api';
 
@@ -1056,4 +1056,12 @@ export async function refreshCPDSuggestions(
     body: JSON.stringify(body),
   });
   return handleResponse<CPDRefreshResponse>(response);
+}
+
+// Idea #32: JD Red-flag Analysis
+export async function getJDAnalysis(jobId: string): Promise<{ jd_analysis: JDAnalysisData | null }> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}/jd-analysis`, {
+    headers: getUserHeaders(),
+  });
+  return handleResponse(response);
 }
