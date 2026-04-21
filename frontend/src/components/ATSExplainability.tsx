@@ -10,14 +10,23 @@ interface ATSExplainabilityProps {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
+  // Current 10-category labels (idea #57)
+  tools: 'Tools & Platforms',
+  methodologies: 'Methodologies',
+  certifications: 'Certifications',
+  management: 'Management & Leadership',
+  industry_terms: 'Industry Terms',
+  transferable_skills: 'Transferable Skills',
+  experience_level: 'Experience Level',
+  regulations: 'Regulations & Compliance',
+  metrics: 'Metrics & Outcomes',
+  preferred: 'Nice to Have',
+  frequency_keywords: 'Other Keywords',
+  // Legacy labels (backward compat for old DB records)
   critical_keywords: 'Critical Keywords',
   required: 'Required Skills',
   hard_skills: 'Technical Skills',
   soft_skills: 'Soft Skills',
-  preferred: 'Nice to Have',
-  frequency_keywords: 'Other Keywords',
-  certifications: 'Certifications',
-  industry_terms: 'Industry Terms',
 };
 
 

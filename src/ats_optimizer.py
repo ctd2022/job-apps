@@ -362,14 +362,36 @@ class ATSOptimizer:
         return expanded
 
     def _parse_llm_requirements(self, llm_output: str) -> dict:
-        """Parse the structured output from LLM requirement identification"""
+        """Parse the structured output from LLM requirement identification.
+
+        Supports both the current 10-category format and the legacy 6-category
+        format (backward compat for cached key_requirements in DB).
+        """
         result = {
-            'hard_skills': [],
-            'soft_skills': [],
-            'qualifications': [],
-            'critical_keywords': [],
-            'required': [],  # Keywords marked as "required"/"must have"
-            'preferred': []  # Keywords marked as "preferred"/"nice to have"
+            'tools': [],
+            'methodologies': [],
+            'certifications': [],
+            'management': [],
+            'industry_terms': [],
+            'transferable_skills': [],
+            'experience_level': [],
+            'regulations': [],
+            'metrics': [],
+            'preferred': [],
+        }
+
+        # Legacy → new category remapping for old LLM outputs
+        _legacy_map = {
+            'hard_skills': 'tools',
+            'hard skills': 'tools',
+            'critical_keywords': 'tools',
+            'critical keywords': 'tools',
+            'required': 'tools',
+            'must have': 'tools',
+            'soft_skills': 'transferable_skills',
+            'soft skills': 'transferable_skills',
+            'qualifications': 'certifications',
+            'required qualifications': 'certifications',
         }
 
         current_section = None
@@ -381,29 +403,31 @@ class ATSOptimizer:
 
             line_lower = line.lower()
 
-            if line_lower.startswith('hard skills:'):
-                current_section = 'hard_skills'
-                content = line.split(':', 1)[1].strip()
-            elif line_lower.startswith('soft skills:'):
-                current_section = 'soft_skills'
-                content = line.split(':', 1)[1].strip()
-            elif line_lower.startswith('qualifications:') or line_lower.startswith('required qualifications:'):
-                current_section = 'qualifications'
-                content = line.split(':', 1)[1].strip()
-            elif line_lower.startswith('critical keywords:'):
-                current_section = 'critical_keywords'
-                content = line.split(':', 1)[1].strip()
-            elif line_lower.startswith('required:') or line_lower.startswith('must have:'):
-                current_section = 'required'
-                content = line.split(':', 1)[1].strip()
-            elif line_lower.startswith('preferred:') or line_lower.startswith('nice to have:'):
-                current_section = 'preferred'
+            # Try matching new 10-category headers first
+            matched_header = None
+            for key in result:
+                header = key.replace('_', ' ') + ':'
+                if line_lower.startswith(header) or line_lower.startswith(key + ':'):
+                    matched_header = key
+                    break
+
+            if matched_header:
+                current_section = matched_header
                 content = line.split(':', 1)[1].strip()
             else:
-                content = line
+                # Try legacy headers
+                legacy_match = None
+                for legacy_key, new_key in _legacy_map.items():
+                    if line_lower.startswith(legacy_key + ':'):
+                        legacy_match = new_key
+                        break
+                if legacy_match:
+                    current_section = legacy_match
+                    content = line.split(':', 1)[1].strip()
+                else:
+                    content = line
 
             if current_section and content:
-                # Split by comma and clean up
                 items = [item.strip() for item in content.split(',') if item.strip()]
                 result[current_section].extend(items)
 
@@ -412,19 +436,23 @@ class ATSOptimizer:
     def identify_key_requirements(self, job_description: str) -> str:
         """Use LLM to identify critical requirements and keywords"""
 
-        system_message = """You extract keywords from job descriptions. Output ONLY the structured format requested. DO NOT add any preamble, explanation, or commentary. Start your response directly with "HARD SKILLS:" - no other text before it."""
+        system_message = """You extract keywords from job descriptions into 10 categories. Output ONLY the structured format requested. DO NOT add any preamble, explanation, or commentary. Start your response directly with "TOOLS:" - no other text before it."""
 
-        prompt = f"""Extract keywords from this job description into the exact format below.
+        prompt = f"""Extract keywords from this job description into exactly the 10 categories below.
 
 {job_description}
 
 ---
-HARD SKILLS: keyword1, keyword2, keyword3
-SOFT SKILLS: keyword1, keyword2, keyword3
-QUALIFICATIONS: requirement1, requirement2
-CRITICAL KEYWORDS: keyword1, keyword2, keyword3
-REQUIRED: skill1, skill2, skill3
-PREFERRED: skill1, skill2, skill3"""
+TOOLS: software, platforms, frameworks, languages (e.g. Python, Salesforce, AWS, SQL)
+METHODOLOGIES: ways of working (e.g. Agile, ITIL, Prince2, Lean, DevOps)
+CERTIFICATIONS: formal qualifications or degrees (e.g. CISA, PMP, MSc, PRINCE2)
+MANAGEMENT: leadership and management skills (e.g. P&L ownership, budget, team leadership, stakeholder)
+INDUSTRY TERMS: sector-specific vocabulary (e.g. AML, KYC, PCI-DSS, IFRS)
+TRANSFERABLE SKILLS: cross-role competencies (e.g. communication, analysis, presentation, negotiation)
+EXPERIENCE LEVEL: seniority signals (e.g. senior, hands-on, strategic, 5+ years, executive)
+REGULATIONS: compliance and regulatory requirements (e.g. GDPR, FCA, SOC2, ISO 27001)
+METRICS: quantifiable outcomes and measures (e.g. KPIs, OKRs, cost reduction, NPS)
+PREFERRED: explicitly nice-to-have skills (e.g. knowledge of X would be advantageous)"""
 
         messages = [
             {'role': 'system', 'content': system_message},
@@ -442,8 +470,14 @@ PREFERRED: skill1, skill2, skill3"""
         cleaned_lines = []
         started = False
 
-        valid_headers = ['HARD SKILLS:', 'SOFT SKILLS:', 'QUALIFICATIONS:',
-                        'CRITICAL KEYWORDS:', 'REQUIRED:', 'PREFERRED:']
+        valid_headers = [
+            'TOOLS:', 'METHODOLOGIES:', 'CERTIFICATIONS:', 'MANAGEMENT:',
+            'INDUSTRY TERMS:', 'TRANSFERABLE SKILLS:', 'EXPERIENCE LEVEL:',
+            'REGULATIONS:', 'METRICS:', 'PREFERRED:',
+            # Legacy headers (backward compat)
+            'HARD SKILLS:', 'SOFT SKILLS:', 'QUALIFICATIONS:',
+            'CRITICAL KEYWORDS:', 'REQUIRED:',
+        ]
 
         for line in lines:
             line_stripped = line.strip()
@@ -529,12 +563,17 @@ PREFERRED: skill1, skill2, skill3"""
         """Generate actionable suggestions with section recommendations."""
         suggestions = []
 
-        # Map categories to priority
+        # Map categories to priority (highest weight first)
         priority_order = [
-            ('critical_keywords', 'critical'),
-            ('required', 'required'),
-            ('hard_skills', 'hard_skills'),
-            ('preferred', 'preferred')
+            ('tools', 'critical'),
+            ('methodologies', 'required'),
+            ('certifications', 'required'),
+            ('management', 'required'),
+            ('industry_terms', 'hard_skills'),
+            ('transferable_skills', 'hard_skills'),
+            ('experience_level', 'hard_skills'),
+            ('regulations', 'hard_skills'),
+            ('preferred', 'preferred'),
         ]
 
         # Collect missing skills deduped by skill name — highest priority wins
@@ -730,14 +769,19 @@ PREFERRED: skill1, skill2, skill3"""
         # Expand CV keywords with synonyms
         cv_unigrams_expanded = self._expand_with_synonyms(cv_unigrams)
 
-        # Scoring breakdown
+        # Scoring breakdown — 10 semantic categories (idea #57)
         scores = {
-            'critical_keywords': {'matched': [], 'missing': [], 'weight': 3.0},
-            'hard_skills': {'matched': [], 'missing': [], 'weight': 2.5},
-            'required': {'matched': [], 'missing': [], 'weight': 2.0},
-            'soft_skills': {'matched': [], 'missing': [], 'weight': 1.5},
-            'preferred': {'matched': [], 'missing': [], 'weight': 1.0},
-            'frequency_keywords': {'matched': [], 'missing': [], 'weight': 0.5}
+            'tools':               {'matched': [], 'missing': [], 'weight': 2.5},
+            'methodologies':       {'matched': [], 'missing': [], 'weight': 2.0},
+            'certifications':      {'matched': [], 'missing': [], 'weight': 2.0},
+            'management':          {'matched': [], 'missing': [], 'weight': 2.0},
+            'industry_terms':      {'matched': [], 'missing': [], 'weight': 1.5},
+            'transferable_skills': {'matched': [], 'missing': [], 'weight': 1.5},
+            'experience_level':    {'matched': [], 'missing': [], 'weight': 1.5},
+            'regulations':         {'matched': [], 'missing': [], 'weight': 1.5},
+            'metrics':             {'matched': [], 'missing': [], 'weight': 1.0},
+            'preferred':           {'matched': [], 'missing': [], 'weight': 1.0},
+            'frequency_keywords':  {'matched': [], 'missing': [], 'weight': 0.5},
         }
 
         def check_keyword_match(keyword: str, cv_text: str, cv_unigrams: set) -> bool:
@@ -760,8 +804,12 @@ PREFERRED: skill1, skill2, skill3"""
 
             return False
 
-        # Score LLM-identified keywords
-        for category in ['critical_keywords', 'hard_skills', 'required', 'soft_skills', 'preferred']:
+        # Score LLM-identified keywords across all 10 categories
+        for category in [
+            'tools', 'methodologies', 'certifications', 'management',
+            'industry_terms', 'transferable_skills', 'experience_level',
+            'regulations', 'metrics', 'preferred',
+        ]:
             for keyword in parsed_reqs.get(category, []):
                 if check_keyword_match(keyword, cv_all_text, cv_unigrams_expanded):
                     scores[category]['matched'].append(keyword)
@@ -845,6 +893,8 @@ PREFERRED: skill1, skill2, skill3"""
             },
             'matched_phrases': matched_bigrams[:10],
             'missing_phrases': missing_bigrams[:10],
+            # Idea #57: JD keyword frequency counts for drill-down UI
+            'jd_keyword_frequency': dict(job_keywords['unigrams'].most_common(100)),
             # Track 2.8: Section-level analysis
             'section_analysis': {
                 'experience_matches': section_matches['experience_matches'][:10],
@@ -895,8 +945,16 @@ PREFERRED: skill1, skill2, skill3"""
             # Track 2.8.4: Enhanced Gap Analysis
             'gap_analysis': {
                 'critical_gaps': {
-                    'missing_critical_keywords': scores['critical_keywords']['missing'],
-                    'missing_required_skills': scores['required']['missing'],
+                    # Weight >= 2.0 categories treated as critical
+                    'missing_critical_keywords': [
+                        kw for cat in ['tools', 'methodologies', 'certifications', 'management']
+                        for kw in scores[cat]['missing']
+                    ],
+                    # Weight 1.5 categories treated as required
+                    'missing_required_skills': [
+                        kw for cat in ['industry_terms', 'transferable_skills', 'experience_level', 'regulations']
+                        for kw in scores[cat]['missing']
+                    ],
                 },
                 'evidence_gaps': {
                     'weak_evidence_skills': [e['skill'] for e in evidence_scores['weak_evidence']],
@@ -1195,12 +1253,17 @@ Generate the complete CV now:"""
 
         # Build category breakdown table
         category_labels = {
-            'critical_keywords': 'Critical Keywords',
-            'hard_skills': 'Hard/Technical Skills',
-            'required': 'Required Skills',
-            'soft_skills': 'Soft Skills',
-            'preferred': 'Preferred/Bonus',
-            'frequency_keywords': 'Other Keywords'
+            'tools':               'Tools & Platforms',
+            'methodologies':       'Methodologies',
+            'certifications':      'Certifications',
+            'management':          'Management & Leadership',
+            'industry_terms':      'Industry Terms',
+            'transferable_skills': 'Transferable Skills',
+            'experience_level':    'Experience Level',
+            'regulations':         'Regulations & Compliance',
+            'metrics':             'Metrics & Outcomes',
+            'preferred':           'Preferred/Bonus',
+            'frequency_keywords':  'Other Keywords',
         }
 
         # Get hybrid and semantic data

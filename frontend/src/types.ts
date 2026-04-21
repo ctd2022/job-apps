@@ -287,7 +287,7 @@ export interface ExperienceGaps {
 // Idea #87: Smart CV Gap Analysis with Actionable Suggestions
 export interface ActionableSuggestion {
   skill: string;
-  priority: 'critical' | 'required' | 'hard_skills' | 'preferred';
+  priority: 'critical' | 'required' | 'hard_skills' | 'preferred';  // mapped from category weight
   recommended_section: string;
   section_score: number;
   reason: string;
@@ -327,6 +327,7 @@ export interface ATSAnalysisData {
   scores_by_category: Record<string, ATSCategoryScore>;
   matched_phrases: string[];
   missing_phrases: string[];
+  jd_keyword_frequency?: Record<string, number>;  // idea #57
   section_analysis: SectionAnalysis;
   evidence_analysis: EvidenceAnalysis;
   parsed_entities: ParsedEntities;
