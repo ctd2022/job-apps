@@ -317,6 +317,12 @@ export interface PlacementSuggestion {
   section_hint: string;
 }
 
+// Idea #661: Inferred interview criteria
+export interface InferredCriterion {
+  criterion: string;
+  rationale: string;
+}
+
 // Idea #660: Qualification checklist (LinkedIn-parity)
 export interface QualificationItem {
   statement: string;
@@ -364,6 +370,7 @@ export interface ATSAnalysisData {
   jd_keyword_frequency?: Record<string, number>;  // idea #57
   criterion_breakdown?: CriterionBreakdown[];  // idea #24
   qualification_checklist?: QualificationChecklist;  // idea #660
+  inferred_interview_criteria?: InferredCriterion[];  // idea #661
   section_analysis: SectionAnalysis;
   evidence_analysis: EvidenceAnalysis;
   parsed_entities: ParsedEntities;

@@ -672,6 +672,14 @@ async def process_job_application(
                 base_cv, job_description
             )
 
+            # Idea #661: Infer role-typical interview criteria and cache in ats_details
+            if ats_score:
+                job_meta = job_store.get_job(job_id)
+                _job_title = (job_meta or {}).get("job_title") or "this role"
+                ats_score["inferred_interview_criteria"] = _infer_interview_criteria(
+                    _job_title, job_description, workflow.backend
+                )
+
             # Track 2.9.2: Store full ATS analysis details
             ats_details_json = json.dumps(ats_score) if ats_score else None
 
@@ -1421,6 +1429,37 @@ async def get_job_description(job_id: str):
     }
 
 
+def _infer_interview_criteria(job_title: str, jd_text: str, backend) -> list[dict]:
+    """Idea #661: Infer role-typical interview criteria not stated in the JD.
+
+    Returns up to 6 dicts with 'criterion' and 'rationale'. Returns [] on any failure.
+    """
+    try:
+        prompt = (
+            f"You are an expert recruiter. For a '{job_title}' role, list 4-6 competencies "
+            f"that interviewers typically assess which may NOT be explicitly stated in the job description below.\n\n"
+            f"JOB DESCRIPTION:\n{jd_text[:3000]}\n\n"
+            f"Output ONLY a JSON array, no preamble. Each item must have exactly two keys: "
+            f"\"criterion\" (short name, max 6 words) and \"rationale\" (one sentence explaining why it is typically assessed).\n"
+            f"Example: [{{\"criterion\": \"Stakeholder communication\", \"rationale\": \"Senior IT leaders are routinely assessed on their ability to translate technical concepts for non-technical boards.\"}}]"
+        )
+        messages = [{'role': 'user', 'content': prompt}]
+        raw = backend.chat(messages, temperature=0.4, max_tokens=800)
+        # Extract JSON array from response
+        import re as _re
+        match = _re.search(r'\[.*\]', raw, _re.DOTALL)
+        if not match:
+            return []
+        items = json.loads(match.group())
+        return [
+            {'criterion': str(i.get('criterion', '')), 'rationale': str(i.get('rationale', ''))}
+            for i in items
+            if isinstance(i, dict) and i.get('criterion') and i.get('rationale')
+        ][:6]
+    except Exception:
+        return []
+
+
 def _build_qualification_checklist(ats: dict) -> dict:
     """Idea #660: Build binary pass/fail qualification checklist from parsed entities."""
     entities = ats.get("parsed_entities", {})
@@ -1684,6 +1723,9 @@ async def get_ats_analysis(job_id: str, user_id: str = Header(None, alias="X-Use
                 analysis["criterion_breakdown"] = _derive_criterion_breakdown(analysis)
             # Idea #660: qualification checklist (required vs preferred pass/fail)
             analysis["qualification_checklist"] = _build_qualification_checklist(analysis)
+            # Idea #661: inferred interview criteria (already cached in ats_details; ensure key present)
+            if "inferred_interview_criteria" not in analysis:
+                analysis["inferred_interview_criteria"] = []
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),

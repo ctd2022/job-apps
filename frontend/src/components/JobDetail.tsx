@@ -34,6 +34,7 @@ import CVCompletenessMeter from './CVCompletenessMeter';
 import KeywordPlacementSuggestions from './KeywordPlacementSuggestions';
 import ATSExplainability from './ATSExplainability';
 import QualificationChecklist from './QualificationChecklist';
+import InferredInterviewCriteria from './InferredInterviewCriteria';
 import CollapsibleSection from './CollapsibleSection';
 import ExtractedSkillsList from './ExtractedSkillsList';
 import EvidenceStrengthPanel from './EvidenceStrengthPanel';
@@ -567,6 +568,9 @@ function JobDetail() {
               <div className="space-y-3 pt-2">
                 {atsAnalysis.qualification_checklist && (
                   <QualificationChecklist checklist={atsAnalysis.qualification_checklist} />
+                )}
+                {atsAnalysis.inferred_interview_criteria && (
+                  <InferredInterviewCriteria criteria={atsAnalysis.inferred_interview_criteria} />
                 )}
                 <MatchExplanationCard analysis={atsAnalysis} />
                 <ATSExplainability analysis={atsAnalysis} hideGapAnalysis={true} />
