@@ -1797,11 +1797,21 @@ async def rematch_ats(
     )
 
     old_score = job.get("ats_score")
+    old_ats_details = {}
+    if job.get("ats_details"):
+        try:
+            old_ats_details = json.loads(job["ats_details"])
+        except (json.JSONDecodeError, TypeError):
+            pass
 
     loop = asyncio.get_event_loop()
     _report, _key_req, ats_score_dict = await loop.run_in_executor(
         None, ats_optimizer.generate_ats_report, cv_content, job_description
     )
+
+    # Preserve inferred_interview_criteria — based on job title/JD, not CV (#664)
+    if "inferred_interview_criteria" not in ats_score_dict and old_ats_details.get("inferred_interview_criteria"):
+        ats_score_dict["inferred_interview_criteria"] = old_ats_details["inferred_interview_criteria"]
 
     new_score = ats_score_dict["score"]
     delta = round(new_score - (old_score or 0), 1)
