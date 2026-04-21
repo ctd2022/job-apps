@@ -1114,11 +1114,11 @@ PREFERRED: keyword1, keyword2"""
         avg_strength = (analysis.get('evidence_analysis') or {}).get('average_strength', 0.5)
         evidence = min(100.0, max(0.0, (avg_strength - 0.5) / 1.5 * 100))
         if hybrid.get('semantic_available'):
-            clarity = float(hybrid.get('semantic_score', 0)) * 100
+            clarity = float(hybrid.get('semantic_score', 0))  # already 0-100
         else:
             clarity = (matched / total) * 100
         coverage = (matched / total) * 100
-        score = round(evidence * 0.4 + clarity * 0.4 + coverage * 0.2, 1)
+        score = min(100.0, round(evidence * 0.4 + clarity * 0.4 + coverage * 0.2, 1))
         if score >= 85:
             narrative = "Your qualifications are well-presented for this role"
         elif score >= 70:
