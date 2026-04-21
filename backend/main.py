@@ -1797,7 +1797,7 @@ async def get_ats_analysis(job_id: str, user_id: str = Header(None, alias="X-Use
                         kp.setdefault(kw.lower().strip(), base)
                 analysis["keyword_priorities"] = kp
             # Idea #23: always recompute confidence — stored value may be stale/buggy
-            analysis["confidence"] = ats_optimizer.compute_confidence_score(analysis)
+            analysis["confidence"] = ATSOptimizer.compute_confidence_score(analysis)
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),
