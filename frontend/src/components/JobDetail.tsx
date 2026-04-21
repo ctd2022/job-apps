@@ -564,7 +564,7 @@ function JobDetail() {
         {/* Zone 4: Full Analysis (starts closed) */}
         {job.status === 'completed' && atsAnalysis && (
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
-            <CollapsibleSection title="Full Analysis">
+            <CollapsibleSection title="Full Analysis" storageKey="full-analysis">
               <div className="space-y-3 pt-2">
                 {atsAnalysis.qualification_checklist && (
                   <QualificationChecklist checklist={atsAnalysis.qualification_checklist} />

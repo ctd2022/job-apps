@@ -1,4 +1,4 @@
-import { Info, MessageSquare } from 'lucide-react';
+import { Info, MessageSquare, Lightbulb } from 'lucide-react';
 import type { InferredCriterion } from '../types';
 import CollapsibleSection from './CollapsibleSection';
 
@@ -18,11 +18,17 @@ function InferredInterviewCriteria({ criteria }: InferredInterviewCriteriaProps)
             These are role-typical competencies inferred from the job title — not stated in the JD text.
           </p>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {criteria.map(item => (
-            <div key={item.criterion} className="border-l-2 border-slate-200 dark:border-slate-600 pl-3">
+            <div key={item.criterion} className="border-l-2 border-slate-200 dark:border-slate-600 pl-3 space-y-1">
               <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{item.criterion}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{item.rationale}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{item.rationale}</p>
+              {item.prep_response && (
+                <div className="flex items-start gap-1.5 mt-1 p-2 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50">
+                  <Lightbulb className="w-3 h-3 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700 dark:text-blue-300">{item.prep_response}</p>
+                </div>
+              )}
             </div>
           ))}
         </div>

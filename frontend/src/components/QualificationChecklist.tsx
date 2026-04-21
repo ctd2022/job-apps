@@ -40,7 +40,7 @@ function QualificationChecklist({ checklist }: QualificationChecklistProps) {
 
   return (
     <CollapsibleSection
-      title="Qualification Match"
+      title="Skills & Requirements Match"
       icon={ClipboardList}
       badge={summaryBadge}
       badgeColor={badgeColor}

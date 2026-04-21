@@ -317,10 +317,11 @@ export interface PlacementSuggestion {
   section_hint: string;
 }
 
-// Idea #661: Inferred interview criteria
+// Idea #661/#667: Inferred interview criteria
 export interface InferredCriterion {
   criterion: string;
   rationale: string;
+  prep_response?: string;
 }
 
 // Idea #660: Qualification checklist (LinkedIn-parity)
