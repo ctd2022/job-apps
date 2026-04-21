@@ -142,7 +142,7 @@ function ATSExplainability({ analysis, hideGapAnalysis }: ATSExplainabilityProps
     <div className="space-y-3">
       {/* Score Breakdown */}
       {hybrid_scoring && (
-        <CollapsibleSection title="Score Breakdown" icon={BarChart3} defaultExpanded>
+        <CollapsibleSection title="Score Breakdown" icon={BarChart3} storageKey="score-breakdown">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
@@ -173,7 +173,7 @@ function ATSExplainability({ analysis, hideGapAnalysis }: ATSExplainabilityProps
 
       {/* Criterion Breakdown — expandable drill-down per category (idea #24) */}
       {criterion_breakdown && criterion_breakdown.length > 0 && (
-        <CollapsibleSection title="Category Breakdown" icon={Target} defaultExpanded>
+        <CollapsibleSection title="Category Breakdown" icon={Target} storageKey="category-breakdown">
           <div className="space-y-1.5">
             {criterion_breakdown.map(c => (
               <CriterionCard key={c.category} criterion={c} />

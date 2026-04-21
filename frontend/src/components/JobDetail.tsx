@@ -575,12 +575,12 @@ function JobDetail() {
                 <MatchExplanationCard analysis={atsAnalysis} />
                 <ATSExplainability analysis={atsAnalysis} hideGapAnalysis={true} />
                 {atsAnalysis?.parsed_entities && (
-                  <CollapsibleSection title="Extracted Hard Skills">
+                  <CollapsibleSection title="Extracted Hard Skills" storageKey="extracted-skills">
                     <ExtractedSkillsList parsedEntities={atsAnalysis.parsed_entities} />
                   </CollapsibleSection>
                 )}
                 {atsAnalysis?.evidence_analysis && (
-                  <CollapsibleSection title="Evidence Strength" icon={BadgeCheck}>
+                  <CollapsibleSection title="Evidence Strength" icon={BadgeCheck} storageKey="evidence-strength">
                     <EvidenceStrengthPanel
                       evidenceAnalysis={atsAnalysis.evidence_analysis}
                       evidenceGaps={atsAnalysis.gap_analysis?.evidence_gaps}
@@ -590,7 +590,7 @@ function JobDetail() {
                 <KeywordPlacementSuggestions analysis={atsAnalysis} />
                 <MissingKeywordsAlert analysis={atsAnalysis} />
                 <CVCompletenessMeter analysis={atsAnalysis} />
-                <CollapsibleSection title="AI Skill Suggester" icon={Sparkles}>
+                <CollapsibleSection title="AI Skill Suggester" icon={Sparkles} storageKey="ai-skill-suggester">
                   <div className="p-4 bg-slate-50 dark:bg-slate-700">
                     <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
                       Get AI-powered suggestions for skills you might have missed, based on the job description.
