@@ -575,7 +575,7 @@ function JobDetail() {
                 <MatchExplanationCard analysis={atsAnalysis} />
                 <ATSExplainability analysis={atsAnalysis} hideGapAnalysis={true} />
                 {atsAnalysis?.parsed_entities && (
-                  <CollapsibleSection title="Extracted Hard Skills" storageKey="extracted-skills">
+                  <CollapsibleSection title="Skill Entity Extraction (reference)" storageKey="extracted-skills">
                     <ExtractedSkillsList parsedEntities={atsAnalysis.parsed_entities} />
                   </CollapsibleSection>
                 )}
