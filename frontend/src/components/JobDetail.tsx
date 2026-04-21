@@ -33,6 +33,8 @@ import MissingKeywordsAlert from './MissingKeywordsAlert';
 import CVCompletenessMeter from './CVCompletenessMeter';
 import KeywordPlacementSuggestions from './KeywordPlacementSuggestions';
 import ATSExplainability from './ATSExplainability';
+import QualificationChecklist from './QualificationChecklist';
+import InferredInterviewCriteria from './InferredInterviewCriteria';
 import CollapsibleSection from './CollapsibleSection';
 import ExtractedSkillsList from './ExtractedSkillsList';
 import EvidenceStrengthPanel from './EvidenceStrengthPanel';
@@ -562,17 +564,23 @@ function JobDetail() {
         {/* Zone 4: Full Analysis (starts closed) */}
         {job.status === 'completed' && atsAnalysis && (
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
-            <CollapsibleSection title="Full Analysis">
+            <CollapsibleSection title="Full Analysis" storageKey="full-analysis">
               <div className="space-y-3 pt-2">
+                {atsAnalysis.qualification_checklist && (
+                  <QualificationChecklist checklist={atsAnalysis.qualification_checklist} />
+                )}
+                {atsAnalysis.inferred_interview_criteria && (
+                  <InferredInterviewCriteria criteria={atsAnalysis.inferred_interview_criteria} />
+                )}
                 <MatchExplanationCard analysis={atsAnalysis} />
                 <ATSExplainability analysis={atsAnalysis} hideGapAnalysis={true} />
                 {atsAnalysis?.parsed_entities && (
-                  <CollapsibleSection title="Extracted Hard Skills">
+                  <CollapsibleSection title="Skill Entity Extraction (reference)" storageKey="extracted-skills">
                     <ExtractedSkillsList parsedEntities={atsAnalysis.parsed_entities} />
                   </CollapsibleSection>
                 )}
                 {atsAnalysis?.evidence_analysis && (
-                  <CollapsibleSection title="Evidence Strength" icon={BadgeCheck}>
+                  <CollapsibleSection title="Evidence Strength" icon={BadgeCheck} storageKey="evidence-strength">
                     <EvidenceStrengthPanel
                       evidenceAnalysis={atsAnalysis.evidence_analysis}
                       evidenceGaps={atsAnalysis.gap_analysis?.evidence_gaps}
@@ -582,7 +590,7 @@ function JobDetail() {
                 <KeywordPlacementSuggestions analysis={atsAnalysis} />
                 <MissingKeywordsAlert analysis={atsAnalysis} />
                 <CVCompletenessMeter analysis={atsAnalysis} />
-                <CollapsibleSection title="AI Skill Suggester" icon={Sparkles}>
+                <CollapsibleSection title="AI Skill Suggester" icon={Sparkles} storageKey="ai-skill-suggester">
                   <div className="p-4 bg-slate-50 dark:bg-slate-700">
                     <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
                       Get AI-powered suggestions for skills you might have missed, based on the job description.

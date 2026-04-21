@@ -672,6 +672,14 @@ async def process_job_application(
                 base_cv, job_description
             )
 
+            # Idea #661: Infer role-typical interview criteria and cache in ats_details
+            if ats_score:
+                job_meta = job_store.get_job(job_id)
+                _job_title = (job_meta or {}).get("job_title") or "this role"
+                ats_score["inferred_interview_criteria"] = _infer_interview_criteria(
+                    _job_title, job_description, workflow.backend
+                )
+
             # Track 2.9.2: Store full ATS analysis details
             ats_details_json = json.dumps(ats_score) if ats_score else None
 
@@ -1421,6 +1429,152 @@ async def get_job_description(job_id: str):
     }
 
 
+def _infer_interview_criteria(job_title: str, jd_text: str, backend) -> list[dict]:
+    """Idea #661/#667: Infer role-typical interview criteria not stated in the JD.
+
+    Returns up to 6 dicts with 'criterion', 'rationale', and 'prep_response'.
+    Returns [] on any failure.
+    """
+    try:
+        prompt = (
+            f"You are an expert recruiter. For a '{job_title}' role, list 4-6 competencies "
+            f"that interviewers typically assess which may NOT be explicitly stated in the job description below.\n\n"
+            f"JOB DESCRIPTION:\n{jd_text[:3000]}\n\n"
+            f"Output ONLY a JSON array, no preamble. Each item must have exactly three keys:\n"
+            f"  \"criterion\" (short name, max 6 words)\n"
+            f"  \"rationale\" (one sentence explaining why it is typically assessed)\n"
+            f"  \"prep_response\" (one specific preparation tip for a candidate — a concrete angle or example type to prepare, not generic advice)\n"
+            f"Example: [{{\"criterion\": \"Stakeholder communication\", "
+            f"\"rationale\": \"Senior IT leaders are routinely assessed on their ability to translate technical concepts for non-technical boards.\", "
+            f"\"prep_response\": \"Prepare a concise example of a time you explained a complex technical decision to a non-technical exec or board, focusing on the business impact.\"}}]"
+        )
+        messages = [{'role': 'user', 'content': prompt}]
+        raw = backend.chat(messages, temperature=0.4, max_tokens=1200)
+        import re as _re
+        match = _re.search(r'\[.*\]', raw, _re.DOTALL)
+        if not match:
+            return []
+        items = json.loads(match.group())
+        return [
+            {
+                'criterion': str(i.get('criterion', '')),
+                'rationale': str(i.get('rationale', '')),
+                'prep_response': str(i.get('prep_response', '')),
+            }
+            for i in items
+            if isinstance(i, dict) and i.get('criterion') and i.get('rationale')
+        ][:6]
+    except Exception:
+        return []
+
+
+def _build_qualification_checklist(ats: dict) -> dict:
+    """Idea #660: Build binary pass/fail qualification checklist from parsed entities."""
+    entities = ats.get("parsed_entities", {})
+    not_found = {s.lower() for s in ats.get("section_analysis", {}).get("not_found_in_cv", [])}
+
+    def is_matched(skill: str) -> bool:
+        return skill.lower() not in not_found
+
+    required = entities.get("jd_required_skills", [])
+    preferred = entities.get("jd_preferred_skills", [])
+
+    required_items = [{"statement": s, "matched": is_matched(s)} for s in required]
+    preferred_items = [{"statement": s, "matched": is_matched(s)} for s in preferred]
+
+    req_matched = sum(1 for i in required_items if i["matched"])
+    pref_matched = sum(1 for i in preferred_items if i["matched"])
+
+    return {
+        "required": required_items,
+        "preferred": preferred_items,
+        "summary": {
+            "required_matched": req_matched,
+            "required_total": len(required_items),
+            "preferred_matched": pref_matched,
+            "preferred_total": len(preferred_items),
+        },
+    }
+
+
+def _apply_tenure_inference_to_breakdown(analysis: dict) -> None:
+    """Idea #666: Correct experience_level criterion entry when career timeline implies sufficient tenure.
+
+    If _enrich_experience_gap already set experience_match=True, keyword-level phrase misses
+    (e.g. '6+ years') are false negatives — the candidate meets the requirement. Move those
+    items from missing to matched and explain the inference.
+    """
+    exp_gaps = (analysis.get("gap_analysis") or {}).get("experience_gaps", {})
+    if not exp_gaps.get("experience_match"):
+        return
+
+    breakdown = analysis.get("criterion_breakdown")
+    if not breakdown:
+        return
+
+    for entry in breakdown:
+        if entry.get("category") != "experience_level":
+            continue
+        missing = entry.get("missing_keywords", [])
+        if not missing:
+            return
+        matched = entry.get("matched_keywords", [])
+        all_items = matched + missing
+        entry["matched_keywords"] = all_items
+        entry["missing_keywords"] = []
+        total = len(all_items)
+        entry["matched"] = total
+        entry["total"] = total
+        entry["score"] = 100.0
+        labels = [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in all_items[:4]]
+        cv_years = exp_gaps.get("cv_years", "")
+        years_note = f" ({cv_years}yr career span)" if cv_years else ""
+        entry["explanation"] = f"Inferred from career timeline{years_note}: {', '.join(str(k) for k in labels)}."
+        return
+
+
+def _derive_criterion_breakdown(ats: dict) -> list[dict]:
+    """Idea #24: Build criterion_breakdown from scores_by_category for pre-#57 records."""
+    display_names = {
+        'tools': 'Tools & Platforms', 'methodologies': 'Methodologies',
+        'certifications': 'Certifications', 'management': 'Management & Leadership',
+        'industry_terms': 'Industry Terms', 'transferable_skills': 'Transferable Skills',
+        'experience_level': 'Experience Level', 'regulations': 'Regulations & Compliance',
+        'metrics': 'Metrics & Outcomes', 'preferred': 'Preferred / Bonus',
+        'critical_keywords': 'Critical Keywords', 'hard_skills': 'Technical Skills',
+        'required': 'Required Skills', 'soft_skills': 'Soft Skills',
+    }
+    freq = ats.get("jd_keyword_frequency", {})
+    breakdown = []
+    for category, data in ats.get("scores_by_category", {}).items():
+        if category == "frequency_keywords":
+            continue
+        matched_kws = data.get("items_matched", [])
+        missing_kws = data.get("items_missing", [])
+        m, total_m = data.get("matched", 0), data.get("missing", 0)
+        total = m + total_m
+        if total == 0:
+            continue
+        score_pct = round(m / total * 100, 1)
+        if matched_kws and missing_kws:
+            explanation = f"Matched {m} of {total}: {', '.join(matched_kws[:3])}. Missing: {', '.join(missing_kws[:3])}."
+        elif matched_kws:
+            explanation = f"All {m} matched: {', '.join(matched_kws[:4])}."
+        else:
+            explanation = f"None of {total} matched: {', '.join(missing_kws[:4])}."
+        breakdown.append({
+            'category': category,
+            'display_name': display_names.get(category, category),
+            'score': score_pct,
+            'matched': m,
+            'total': total,
+            'explanation': explanation,
+            'matched_keywords': [{'keyword': kw, 'jd_frequency': freq.get(kw.lower(), 0)} for kw in matched_kws],
+            'missing_keywords': [{'keyword': kw, 'jd_frequency': freq.get(kw.lower(), 0)} for kw in missing_kws],
+        })
+    return breakdown
+
+
 def _generate_placement_suggestions(ats: dict) -> list[dict]:
     """Idea #100: Surface where existing CV content maps to JD requirements but is buried or underselling.
 
@@ -1608,6 +1762,16 @@ async def get_ats_analysis(job_id: str, user_id: str = Header(None, alias="X-Use
             analysis["keyword_placement"] = _generate_placement_suggestions(analysis)
             analysis["evidence_gap_details"] = _enrich_evidence_gaps(analysis)
             _enrich_experience_gap(analysis, user_id or "default")
+            # Idea #24: derive criterion breakdown for old records that pre-date #57
+            if "criterion_breakdown" not in analysis:
+                analysis["criterion_breakdown"] = _derive_criterion_breakdown(analysis)
+            # Idea #666: correct experience_level false negatives using tenure inference
+            _apply_tenure_inference_to_breakdown(analysis)
+            # Idea #660: qualification checklist (required vs preferred pass/fail)
+            analysis["qualification_checklist"] = _build_qualification_checklist(analysis)
+            # Idea #661: inferred interview criteria (already cached in ats_details; ensure key present)
+            if "inferred_interview_criteria" not in analysis:
+                analysis["inferred_interview_criteria"] = []
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),
@@ -1679,11 +1843,21 @@ async def rematch_ats(
     )
 
     old_score = job.get("ats_score")
+    old_ats_details = {}
+    if job.get("ats_details"):
+        try:
+            old_ats_details = json.loads(job["ats_details"])
+        except (json.JSONDecodeError, TypeError):
+            pass
 
     loop = asyncio.get_event_loop()
     _report, _key_req, ats_score_dict = await loop.run_in_executor(
         None, ats_optimizer.generate_ats_report, cv_content, job_description
     )
+
+    # Preserve inferred_interview_criteria — based on job title/JD, not CV (#664)
+    if "inferred_interview_criteria" not in ats_score_dict and old_ats_details.get("inferred_interview_criteria"):
+        ats_score_dict["inferred_interview_criteria"] = old_ats_details["inferred_interview_criteria"]
 
     new_score = ats_score_dict["score"]
     delta = round(new_score - (old_score or 0), 1)

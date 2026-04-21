@@ -287,7 +287,7 @@ export interface ExperienceGaps {
 // Idea #87: Smart CV Gap Analysis with Actionable Suggestions
 export interface ActionableSuggestion {
   skill: string;
-  priority: 'critical' | 'required' | 'hard_skills' | 'preferred';
+  priority: 'critical' | 'required' | 'hard_skills' | 'preferred';  // mapped from category weight
   recommended_section: string;
   section_score: number;
   reason: string;
@@ -317,6 +317,47 @@ export interface PlacementSuggestion {
   section_hint: string;
 }
 
+// Idea #661/#667: Inferred interview criteria
+export interface InferredCriterion {
+  criterion: string;
+  rationale: string;
+  prep_response?: string;
+}
+
+// Idea #660: Qualification checklist (LinkedIn-parity)
+export interface QualificationItem {
+  statement: string;
+  matched: boolean;
+}
+
+export interface QualificationChecklist {
+  required: QualificationItem[];
+  preferred: QualificationItem[];
+  summary: {
+    required_matched: number;
+    required_total: number;
+    preferred_matched: number;
+    preferred_total: number;
+  };
+}
+
+// Idea #24: Per-criterion breakdown with keyword drill-down
+export interface KeywordWithFrequency {
+  keyword: string;
+  jd_frequency: number;
+}
+
+export interface CriterionBreakdown {
+  category: string;
+  display_name: string;
+  score: number;
+  matched: number;
+  total: number;
+  explanation: string;
+  matched_keywords: KeywordWithFrequency[];
+  missing_keywords: KeywordWithFrequency[];
+}
+
 export interface ATSAnalysisData {
   score: number;
   matched: number;
@@ -327,6 +368,10 @@ export interface ATSAnalysisData {
   scores_by_category: Record<string, ATSCategoryScore>;
   matched_phrases: string[];
   missing_phrases: string[];
+  jd_keyword_frequency?: Record<string, number>;  // idea #57
+  criterion_breakdown?: CriterionBreakdown[];  // idea #24
+  qualification_checklist?: QualificationChecklist;  // idea #660
+  inferred_interview_criteria?: InferredCriterion[];  // idea #661
   section_analysis: SectionAnalysis;
   evidence_analysis: EvidenceAnalysis;
   parsed_entities: ParsedEntities;

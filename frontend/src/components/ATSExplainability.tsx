@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { BarChart3, CheckCircle2, Brain, Target } from 'lucide-react';
-import type { ATSAnalysisData } from '../types';
+import type { ATSAnalysisData, CriterionBreakdown } from '../types';
 import CollapsibleSection from './CollapsibleSection';
 import GapAnalysis from './GapAnalysis';
 
@@ -10,19 +10,94 @@ interface ATSExplainabilityProps {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
+  // Current 10-category labels (idea #57)
+  tools: 'Tools & Platforms',
+  methodologies: 'Methodologies',
+  certifications: 'Certifications',
+  management: 'Management & Leadership',
+  industry_terms: 'Industry Terms',
+  transferable_skills: 'Transferable Skills',
+  experience_level: 'Experience Level',
+  regulations: 'Regulations & Compliance',
+  metrics: 'Metrics & Outcomes',
+  preferred: 'Nice to Have',
+  frequency_keywords: 'Other Keywords',
+  // Legacy labels (backward compat for old DB records)
   critical_keywords: 'Critical Keywords',
   required: 'Required Skills',
   hard_skills: 'Technical Skills',
   soft_skills: 'Soft Skills',
-  preferred: 'Nice to Have',
-  frequency_keywords: 'Other Keywords',
-  certifications: 'Certifications',
-  industry_terms: 'Industry Terms',
 };
 
 
+function CriterionCard({ criterion }: { criterion: CriterionBreakdown }) {
+  const pct = criterion.score;
+  const barColor = pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500';
+
+  return (
+    <CollapsibleSection
+      title={criterion.display_name}
+      badge={`${criterion.matched}/${criterion.total}`}
+      badgeColor={pct >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : pct >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'}
+    >
+      <div className="space-y-3">
+        {/* Score bar */}
+        <div>
+          <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+            <span>{pct}% matched</span>
+          </div>
+          <div className="w-full bg-slate-200 dark:bg-slate-600 h-1.5 rounded-full overflow-hidden">
+            <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+        {/* Explanation */}
+        <p className="text-xs text-slate-600 dark:text-slate-400">{criterion.explanation}</p>
+        {/* Keyword chips */}
+        {criterion.matched_keywords.length > 0 && (
+          <div>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">Matched</span>
+            <div className="flex flex-wrap gap-1">
+              {criterion.matched_keywords.map(kw => (
+                <span
+                  key={kw.keyword}
+                  title={kw.jd_frequency > 0 ? `Appears ${kw.jd_frequency}x in JD` : undefined}
+                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                >
+                  {kw.keyword}
+                  {kw.jd_frequency > 0 && (
+                    <span className="text-green-500 dark:text-green-400 text-[10px]">{kw.jd_frequency}x</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {criterion.missing_keywords.length > 0 && (
+          <div>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">Missing</span>
+            <div className="flex flex-wrap gap-1">
+              {criterion.missing_keywords.map(kw => (
+                <span
+                  key={kw.keyword}
+                  title={kw.jd_frequency > 0 ? `Appears ${kw.jd_frequency}x in JD` : undefined}
+                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                >
+                  {kw.keyword}
+                  {kw.jd_frequency > 0 && (
+                    <span className="text-red-400 dark:text-red-400 text-[10px]">{kw.jd_frequency}x</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 function ATSExplainability({ analysis, hideGapAnalysis }: ATSExplainabilityProps) {
-  const { hybrid_scoring, scores_by_category, section_analysis, semantic_analysis, gap_analysis } = analysis;
+  const { hybrid_scoring, scores_by_category, section_analysis, semantic_analysis, gap_analysis, criterion_breakdown } = analysis;
 
   // Score breakdown
   const scoreRows = useMemo(() => {
@@ -50,8 +125,9 @@ function ATSExplainability({ analysis, hideGapAnalysis }: ATSExplainabilityProps
     return matches.slice(0, 12);
   }, [section_analysis]);
 
-  // Category completion
+  // Fallback category bars for records without criterion_breakdown
   const categoryBars = useMemo(() => {
+    if (criterion_breakdown?.length) return [];
     return Object.entries(scores_by_category)
       .map(([key, cat]) => {
         const total = cat.matched + cat.missing;
@@ -60,13 +136,13 @@ function ATSExplainability({ analysis, hideGapAnalysis }: ATSExplainabilityProps
       })
       .filter(c => c.total > 0)
       .sort((a, b) => a.pct - b.pct);
-  }, [scores_by_category]);
+  }, [scores_by_category, criterion_breakdown]);
 
   return (
     <div className="space-y-3">
       {/* Score Breakdown */}
       {hybrid_scoring && (
-        <CollapsibleSection title="Score Breakdown" icon={BarChart3} defaultExpanded>
+        <CollapsibleSection title="Score Breakdown" icon={BarChart3} storageKey="score-breakdown">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
@@ -95,7 +171,18 @@ function ATSExplainability({ analysis, hideGapAnalysis }: ATSExplainabilityProps
         </CollapsibleSection>
       )}
 
-      {/* Category Completion */}
+      {/* Criterion Breakdown — expandable drill-down per category (idea #24) */}
+      {criterion_breakdown && criterion_breakdown.length > 0 && (
+        <CollapsibleSection title="Category Breakdown" icon={Target} storageKey="category-breakdown">
+          <div className="space-y-1.5">
+            {criterion_breakdown.map(c => (
+              <CriterionCard key={c.category} criterion={c} />
+            ))}
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Fallback: simple category bars for pre-#57 records */}
       {categoryBars.length > 0 && (
         <CollapsibleSection title="Category Completion" icon={Target} defaultExpanded>
           <div className="space-y-2">

@@ -7,6 +7,7 @@ interface CollapsibleSectionProps {
   badge?: string | number;
   badgeColor?: string;
   defaultExpanded?: boolean;
+  storageKey?: string;  // idea #662: persist state in sessionStorage
   children: ReactNode;
 }
 
@@ -16,14 +17,27 @@ function CollapsibleSection({
   badge,
   badgeColor = 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
   defaultExpanded = false,
+  storageKey,
   children,
 }: CollapsibleSectionProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [expanded, setExpanded] = useState(() => {
+    if (storageKey) {
+      const stored = sessionStorage.getItem(`ats-panel-${storageKey}`);
+      if (stored !== null) return stored === 'true';
+    }
+    return defaultExpanded;
+  });
+
+  function toggle() {
+    const next = !expanded;
+    setExpanded(next);
+    if (storageKey) sessionStorage.setItem(`ats-panel-${storageKey}`, String(next));
+  }
 
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={toggle}
         className="w-full px-4 py-3 flex items-center justify-between bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
       >
         <div className="flex items-center space-x-3">

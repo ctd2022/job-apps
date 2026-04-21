@@ -40,7 +40,7 @@ function NewApplication() {
   const [profileJobCount, setProfileJobCount] = useState(0);
 
   // Job description state
-  const [jobDescMode, setJobDescMode] = useState<'upload' | 'paste'>('upload');
+  const [jobDescMode, setJobDescMode] = useState<'upload' | 'paste'>('paste');
   const [jobFile, setJobFile] = useState<File | null>(null);
   const [jobDescText, setJobDescText] = useState('');
 
@@ -318,7 +318,7 @@ function NewApplication() {
     setCvFile(null);
     setJobFile(null);
     setJobDescText('');
-    setJobDescMode('upload');
+    setJobDescMode('paste');
     setCompanyName('');
     setCurrentJob(null);
     setOutputFiles([]);

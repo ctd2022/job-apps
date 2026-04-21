@@ -30,19 +30,20 @@ const ExtractedSkillsList: React.FC<ExtractedSkillsListProps> = ({ parsedEntitie
     }
   });
 
+  const cvSoftSkills = new Set(parsedEntities.cv_soft_skills);
+
   jdRequiredSkills.forEach(skill => {
-    if (!cvSkills.has(skill)) {
+    if (!cvSkills.has(skill) && !cvSoftSkills.has(skill)) {
       missingRequired.push(skill);
     }
   });
 
   jdPreferredSkills.forEach(skill => {
-    if (!cvSkills.has(skill) && !jdRequiredSkills.has(skill)) {
+    if (!cvSkills.has(skill) && !cvSoftSkills.has(skill) && !jdRequiredSkills.has(skill)) {
       missingPreferred.push(skill);
     }
   });
 
-  const cvSoftSkills = new Set(parsedEntities.cv_soft_skills);
   const jdRequiredSoftSkills = new Set(
     parsedEntities.jd_required_skills.filter(skill => parsedEntities.cv_soft_skills.includes(skill))
   );
@@ -82,7 +83,7 @@ const ExtractedSkillsList: React.FC<ExtractedSkillsListProps> = ({ parsedEntitie
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 mb-4">
-      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Extracted Hard Skills</h3>
+      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Hard Skill Matching</h3>
       <div className="space-y-6">
 
         {/* Matched Skills */}
