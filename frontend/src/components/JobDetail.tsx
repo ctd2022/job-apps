@@ -33,6 +33,7 @@ import MissingKeywordsAlert from './MissingKeywordsAlert';
 import CVCompletenessMeter from './CVCompletenessMeter';
 import KeywordPlacementSuggestions from './KeywordPlacementSuggestions';
 import ATSExplainability from './ATSExplainability';
+import QualificationChecklist from './QualificationChecklist';
 import CollapsibleSection from './CollapsibleSection';
 import ExtractedSkillsList from './ExtractedSkillsList';
 import EvidenceStrengthPanel from './EvidenceStrengthPanel';
@@ -564,6 +565,9 @@ function JobDetail() {
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-600">
             <CollapsibleSection title="Full Analysis">
               <div className="space-y-3 pt-2">
+                {atsAnalysis.qualification_checklist && (
+                  <QualificationChecklist checklist={atsAnalysis.qualification_checklist} />
+                )}
                 <MatchExplanationCard analysis={atsAnalysis} />
                 <ATSExplainability analysis={atsAnalysis} hideGapAnalysis={true} />
                 {atsAnalysis?.parsed_entities && (

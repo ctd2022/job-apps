@@ -317,6 +317,23 @@ export interface PlacementSuggestion {
   section_hint: string;
 }
 
+// Idea #660: Qualification checklist (LinkedIn-parity)
+export interface QualificationItem {
+  statement: string;
+  matched: boolean;
+}
+
+export interface QualificationChecklist {
+  required: QualificationItem[];
+  preferred: QualificationItem[];
+  summary: {
+    required_matched: number;
+    required_total: number;
+    preferred_matched: number;
+    preferred_total: number;
+  };
+}
+
 // Idea #24: Per-criterion breakdown with keyword drill-down
 export interface KeywordWithFrequency {
   keyword: string;
@@ -346,6 +363,7 @@ export interface ATSAnalysisData {
   missing_phrases: string[];
   jd_keyword_frequency?: Record<string, number>;  // idea #57
   criterion_breakdown?: CriterionBreakdown[];  // idea #24
+  qualification_checklist?: QualificationChecklist;  // idea #660
   section_analysis: SectionAnalysis;
   evidence_analysis: EvidenceAnalysis;
   parsed_entities: ParsedEntities;

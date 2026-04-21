@@ -1421,6 +1421,35 @@ async def get_job_description(job_id: str):
     }
 
 
+def _build_qualification_checklist(ats: dict) -> dict:
+    """Idea #660: Build binary pass/fail qualification checklist from parsed entities."""
+    entities = ats.get("parsed_entities", {})
+    not_found = {s.lower() for s in ats.get("section_analysis", {}).get("not_found_in_cv", [])}
+
+    def is_matched(skill: str) -> bool:
+        return skill.lower() not in not_found
+
+    required = entities.get("jd_required_skills", [])
+    preferred = entities.get("jd_preferred_skills", [])
+
+    required_items = [{"statement": s, "matched": is_matched(s)} for s in required]
+    preferred_items = [{"statement": s, "matched": is_matched(s)} for s in preferred]
+
+    req_matched = sum(1 for i in required_items if i["matched"])
+    pref_matched = sum(1 for i in preferred_items if i["matched"])
+
+    return {
+        "required": required_items,
+        "preferred": preferred_items,
+        "summary": {
+            "required_matched": req_matched,
+            "required_total": len(required_items),
+            "preferred_matched": pref_matched,
+            "preferred_total": len(preferred_items),
+        },
+    }
+
+
 def _derive_criterion_breakdown(ats: dict) -> list[dict]:
     """Idea #24: Build criterion_breakdown from scores_by_category for pre-#57 records."""
     display_names = {
@@ -1653,6 +1682,8 @@ async def get_ats_analysis(job_id: str, user_id: str = Header(None, alias="X-Use
             # Idea #24: derive criterion breakdown for old records that pre-date #57
             if "criterion_breakdown" not in analysis:
                 analysis["criterion_breakdown"] = _derive_criterion_breakdown(analysis)
+            # Idea #660: qualification checklist (required vs preferred pass/fail)
+            analysis["qualification_checklist"] = _build_qualification_checklist(analysis)
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),
