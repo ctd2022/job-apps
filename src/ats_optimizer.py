@@ -403,11 +403,15 @@ class ATSOptimizer:
 
             line_lower = line.lower()
 
-            # Try matching new 10-category headers first
+            # Try matching new 10-category headers first (space or underscore variants)
             matched_header = None
             for key in result:
-                header = key.replace('_', ' ') + ':'
-                if line_lower.startswith(header) or line_lower.startswith(key + ':'):
+                variants = [
+                    key + ':',
+                    key.replace('_', ' ') + ':',
+                    key.replace('_', '-') + ':',
+                ]
+                if any(line_lower.startswith(v) for v in variants):
                     matched_header = key
                     break
 
@@ -436,23 +440,35 @@ class ATSOptimizer:
     def identify_key_requirements(self, job_description: str) -> str:
         """Use LLM to identify critical requirements and keywords"""
 
-        system_message = """You extract keywords from job descriptions into 10 categories. Output ONLY the structured format requested. DO NOT add any preamble, explanation, or commentary. Start your response directly with "TOOLS:" - no other text before it."""
+        system_message = """You extract keywords from job descriptions into 10 categories. Output ONLY the structured format shown. DO NOT add any preamble, explanation, or commentary. Start your response directly with "TOOLS:" on the first line."""
 
-        prompt = f"""Extract keywords from this job description into exactly the 10 categories below.
+        prompt = f"""Extract keywords from this job description into the 10 categories below.
+Categories:
+- TOOLS: software, platforms, frameworks, programming languages
+- METHODOLOGIES: ways of working (Agile, ITIL, Prince2, Lean, DevOps)
+- CERTIFICATIONS: formal qualifications, degrees, professional certs
+- MANAGEMENT: leadership, management, budget, P&L, team, stakeholder skills
+- INDUSTRY TERMS: sector-specific vocabulary, domain terms
+- TRANSFERABLE SKILLS: cross-role competencies (communication, analysis, negotiation)
+- EXPERIENCE LEVEL: seniority signals (senior, strategic, executive, years of experience)
+- REGULATIONS: compliance, regulatory frameworks (GDPR, FCA, SOC2)
+- METRICS: measurable outcomes (KPIs, OKRs, cost reduction, NPS)
+- PREFERRED: explicitly nice-to-have or advantageous skills only
 
+Job description:
 {job_description}
 
 ---
-TOOLS: software, platforms, frameworks, languages (e.g. Python, Salesforce, AWS, SQL)
-METHODOLOGIES: ways of working (e.g. Agile, ITIL, Prince2, Lean, DevOps)
-CERTIFICATIONS: formal qualifications or degrees (e.g. CISA, PMP, MSc, PRINCE2)
-MANAGEMENT: leadership and management skills (e.g. P&L ownership, budget, team leadership, stakeholder)
-INDUSTRY TERMS: sector-specific vocabulary (e.g. AML, KYC, PCI-DSS, IFRS)
-TRANSFERABLE SKILLS: cross-role competencies (e.g. communication, analysis, presentation, negotiation)
-EXPERIENCE LEVEL: seniority signals (e.g. senior, hands-on, strategic, 5+ years, executive)
-REGULATIONS: compliance and regulatory requirements (e.g. GDPR, FCA, SOC2, ISO 27001)
-METRICS: quantifiable outcomes and measures (e.g. KPIs, OKRs, cost reduction, NPS)
-PREFERRED: explicitly nice-to-have skills (e.g. knowledge of X would be advantageous)"""
+TOOLS: keyword1, keyword2, keyword3
+METHODOLOGIES: keyword1, keyword2, keyword3
+CERTIFICATIONS: keyword1, keyword2
+MANAGEMENT: keyword1, keyword2, keyword3
+INDUSTRY TERMS: keyword1, keyword2
+TRANSFERABLE SKILLS: keyword1, keyword2, keyword3
+EXPERIENCE LEVEL: keyword1, keyword2
+REGULATIONS: keyword1, keyword2
+METRICS: keyword1, keyword2
+PREFERRED: keyword1, keyword2"""
 
         messages = [
             {'role': 'system', 'content': system_message},
@@ -472,8 +488,8 @@ PREFERRED: explicitly nice-to-have skills (e.g. knowledge of X would be advantag
 
         valid_headers = [
             'TOOLS:', 'METHODOLOGIES:', 'CERTIFICATIONS:', 'MANAGEMENT:',
-            'INDUSTRY TERMS:', 'TRANSFERABLE SKILLS:', 'EXPERIENCE LEVEL:',
-            'REGULATIONS:', 'METRICS:', 'PREFERRED:',
+            'INDUSTRY TERMS:', 'INDUSTRY_TERMS:', 'TRANSFERABLE SKILLS:', 'TRANSFERABLE_SKILLS:',
+            'EXPERIENCE LEVEL:', 'EXPERIENCE_LEVEL:', 'REGULATIONS:', 'METRICS:', 'PREFERRED:',
             # Legacy headers (backward compat)
             'HARD SKILLS:', 'SOFT SKILLS:', 'QUALIFICATIONS:',
             'CRITICAL KEYWORDS:', 'REQUIRED:',
