@@ -554,6 +554,65 @@ PREFERRED: explicitly nice-to-have skills (e.g. knowledge of X would be advantag
 
         return section_matches
 
+    _CATEGORY_DISPLAY_NAMES = {
+        'tools':               'Tools & Platforms',
+        'methodologies':       'Methodologies',
+        'certifications':      'Certifications',
+        'management':          'Management & Leadership',
+        'industry_terms':      'Industry Terms',
+        'transferable_skills': 'Transferable Skills',
+        'experience_level':    'Experience Level',
+        'regulations':         'Regulations & Compliance',
+        'metrics':             'Metrics & Outcomes',
+        'preferred':           'Preferred / Bonus',
+        'frequency_keywords':  'Other Keywords',
+    }
+
+    def _build_criterion_breakdown(self, scores: dict, jd_frequency: 'Counter') -> list[dict]:
+        """Build per-criterion breakdown for drill-down UI (idea #24)."""
+        breakdown = []
+        for category, data in scores.items():
+            if category == 'frequency_keywords':
+                continue
+            matched_kws = data['matched']
+            missing_kws = data['missing']
+            total = len(matched_kws) + len(missing_kws)
+            if total == 0:
+                continue
+            score_pct = round(len(matched_kws) / total * 100, 1)
+            matched_top = matched_kws[:8]
+            missing_top = missing_kws[:8]
+
+            # Explanation sentence
+            if matched_top and missing_top:
+                explanation = (
+                    f"Matched {len(matched_kws)} of {total}: "
+                    f"{', '.join(matched_top[:3])}{'...' if len(matched_top) > 3 else ''}. "
+                    f"Missing: {', '.join(missing_top[:3])}{'...' if len(missing_top) > 3 else ''}."
+                )
+            elif matched_top:
+                explanation = f"All {len(matched_kws)} matched: {', '.join(matched_top[:4])}."
+            else:
+                explanation = f"None of {total} matched: {', '.join(missing_top[:4])}."
+
+            breakdown.append({
+                'category': category,
+                'display_name': self._CATEGORY_DISPLAY_NAMES.get(category, category),
+                'score': score_pct,
+                'matched': len(matched_kws),
+                'total': total,
+                'explanation': explanation,
+                'matched_keywords': [
+                    {'keyword': kw, 'jd_frequency': jd_frequency.get(kw.lower(), 0)}
+                    for kw in matched_kws
+                ],
+                'missing_keywords': [
+                    {'keyword': kw, 'jd_frequency': jd_frequency.get(kw.lower(), 0)}
+                    for kw in missing_kws
+                ],
+            })
+        return breakdown
+
     def _generate_actionable_suggestions(
         self,
         section_matches: dict,
@@ -895,6 +954,8 @@ PREFERRED: explicitly nice-to-have skills (e.g. knowledge of X would be advantag
             'missing_phrases': missing_bigrams[:10],
             # Idea #57: JD keyword frequency counts for drill-down UI
             'jd_keyword_frequency': dict(job_keywords['unigrams'].most_common(100)),
+            # Idea #24: Per-criterion breakdown with keyword drill-down
+            'criterion_breakdown': self._build_criterion_breakdown(scores, job_keywords['unigrams']),
             # Track 2.8: Section-level analysis
             'section_analysis': {
                 'experience_matches': section_matches['experience_matches'][:10],

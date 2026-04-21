@@ -317,6 +317,23 @@ export interface PlacementSuggestion {
   section_hint: string;
 }
 
+// Idea #24: Per-criterion breakdown with keyword drill-down
+export interface KeywordWithFrequency {
+  keyword: string;
+  jd_frequency: number;
+}
+
+export interface CriterionBreakdown {
+  category: string;
+  display_name: string;
+  score: number;
+  matched: number;
+  total: number;
+  explanation: string;
+  matched_keywords: KeywordWithFrequency[];
+  missing_keywords: KeywordWithFrequency[];
+}
+
 export interface ATSAnalysisData {
   score: number;
   matched: number;
@@ -328,6 +345,7 @@ export interface ATSAnalysisData {
   matched_phrases: string[];
   missing_phrases: string[];
   jd_keyword_frequency?: Record<string, number>;  // idea #57
+  criterion_breakdown?: CriterionBreakdown[];  // idea #24
   section_analysis: SectionAnalysis;
   evidence_analysis: EvidenceAnalysis;
   parsed_entities: ParsedEntities;

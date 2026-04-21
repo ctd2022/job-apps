@@ -1421,6 +1421,48 @@ async def get_job_description(job_id: str):
     }
 
 
+def _derive_criterion_breakdown(ats: dict) -> list[dict]:
+    """Idea #24: Build criterion_breakdown from scores_by_category for pre-#57 records."""
+    display_names = {
+        'tools': 'Tools & Platforms', 'methodologies': 'Methodologies',
+        'certifications': 'Certifications', 'management': 'Management & Leadership',
+        'industry_terms': 'Industry Terms', 'transferable_skills': 'Transferable Skills',
+        'experience_level': 'Experience Level', 'regulations': 'Regulations & Compliance',
+        'metrics': 'Metrics & Outcomes', 'preferred': 'Preferred / Bonus',
+        'critical_keywords': 'Critical Keywords', 'hard_skills': 'Technical Skills',
+        'required': 'Required Skills', 'soft_skills': 'Soft Skills',
+    }
+    freq = ats.get("jd_keyword_frequency", {})
+    breakdown = []
+    for category, data in ats.get("scores_by_category", {}).items():
+        if category == "frequency_keywords":
+            continue
+        matched_kws = data.get("items_matched", [])
+        missing_kws = data.get("items_missing", [])
+        m, total_m = data.get("matched", 0), data.get("missing", 0)
+        total = m + total_m
+        if total == 0:
+            continue
+        score_pct = round(m / total * 100, 1)
+        if matched_kws and missing_kws:
+            explanation = f"Matched {m} of {total}: {', '.join(matched_kws[:3])}. Missing: {', '.join(missing_kws[:3])}."
+        elif matched_kws:
+            explanation = f"All {m} matched: {', '.join(matched_kws[:4])}."
+        else:
+            explanation = f"None of {total} matched: {', '.join(missing_kws[:4])}."
+        breakdown.append({
+            'category': category,
+            'display_name': display_names.get(category, category),
+            'score': score_pct,
+            'matched': m,
+            'total': total,
+            'explanation': explanation,
+            'matched_keywords': [{'keyword': kw, 'jd_frequency': freq.get(kw.lower(), 0)} for kw in matched_kws],
+            'missing_keywords': [{'keyword': kw, 'jd_frequency': freq.get(kw.lower(), 0)} for kw in missing_kws],
+        })
+    return breakdown
+
+
 def _generate_placement_suggestions(ats: dict) -> list[dict]:
     """Idea #100: Surface where existing CV content maps to JD requirements but is buried or underselling.
 
@@ -1608,6 +1650,9 @@ async def get_ats_analysis(job_id: str, user_id: str = Header(None, alias="X-Use
             analysis["keyword_placement"] = _generate_placement_suggestions(analysis)
             analysis["evidence_gap_details"] = _enrich_evidence_gaps(analysis)
             _enrich_experience_gap(analysis, user_id or "default")
+            # Idea #24: derive criterion breakdown for old records that pre-date #57
+            if "criterion_breakdown" not in analysis:
+                analysis["criterion_breakdown"] = _derive_criterion_breakdown(analysis)
             return {
                 "job_id": job_id,
                 "ats_score": job.get("ats_score"),
