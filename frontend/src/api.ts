@@ -396,6 +396,25 @@ export async function getPositionProfile(): Promise<import('./types').PositionPr
   return handleResponse<import('./types').PositionProfileData>(response);
 }
 
+export async function getSearchScope(): Promise<import('./types').SearchScopeData> {
+  const response = await fetch(`${API_BASE}/search-scope`, {
+    headers: getUserHeaders(),
+  });
+  return handleResponse<import('./types').SearchScopeData>(response);
+}
+
+export async function generateSearchScopeSuggestions(
+  backendType?: string,
+  modelName?: string,
+): Promise<import('./types').SearchScopeSuggestions> {
+  const response = await fetch(`${API_BASE}/search-scope/suggestions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getUserHeaders() },
+    body: JSON.stringify({ backend_type: backendType ?? null, model_name: modelName ?? null }),
+  });
+  return handleResponse<import('./types').SearchScopeSuggestions>(response);
+}
+
 // Metrics
 export async function getMetrics(): Promise<Metrics> {
   const response = await fetch(`${API_BASE}/metrics`, {

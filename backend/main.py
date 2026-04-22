@@ -437,6 +437,11 @@ class ProfileIncludeRequest(BaseModel):
     include: bool
 
 
+class SearchScopeSuggestionsRequest(BaseModel):
+    backend_type: Optional[str] = None
+    model_name: Optional[str] = None
+
+
 class UserCreateRequest(BaseModel):
     """Request to create a new user"""
     name: str
@@ -1393,6 +1398,111 @@ async def get_position_profile(user_id: str = Header(None, alias="X-User-ID")):
     """
     user_id = user_id or "default"
     return job_store.get_position_profile(user_id=user_id)
+
+
+@app.get("/api/search-scope")
+async def get_search_scope(user_id: str = Header(None, alias="X-User-ID")):
+    """Statistical corpus analysis across all added jobs (Idea #670).
+
+    No LLM required. Returns role_distribution and seniority_summary covering
+    every job the user has added, regardless of ATS analysis status.
+    """
+    user_id = user_id or "default"
+    data = job_store.get_search_scope(user_id=user_id)
+    data.pop("jd_samples", None)  # jd_samples are for the suggestions endpoint only
+    return data
+
+
+@app.post("/api/search-scope/suggestions")
+async def generate_search_scope_suggestions(
+    request: SearchScopeSuggestionsRequest,
+    user_id: str = Header(None, alias="X-User-ID"),
+):
+    """LLM-powered adjacent role suggestions and JD theme analysis (Idea #670)."""
+    user_id = user_id or "default"
+
+    if not WORKFLOW_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Workflow modules not available")
+
+    scope_data = job_store.get_search_scope(user_id=user_id)
+
+    if scope_data["job_count"] == 0:
+        raise HTTPException(status_code=400, detail="No jobs found — add some jobs first")
+
+    backend_type = request.backend_type or _default_cloud_backend()
+    backend_config = _build_backend_config(backend_type, request.model_name)
+
+    try:
+        backend = LLMBackendFactory.create_backend(backend_type, **backend_config)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Could not initialise LLM backend: {e}")
+
+    role_lines = "\n".join(
+        f"- {r['title']}: {r['count']} job{'s' if r['count'] != 1 else ''}"
+        for r in scope_data["role_distribution"]
+    ) or "(no job titles recorded)"
+
+    jd_section = ""
+    samples = scope_data.get("jd_samples", [])[:10]
+    if samples:
+        jd_section = "\n\nSample job description excerpts:\n" + "\n".join(
+            f"{i + 1}. [{s['job_title']}{' at ' + s['company_name'] if s['company_name'] else ''}]: "
+            f"{s['jd_snippet'][:300]}"
+            for i, s in enumerate(samples)
+        )
+
+    existing_roles_lower = [r["title"].lower() for r in scope_data["role_distribution"]]
+
+    prompt = (
+        f"You are a career advisor analysing a job seeker's search strategy.\n\n"
+        f"They have added {scope_data['job_count']} jobs to their tracker.\n\n"
+        f"Job title frequency:\n{role_lines}"
+        f"{jd_section}\n\n"
+        f"Respond with ONLY a valid JSON object (no markdown fences, no preamble) "
+        f"with exactly these keys:\n"
+        f'{{\"adjacent_roles\": [{{\"role\": \"...\", \"rationale\": \"...\"}}], '
+        f'\"jd_themes\": [\"...\"], '
+        f'\"search_observations\": [\"...\"]}}\n\n'
+        f"Rules:\n"
+        f"- adjacent_roles: 3 to 5 roles. Do NOT include: {', '.join(existing_roles_lower)}. "
+        f"One-sentence rationale per role explaining the shared skill DNA or career path link.\n"
+        f"- jd_themes: 4 to 6 recurring themes from the JD content — look beyond skill lists to "
+        f"patterns like culture, working style, stakeholder scope, methodology. "
+        f"If no JD text, infer from role titles.\n"
+        f"- search_observations: 2 to 3 specific observations about the shape of this search "
+        f"(seniority mix, sector focus, function breadth). Be concrete, not generic."
+    )
+
+    loop = asyncio.get_event_loop()
+    try:
+        raw = await loop.run_in_executor(
+            None, lambda: backend.chat([{"role": "user", "content": prompt}], temperature=0.4, max_tokens=1200)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
+
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    try:
+        result = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=502, detail=f"LLM returned non-JSON: {exc}. Raw: {raw[:400]}")
+
+    if not isinstance(result, dict):
+        raise HTTPException(status_code=502, detail="LLM response was not a JSON object")
+
+    return {
+        "adjacent_roles": [
+            {"role": str(r.get("role", "")), "rationale": str(r.get("rationale", ""))}
+            for r in result.get("adjacent_roles", [])
+            if isinstance(r, dict) and r.get("role") and r.get("rationale")
+        ][:6],
+        "jd_themes": [str(t) for t in result.get("jd_themes", []) if isinstance(t, str) and t][:8],
+        "search_observations": [str(o) for o in result.get("search_observations", []) if isinstance(o, str) and o][:5],
+    }
 
 
 @app.get("/api/jobs/{job_id}/stage-history")

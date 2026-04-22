@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { FileText, PlusCircle, History, User, UserPlus, Sun, Moon, Shield, FolderOpen, GraduationCap, BarChart2 } from 'lucide-react';
+import { FileText, PlusCircle, History, User, UserPlus, Sun, Moon, Shield, FolderOpen, GraduationCap, BarChart2, Compass } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import NewApplication from './components/NewApplication';
 import ApplicationHistory from './components/ApplicationHistory';
@@ -9,6 +9,7 @@ import CVManager from './components/CVManager';
 import CvCoach from './components/CvCoach';
 import CandidateProfile from './components/CandidateProfile';
 import PositionProfile from './components/PositionProfile';
+import SearchScope from './components/SearchScope';
 import ErrorBoundary from './components/ErrorBoundary';
 import OnboardingWizard from './components/OnboardingWizard';
 import { getUsers, createUser, setCurrentUser, getCurrentUser, initTheme, setTheme, getOnboardingStatus, Theme } from './api';
@@ -112,6 +113,7 @@ function App() {
     { path: '/cvs', icon: FolderOpen, label: 'CVs' },
     { path: '/history', icon: History, label: 'History' },
     { path: '/position-profile', icon: BarChart2, label: 'Roles' },
+    { path: '/search-scope', icon: Compass, label: 'Scope' },
   ];
   
   return (
@@ -190,6 +192,7 @@ function App() {
             <Route path="/cvs" element={<CVManager key={refreshKey} />} />
             <Route path="/history" element={<ApplicationHistory key={refreshKey} />} />
             <Route path="/position-profile" element={<PositionProfile key={refreshKey} />} />
+            <Route path="/search-scope" element={<SearchScope key={refreshKey} />} />
             <Route path="/job/:id" element={<JobDetail key={refreshKey} />} />
           </Routes>
         </ErrorBoundary>

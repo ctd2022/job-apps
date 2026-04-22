@@ -718,3 +718,26 @@ export interface CPDRefreshResponse {
   backend_type: string;
   search_enabled: boolean;
 }
+
+// Search Scope Analysis (Idea #670)
+export interface SearchScopeData {
+  job_count: number;
+  role_distribution: { title: string; count: number }[];
+  seniority_summary: {
+    senior_or_above: number;
+    junior_or_associate: number;
+    unspecified: number;
+  };
+  has_jd_text: boolean;
+}
+
+export interface AdjacentRole {
+  role: string;
+  rationale: string;
+}
+
+export interface SearchScopeSuggestions {
+  adjacent_roles: AdjacentRole[];
+  jd_themes: string[];
+  search_observations: string[];
+}

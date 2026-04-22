@@ -1112,6 +1112,79 @@ class JobStore:
             "corpus_jobs": corpus_jobs,
         }
 
+    def get_search_scope(self, user_id: str = None) -> Dict[str, Any]:
+        """Corpus data for search scope analysis (Idea #670).
+
+        Covers ALL jobs regardless of ATS analysis or include_in_profile status.
+        Returns role_distribution, seniority_summary, and jd_samples for LLM input.
+        """
+        from collections import Counter
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        if user_id:
+            cursor.execute(
+                "SELECT job_id, company_name, job_title, job_description_text "
+                "FROM jobs WHERE user_id = ? AND (job_title IS NOT NULL OR job_description_text IS NOT NULL) "
+                "ORDER BY created_at DESC",
+                (user_id,),
+            )
+        else:
+            cursor.execute(
+                "SELECT job_id, company_name, job_title, job_description_text "
+                "FROM jobs WHERE job_title IS NOT NULL OR job_description_text IS NOT NULL "
+                "ORDER BY created_at DESC"
+            )
+        rows = cursor.fetchall()
+        conn.close()
+
+        title_counter: Counter = Counter()
+        jd_samples = []
+        _SENIORITY = {
+            "senior": "senior", "lead": "senior", "principal": "senior",
+            "staff": "senior", "director": "senior", "head": "senior", "manager": "senior",
+            "junior": "junior", "associate": "junior", "graduate": "junior",
+        }
+        seniority_tally: Counter = Counter()
+
+        for row in rows:
+            title = (row["job_title"] or "").strip()
+            if title:
+                title_counter[title] += 1
+                title_lower = title.lower()
+                for kw, bucket in _SENIORITY.items():
+                    if kw in title_lower:
+                        seniority_tally[bucket] += 1
+                        break  # one bucket per title
+
+            jd_text = (row["job_description_text"] or "").strip()
+            if jd_text:
+                jd_samples.append({
+                    "job_title": title or "Unknown",
+                    "company_name": (row["company_name"] or "").strip(),
+                    "jd_snippet": jd_text[:600],
+                })
+
+        total = len(rows)
+        senior_count = seniority_tally["senior"]
+        junior_count = seniority_tally["junior"]
+
+        return {
+            "job_count": total,
+            "role_distribution": [
+                {"title": t, "count": c}
+                for t, c in title_counter.most_common(15)
+            ],
+            "seniority_summary": {
+                "senior_or_above": senior_count,
+                "junior_or_associate": junior_count,
+                "unspecified": total - senior_count - junior_count,
+            },
+            "has_jd_text": len(jd_samples) > 0,
+            "jd_samples": jd_samples[:20],
+        }
+
     def get_job_description_text(self, job_id: str) -> Optional[str]:
         """Get the stored job description text for a job."""
         conn = get_connection()
