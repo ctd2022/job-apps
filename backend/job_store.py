@@ -397,6 +397,11 @@ def init_db():
         cursor.execute("ALTER TABLE candidate_profiles ADD COLUMN section_config TEXT")
     except sqlite3.OperationalError:
         pass
+    # Migration: target_roles (Idea #673)
+    try:
+        cursor.execute("ALTER TABLE candidate_profiles ADD COLUMN target_roles TEXT DEFAULT '[]'")
+    except sqlite3.OperationalError:
+        pass
 
     # Migration: JD red-flag analysis column (Idea #32)
     try:
@@ -1113,10 +1118,10 @@ class JobStore:
         }
 
     def get_search_scope(self, user_id: str = None) -> Dict[str, Any]:
-        """Corpus data for search scope analysis (Idea #670).
+        """Corpus data for search scope analysis (Idea #670, #673).
 
         Covers ALL jobs regardless of ATS analysis or include_in_profile status.
-        Returns role_distribution, seniority_summary, and jd_samples for LLM input.
+        Returns role_distribution, seniority_summary, target_roles, and jd_samples for LLM input.
         """
         from collections import Counter
 
@@ -1137,6 +1142,22 @@ class JobStore:
                 "ORDER BY created_at DESC"
             )
         rows = cursor.fetchall()
+
+        # Fetch target_roles from profile (Idea #673)
+        target_roles: list = []
+        if user_id:
+            cursor.execute("SELECT target_roles FROM candidate_profiles WHERE user_id = ?", (user_id,))
+        else:
+            cursor.execute("SELECT target_roles FROM candidate_profiles WHERE user_id = 'default'")
+        profile_row = cursor.fetchone()
+        if profile_row and profile_row["target_roles"]:
+            try:
+                target_roles = json.loads(profile_row["target_roles"])
+                if not isinstance(target_roles, list):
+                    target_roles = []
+            except (json.JSONDecodeError, TypeError):
+                target_roles = []
+
         conn.close()
 
         title_counter: Counter = Counter()
@@ -1183,6 +1204,7 @@ class JobStore:
             },
             "has_jd_text": len(jd_samples) > 0,
             "jd_samples": jd_samples[:20],
+            "target_roles": target_roles,
         }
 
     def get_job_description_text(self, job_id: str) -> Optional[str]:

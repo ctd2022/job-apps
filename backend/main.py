@@ -296,6 +296,7 @@ class ProfileUpdate(BaseModel):
     cert_grouping_mode: Optional[str] = None
     summary: Optional[str] = None
     section_config: Optional[str] = None
+    target_roles: Optional[str] = None  # JSON array string (Idea #673)
 
 
 class JobHistoryCreate(BaseModel):
@@ -1402,10 +1403,10 @@ async def get_position_profile(user_id: str = Header(None, alias="X-User-ID")):
 
 @app.get("/api/search-scope")
 async def get_search_scope(user_id: str = Header(None, alias="X-User-ID")):
-    """Statistical corpus analysis across all added jobs (Idea #670).
+    """Statistical corpus analysis across all added jobs (Idea #670, #673).
 
-    No LLM required. Returns role_distribution and seniority_summary covering
-    every job the user has added, regardless of ATS analysis status.
+    No LLM required. Returns role_distribution, seniority_summary, and target_roles
+    covering every job the user has added, regardless of ATS analysis status.
     """
     user_id = user_id or "default"
     data = job_store.get_search_scope(user_id=user_id)
@@ -1442,6 +1443,14 @@ async def generate_search_scope_suggestions(
         for r in scope_data["role_distribution"]
     ) or "(no job titles recorded)"
 
+    target_roles: list = scope_data.get("target_roles", [])
+    target_roles_section = ""
+    if target_roles:
+        target_roles_section = (
+            f"\n\nDeclared target roles (explicitly stated by the candidate — weight these heavily):\n"
+            + "\n".join(f"- {r}" for r in target_roles)
+        )
+
     jd_section = ""
     samples = scope_data.get("jd_samples", [])[:10]
     if samples:
@@ -1451,12 +1460,15 @@ async def generate_search_scope_suggestions(
             for i, s in enumerate(samples)
         )
 
+    # Exclude both corpus roles and declared target roles from suggestions
     existing_roles_lower = [r["title"].lower() for r in scope_data["role_distribution"]]
+    existing_roles_lower += [r.lower() for r in target_roles]
 
     prompt = (
         f"You are a career advisor analysing a job seeker's search strategy.\n\n"
         f"They have added {scope_data['job_count']} jobs to their tracker.\n\n"
-        f"Job title frequency:\n{role_lines}"
+        f"Job title frequency (from tracker):\n{role_lines}"
+        f"{target_roles_section}"
         f"{jd_section}\n\n"
         f"Respond with ONLY a valid JSON object (no markdown fences, no preamble) "
         f"with exactly these keys:\n"
@@ -1465,7 +1477,8 @@ async def generate_search_scope_suggestions(
         f'\"search_observations\": [\"...\"]}}\n\n'
         f"Rules:\n"
         f"- adjacent_roles: 3 to 5 roles. Do NOT include: {', '.join(existing_roles_lower)}. "
-        f"One-sentence rationale per role explaining the shared skill DNA or career path link.\n"
+        f"One-sentence rationale per role explaining the shared skill DNA or career path link. "
+        f"If declared target roles are present, anchor suggestions to those — they represent intent.\n"
         f"- jd_themes: 4 to 6 recurring themes from the JD content — look beyond skill lists to "
         f"patterns like culture, working style, stakeholder scope, methodology. "
         f"If no JD text, infer from role titles.\n"

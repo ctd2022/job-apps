@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import type { JobHistoryRecord, JobHistoryUpdate } from '../types';
 import { updateJobHistoryRecord } from '../api';
@@ -31,6 +31,16 @@ function WorkExperiencePanelBody({ skill, jobs, onJobUpdated, onClose }: WorkExp
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Record<number, { description: string; details: string }>>({});
+
+  // Auto-expand the first (most recent) entry when opened in skill-context mode (#672)
+  useEffect(() => {
+    if (skill && jobs.length > 0) {
+      const first = jobs[0];
+      setExpandedId(first.id);
+      setEditValues({ [first.id]: { description: first.description ?? '', details: first.details ?? '' } });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function toggleExpand(job: JobHistoryRecord) {
     if (expandedId === job.id) {
@@ -74,6 +84,14 @@ function WorkExperiencePanelBody({ skill, jobs, onJobUpdated, onClose }: WorkExp
 
   return (
     <div className="flex flex-col h-full">
+      {/* Persistent skill badge (#672) — only shown when panel is in skill-context mode */}
+      {skill && (
+        <div className="flex-shrink-0 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700 flex items-center gap-2 text-xs">
+          <span className="text-amber-600 dark:text-amber-400">Adding evidence for</span>
+          <span className="px-2 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-200 rounded font-medium">{skill}</span>
+          <span className="text-amber-500 dark:text-amber-500 ml-auto">Edit the role below, then save.</span>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-700 min-h-0">
         {jobs.length === 0 && (
           <p className="px-4 py-8 text-sm text-slate-500 dark:text-slate-400 text-center">
@@ -117,28 +135,29 @@ function WorkExperiencePanelBody({ skill, jobs, onJobUpdated, onClose }: WorkExp
                   </p>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
                       Role description
                     </label>
                     <textarea
                       value={editValues[job.id]?.description ?? ''}
                       onChange={e => handleChange(job.id, 'description', e.target.value)}
                       rows={3}
-                      className="w-full text-xs border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 resize-y focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full text-xs border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 resize-y focus:outline-none focus:ring-1 focus:ring-slate-400"
                       placeholder="Brief overview of the role..."
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1">
                       Key achievements &amp; details
+                      {skill && <span className="ml-1 font-normal text-blue-500 dark:text-blue-500">— add your {skill} evidence here</span>}
                     </label>
                     <textarea
                       value={editValues[job.id]?.details ?? ''}
                       onChange={e => handleChange(job.id, 'details', e.target.value)}
                       rows={5}
-                      className="w-full text-xs border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 resize-y focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="Bullet points, achievements, metrics..."
+                      className="w-full text-xs border-2 border-blue-400 dark:border-blue-500 rounded px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder={skill ? `Add a bullet showing your experience with ${skill} — e.g. "Used ${skill} to..."` : 'Bullet points, achievements, metrics...'}
                     />
                   </div>
 

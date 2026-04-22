@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, Loader2, ExternalLink, ChevronRight, Eye, EyeOff, Wand2, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, Loader2, ExternalLink, ChevronRight, Eye, EyeOff, Wand2, RefreshCw, Target } from 'lucide-react';
 import {
   getProfile,
   updateProfile,
@@ -2416,6 +2416,96 @@ function SectionConfigPanel({ config, onChange }: SectionConfigPanelProps) {
   );
 }
 
+// ─── Target Roles Section (Idea #673) ─────────────────────────────────────────
+
+interface TargetRolesSectionProps {
+  profile: ProfileType | null;
+  onSaved: (p: ProfileType) => void;
+}
+
+function TargetRolesSection({ profile, onSaved }: TargetRolesSectionProps) {
+  const [roles, setRoles] = useState<string[]>(() => {
+    try { return JSON.parse(profile?.target_roles ?? '[]') as string[]; } catch { return []; }
+  });
+  const [input, setInput] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function saveRoles(next: string[]) {
+    setSaving(true);
+    try {
+      const updated = await updateProfile({ target_roles: JSON.stringify(next) } as ProfileUpdate);
+      setRoles(next);
+      onSaved(updated);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAdd() {
+    const trimmed = input.trim();
+    if (!trimmed || roles.includes(trimmed)) return;
+    setInput('');
+    await saveRoles([...roles, trimmed]);
+  }
+
+  async function handleRemove(role: string) {
+    await saveRoles(roles.filter(r => r !== role));
+  }
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <Target className="w-4 h-4 text-indigo-500" />
+        <h2 className="font-semibold text-slate-800 dark:text-slate-100">Target Roles</h2>
+      </div>
+      <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
+        Roles you are actively targeting. Used by Search Scope to improve adjacent role suggestions.
+      </p>
+
+      <div className="flex gap-2 mb-3">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+          placeholder="e.g. Data Scientist"
+          className="flex-1 px-2.5 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <button
+          onClick={handleAdd}
+          disabled={saving || !input.trim()}
+          className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-2.5 py-1.5 rounded hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {saving ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+          Add
+        </button>
+      </div>
+
+      {roles.length === 0 ? (
+        <p className="text-xs text-slate-400 italic">No target roles set — add one above.</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {roles.map(role => (
+            <span
+              key={role}
+              className="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200 text-sm rounded-full"
+            >
+              {role}
+              <button
+                onClick={() => handleRemove(role)}
+                disabled={saving}
+                className="ml-0.5 p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-700 text-indigo-500 dark:text-indigo-400 disabled:opacity-40"
+                aria-label={`Remove ${role}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Summary Section ──────────────────────────────────────────────────────────
 
 interface SummarySectionProps {
@@ -2820,8 +2910,9 @@ export default function CandidateProfile() {
           />
         </div>
 
-        {/* Right column: Summary + Work Experience + Education + Skills */}
+        {/* Right column: Target Roles + Summary + Work Experience + Education + Skills */}
         <div className="space-y-4">
+          <TargetRolesSection profile={profile} onSaved={setProfile} />
           <SummarySection profile={profile} onSaved={setProfile} />
           {/* Work Experience */}
           <div ref={experienceSectionRef} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">

@@ -514,6 +514,7 @@ export interface CandidateProfile {
   cert_grouping_mode: 'flat' | 'by_org' | null;
   summary: string | null;
   section_config: string | null;
+  target_roles: string | null;  // JSON array string (Idea #673)
   created_at: string;
   updated_at: string;
 }
@@ -729,6 +730,7 @@ export interface SearchScopeData {
     unspecified: number;
   };
   has_jd_text: boolean;
+  target_roles: string[];
 }
 
 export interface AdjacentRole {

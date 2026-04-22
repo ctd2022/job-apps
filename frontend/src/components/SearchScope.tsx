@@ -7,6 +7,7 @@ import {
   Sparkles,
   ArrowRight,
   Briefcase,
+  Target,
 } from 'lucide-react';
 import { getSearchScope, generateSearchScopeSuggestions } from '../api';
 import type { SearchScopeData, SearchScopeSuggestions } from '../types';
@@ -266,6 +267,42 @@ export default function SearchScope() {
           ? ` — primarily targeting ${data.role_distribution[0].title}${data.role_distribution.length > 1 ? ` and ${data.role_distribution.length - 1} other role type${data.role_distribution.length > 2 ? 's' : ''}` : ''}`
           : ''}.
         {' '}This view analyses the shape of your search — not how well your CV fits, but whether you are casting the right net.
+      </div>
+
+      {/* Declared target roles (Idea #673) */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1.5">
+            <Target className="w-3.5 h-3.5 text-indigo-500" />
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Declared Target Roles</h3>
+          </div>
+          <Link
+            to="/profile"
+            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5"
+          >
+            Edit in Profile <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+        <p className="text-xs text-slate-400 mb-3">Roles you have explicitly declared you are targeting — drives AI suggestions</p>
+        {data.target_roles.length === 0 ? (
+          <p className="text-xs text-slate-400 italic">
+            No target roles set.{' '}
+            <Link to="/profile" className="text-indigo-600 dark:text-indigo-400 hover:underline">Add them in your Profile</Link>
+            {' '}to get more accurate adjacent role suggestions.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {data.target_roles.map((role) => (
+              <span
+                key={role}
+                className="flex items-center gap-1 px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200 text-sm rounded-full"
+              >
+                <Target className="w-3 h-3 text-indigo-400" />
+                {role}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Role distribution */}
