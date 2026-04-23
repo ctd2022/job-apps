@@ -8,9 +8,11 @@ import {
   ArrowRight,
   Briefcase,
   Target,
+  X,
+  Loader,
 } from 'lucide-react';
-import { getSearchScope, generateSearchScopeSuggestions } from '../api';
-import type { SearchScopeData, SearchScopeSuggestions } from '../types';
+import { getSearchScope, generateSearchScopeSuggestions, updateProfile } from '../api';
+import type { SearchScopeData, SearchScopeSuggestions, ProfileUpdate } from '../types';
 
 // ── Seniority bar ──────────────────────────────────────────────────────────────
 
@@ -203,6 +205,8 @@ export default function SearchScope() {
   const [data, setData] = useState<SearchScopeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [targetRoles, setTargetRoles] = useState<string[]>([]);
+  const [savingRole, setSavingRole] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -210,11 +214,24 @@ export default function SearchScope() {
     setLoading(true);
     setError(null);
     try {
-      setData(await getSearchScope());
+      const result = await getSearchScope();
+      setData(result);
+      setTargetRoles(result.target_roles ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load search scope data');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleRemoveTargetRole(role: string) {
+    const next = targetRoles.filter(r => r !== role);
+    setSavingRole(true);
+    try {
+      await updateProfile({ target_roles: JSON.stringify(next) } as ProfileUpdate);
+      setTargetRoles(next);
+    } finally {
+      setSavingRole(false);
     }
   }
 
@@ -284,7 +301,7 @@ export default function SearchScope() {
           </Link>
         </div>
         <p className="text-xs text-slate-400 mb-3">Roles you have explicitly declared you are targeting — drives AI suggestions</p>
-        {data.target_roles.length === 0 ? (
+        {targetRoles.length === 0 ? (
           <p className="text-xs text-slate-400 italic">
             No target roles set.{' '}
             <Link to="/profile" className="text-indigo-600 dark:text-indigo-400 hover:underline">Add them in your Profile</Link>
@@ -292,13 +309,21 @@ export default function SearchScope() {
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {data.target_roles.map((role) => (
+            {targetRoles.map((role) => (
               <span
                 key={role}
-                className="flex items-center gap-1 px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200 text-sm rounded-full"
+                className="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200 text-sm rounded-full"
               >
                 <Target className="w-3 h-3 text-indigo-400" />
                 {role}
+                <button
+                  onClick={() => handleRemoveTargetRole(role)}
+                  disabled={savingRole}
+                  className="ml-0.5 p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-700 text-indigo-500 dark:text-indigo-400 disabled:opacity-40"
+                  aria-label={`Remove ${role}`}
+                >
+                  {savingRole ? <Loader className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                </button>
               </span>
             ))}
           </div>
