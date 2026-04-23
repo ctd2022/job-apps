@@ -10,6 +10,8 @@ import {
   Target,
   X,
   Loader,
+  Plus,
+  Check,
 } from 'lucide-react';
 import { getSearchScope, generateSearchScopeSuggestions, updateProfile } from '../api';
 import type { SearchScopeData, SearchScopeSuggestions, ProfileUpdate } from '../types';
@@ -235,6 +237,21 @@ export default function SearchScope() {
     }
   }
 
+  async function handlePromoteToTarget(role: string) {
+    if (targetRoles.includes(role)) return;
+    const prev = targetRoles;
+    const next = [...targetRoles, role];
+    setTargetRoles(next);
+    setSavingRole(true);
+    try {
+      await updateProfile({ target_roles: JSON.stringify(next) } as ProfileUpdate);
+    } catch {
+      setTargetRoles(prev);
+    } finally {
+      setSavingRole(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-40">
@@ -335,17 +352,38 @@ export default function SearchScope() {
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Role Types in Your Corpus</h3>
         <p className="text-xs text-slate-400 mb-3">All jobs you have added, grouped by title</p>
         <div className="flex flex-wrap gap-2">
-          {data.role_distribution.map((r) => (
-            <span
-              key={r.title}
-              className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm rounded-full"
-            >
-              {r.title}
-              <span className="text-xs bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-full px-1.5 py-0.5 font-mono">
-                {r.count}
+          {data.role_distribution.map((r) => {
+            const isTarget = targetRoles.includes(r.title);
+            return (
+              <span
+                key={r.title}
+                className={`flex items-center gap-1.5 pl-3 pr-1 py-1 text-sm rounded-full ${
+                  isTarget
+                    ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200'
+                    : 'bg-slate-100 dark:bg-slate-700 border border-transparent text-slate-700 dark:text-slate-200'
+                }`}
+              >
+                {r.title}
+                <span className="text-xs bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-full px-1.5 py-0.5 font-mono">
+                  {r.count}
+                </span>
+                {isTarget ? (
+                  <span className="ml-0.5 p-0.5 text-indigo-400 dark:text-indigo-500">
+                    <Check className="w-3 h-3" />
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handlePromoteToTarget(r.title)}
+                    disabled={savingRole}
+                    className="ml-0.5 p-0.5 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-800 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 disabled:opacity-40"
+                    aria-label={`Add ${r.title} to target roles`}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                )}
               </span>
-            </span>
-          ))}
+            );
+          })}
         </div>
       </div>
 
