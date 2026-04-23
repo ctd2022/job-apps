@@ -1839,7 +1839,7 @@ class ProfileStore:
 
     def update_profile(self, user_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         """Update personal info fields. Returns updated profile."""
-        allowed = {"full_name", "email", "phone", "location", "linkedin", "website", "headline", "cert_grouping_mode", "summary", "section_config"}
+        allowed = {"full_name", "email", "phone", "location", "linkedin", "website", "headline", "cert_grouping_mode", "summary", "section_config", "target_roles"}
         url_fields = {"linkedin", "website"}
         updates = {
             k: (v.replace(" ", "") if k in url_fields and isinstance(v, str) else v)
