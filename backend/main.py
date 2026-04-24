@@ -297,6 +297,8 @@ class ProfileUpdate(BaseModel):
     summary: Optional[str] = None
     section_config: Optional[str] = None
     target_roles: Optional[str] = None  # JSON array string (Idea #673)
+    languages: Optional[str] = None  # JSON array of {language, proficiency} (Idea #727)
+    nationality: Optional[str] = None  # PII — masked in logs/exports (Idea #727)
 
 
 class JobHistoryCreate(BaseModel):

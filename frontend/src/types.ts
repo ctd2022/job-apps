@@ -515,6 +515,8 @@ export interface CandidateProfile {
   summary: string | null;
   section_config: string | null;
   target_roles: string | null;  // JSON array string (Idea #673)
+  languages: string | null;  // JSON array of {language, proficiency} (Idea #727)
+  nationality: string | null;  // PII — masked in logs/exports (Idea #727)
   created_at: string;
   updated_at: string;
 }

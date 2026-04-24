@@ -402,6 +402,15 @@ def init_db():
         cursor.execute("ALTER TABLE candidate_profiles ADD COLUMN target_roles TEXT DEFAULT '[]'")
     except sqlite3.OperationalError:
         pass
+    # Migration: languages and nationality (Idea #727)
+    try:
+        cursor.execute("ALTER TABLE candidate_profiles ADD COLUMN languages TEXT DEFAULT '[]'")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE candidate_profiles ADD COLUMN nationality TEXT")
+    except sqlite3.OperationalError:
+        pass
 
     # Migration: JD red-flag analysis column (Idea #32)
     try:
@@ -1839,7 +1848,7 @@ class ProfileStore:
 
     def update_profile(self, user_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         """Update personal info fields. Returns updated profile."""
-        allowed = {"full_name", "email", "phone", "location", "linkedin", "website", "headline", "cert_grouping_mode", "summary", "section_config", "target_roles"}
+        allowed = {"full_name", "email", "phone", "location", "linkedin", "website", "headline", "cert_grouping_mode", "summary", "section_config", "target_roles", "languages", "nationality"}
         url_fields = {"linkedin", "website"}
         updates = {
             k: (v.replace(" ", "") if k in url_fields and isinstance(v, str) else v)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, Loader2, ExternalLink, ChevronRight, Eye, EyeOff, Wand2, RefreshCw, Target } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Lock, X, Check, Loader, Loader2, ExternalLink, ChevronRight, Eye, EyeOff, Wand2, RefreshCw, Target, Globe } from 'lucide-react';
 import {
   getProfile,
   updateProfile,
@@ -757,6 +757,7 @@ function PersonalInfoSection({ profile, onSaved }: PersonalInfoSectionProps) {
         linkedin: profile.linkedin ?? '',
         website: profile.website ?? '',
         headline: profile.headline ?? '',
+        nationality: profile.nationality ?? '',
       });
     }
   }, [profile]);
@@ -833,6 +834,7 @@ function PersonalInfoSection({ profile, onSaved }: PersonalInfoSectionProps) {
         {field('Email', 'email', 'david@example.com', true)}
         {field('Phone', 'phone', '+44 7700 000000', true)}
         {field('Location', 'location', 'London, UK', true)}
+        {field('Nationality', 'nationality', 'British', true)}
         {field('LinkedIn', 'linkedin', 'linkedin.com/in/david', true)}
         {field('Website', 'website', 'davidsmith.dev', true)}
       </div>
@@ -2416,6 +2418,138 @@ function SectionConfigPanel({ config, onChange }: SectionConfigPanelProps) {
   );
 }
 
+// ─── Languages Section (Idea #727) ────────────────────────────────────────────
+
+const PROFICIENCY_LEVELS = ['Native', 'Fluent', 'Professional', 'Conversational', 'Basic'] as const;
+type Proficiency = typeof PROFICIENCY_LEVELS[number];
+
+const COMMON_LANGUAGES = [
+  'English', 'Mandarin Chinese', 'Hindi', 'Spanish', 'French', 'Arabic',
+  'Bengali', 'Portuguese', 'Russian', 'Urdu', 'Indonesian', 'German',
+  'Japanese', 'Swahili', 'Tamil', 'Turkish', 'Korean', 'Vietnamese',
+  'Italian', 'Filipino/Tagalog', 'Polish', 'Ukrainian', 'Romanian',
+  'Greek', 'Thai', 'Persian/Farsi', 'Gujarati', 'Punjabi', 'Dutch', 'Hebrew',
+];
+
+interface LanguageEntry {
+  language: string;
+  proficiency: Proficiency;
+}
+
+interface LanguagesSectionProps {
+  profile: ProfileType | null;
+  onSaved: (p: ProfileType) => void;
+}
+
+function LanguagesSection({ profile, onSaved }: LanguagesSectionProps) {
+  const parse = (): LanguageEntry[] => {
+    try { return JSON.parse(profile?.languages ?? '[]') as LanguageEntry[]; } catch { return []; }
+  };
+
+  const [entries, setEntries] = useState<LanguageEntry[]>(parse);
+  const [language, setLanguage] = useState('');
+  const [proficiency, setProficiency] = useState<Proficiency>('Fluent');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setEntries(parse()); }, [profile?.languages]);
+
+  async function save(next: LanguageEntry[]) {
+    setSaving(true);
+    try {
+      const updated = await updateProfile({ languages: JSON.stringify(next) } as ProfileUpdate);
+      setEntries(next);
+      onSaved(updated);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAdd() {
+    const lang = language.trim();
+    if (!lang) return;
+    if (entries.some(e => e.language.toLowerCase() === lang.toLowerCase())) return;
+    setLanguage('');
+    await save([...entries, { language: lang, proficiency }]);
+  }
+
+  async function handleRemove(lang: string) {
+    await save(entries.filter(e => e.language !== lang));
+  }
+
+  const proficiencyColor: Record<Proficiency, string> = {
+    Native:       'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200',
+    Fluent:       'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200',
+    Professional: 'bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700 text-violet-800 dark:text-violet-200',
+    Conversational:'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200',
+    Basic:        'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300',
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <Globe className="w-4 h-4 text-teal-500" />
+        <h2 className="font-semibold text-slate-800 dark:text-slate-100">Languages</h2>
+      </div>
+      <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
+        Spoken languages and proficiency level. Used in CV generation and role matching.
+      </p>
+
+      <div className="flex gap-2 mb-3">
+        <input
+          list="language-suggestions"
+          value={language}
+          onChange={e => setLanguage(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+          placeholder="Language"
+          className="flex-1 min-w-0 px-2.5 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+        />
+        <datalist id="language-suggestions">
+          {COMMON_LANGUAGES.map(l => <option key={l} value={l} />)}
+        </datalist>
+        <select
+          value={proficiency}
+          onChange={e => setProficiency(e.target.value as Proficiency)}
+          className="px-2.5 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+        >
+          {PROFICIENCY_LEVELS.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <button
+          onClick={handleAdd}
+          disabled={saving || !language.trim()}
+          className="flex items-center gap-1 text-xs bg-teal-600 text-white px-2.5 py-1.5 rounded hover:bg-teal-700 disabled:opacity-50"
+        >
+          {saving ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+          Add
+        </button>
+      </div>
+
+      {entries.length === 0 ? (
+        <p className="text-xs text-slate-400 italic">No languages added yet.</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {entries.map(entry => (
+            <span
+              key={entry.language}
+              className={`flex items-center gap-1.5 pl-2.5 pr-1 py-1 border text-sm rounded-full ${proficiencyColor[entry.proficiency]}`}
+            >
+              <span className="font-medium">{entry.language}</span>
+              <span className="text-xs opacity-70">· {entry.proficiency}</span>
+              <button
+                onClick={() => handleRemove(entry.language)}
+                disabled={saving}
+                className="ml-0.5 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-40"
+                aria-label={`Remove ${entry.language}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Target Roles Section (Idea #673) ─────────────────────────────────────────
 
 interface TargetRolesSectionProps {
@@ -2913,6 +3047,7 @@ export default function CandidateProfile() {
         {/* Right column: Target Roles + Summary + Work Experience + Education + Skills */}
         <div className="space-y-4">
           <TargetRolesSection profile={profile} onSaved={setProfile} />
+          <LanguagesSection profile={profile} onSaved={setProfile} />
           <SummarySection profile={profile} onSaved={setProfile} />
           {/* Work Experience */}
           <div ref={experienceSectionRef} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">

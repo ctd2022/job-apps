@@ -40,6 +40,7 @@ def scrub(
             ("email", "[CANDIDATE_EMAIL]"),
             ("phone", "[CANDIDATE_PHONE]"),
             ("location", "[CANDIDATE_LOCATION]"),
+            ("nationality", "[CANDIDATE_NATIONALITY]"),  # Idea #727
         ]
         for field_name, placeholder in personal_fields:
             value = profile.get(field_name)
